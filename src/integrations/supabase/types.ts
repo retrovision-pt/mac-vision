@@ -128,16 +128,19 @@ export type Database = {
       }
       mac_memberships: {
         Row: {
+          metadata: Json
           role: string
           store_id: string
           user_id: string
         }
         Insert: {
+          metadata?: Json
           role: string
           store_id: string
           user_id: string
         }
         Update: {
+          metadata?: Json
           role?: string
           store_id?: string
           user_id?: string
@@ -157,6 +160,7 @@ export type Database = {
           body: string
           created_at: string
           deleted_at: string | null
+          edited_at: string | null
           id: string
           recipient_id: string | null
           sender_id: string
@@ -167,6 +171,7 @@ export type Database = {
           body: string
           created_at?: string
           deleted_at?: string | null
+          edited_at?: string | null
           id?: string
           recipient_id?: string | null
           sender_id: string
@@ -177,6 +182,7 @@ export type Database = {
           body?: string
           created_at?: string
           deleted_at?: string | null
+          edited_at?: string | null
           id?: string
           recipient_id?: string | null
           sender_id?: string
@@ -255,16 +261,19 @@ export type Database = {
       mac_stores: {
         Row: {
           id: string
+          metadata: Json
           name: string
           wallet_id: string
         }
         Insert: {
           id: string
+          metadata?: Json
           name: string
           wallet_id: string
         }
         Update: {
           id?: string
+          metadata?: Json
           name?: string
           wallet_id?: string
         }
@@ -349,11 +358,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      mac_delete_document: {
+        Args: { k: string; w: string }
+        Returns: undefined
+      }
       mac_put_document: {
         Args: { k: string; r: number; s: string; v: Json; w: string }
         Returns: number
       }
       mac_reserve_bootstrap: { Args: { u: string }; Returns: undefined }
+      mac_save_registry: {
+        Args: { a: string; items: Json }
+        Returns: undefined
+      }
+      mac_set_preference: { Args: { k: string; v: Json }; Returns: undefined }
       mac_store_access: { Args: { s: string }; Returns: boolean }
       mac_wallet_access: { Args: { w: string }; Returns: boolean }
       mac_wallet_admin: { Args: { w: string }; Returns: boolean }

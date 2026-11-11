@@ -27,5 +27,5 @@ export function mergeChanges(base: any, local: any, remote: any): any {
     }
     return result;
   }
-  return local;
+  throw new Error('CONFLICT: o mesmo campo foi alterado noutra sessão; recarrega antes de guardar.');
 }

@@ -7,4 +7,10 @@ describe('MAC Vision Cloud rules', () => {
   it('preserves two simultaneous distinct sales without duplicating IDs', () => {
     expect(mergeChanges([], [{id:'sale-a'}], [{id:'sale-b'}])).toEqual([{id:'sale-b'},{id:'sale-a'}]);
   });
+  it('rejects competing changes to the same schedule instead of silently losing one',()=>{
+    expect(()=>mergeChanges({start:'09:00'},{start:'10:00'},{start:'11:00'})).toThrow('CONFLICT');
+  });
+  it('preserves an authorized deletion while retaining another new sale',()=>{
+    expect(mergeChanges([{id:'sale-a'}],[],[{id:'sale-a'},{id:'sale-b'}])).toEqual([{id:'sale-b'}]);
+  });
 });

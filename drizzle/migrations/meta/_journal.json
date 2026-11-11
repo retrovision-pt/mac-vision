@@ -36,6 +36,13 @@
       "when": 1794440661094,
       "tag": "0004_mac_chat_settings_and_presence",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794441007228,
+      "tag": "0005_mac_audit_atomic_registry_receipts",
+      "breakpoints": true
     }
   ]
 }

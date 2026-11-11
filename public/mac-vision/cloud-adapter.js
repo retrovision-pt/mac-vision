@@ -11,8 +11,10 @@ window.addEventListener('message',event=>{
  if(event.source!==parent||event.origin!==location.origin||event.data?.macVisionBridge!==1)return;
  const data=event.data;
  if(data.kind==='response'){const job=macRpcPending.get(data.id);if(!job)return;clearTimeout(job.timer);macRpcPending.delete(data.id);data.error?job.reject(Error(data.error)):job.resolve(data.result);}
- if(data.kind==='event'&&session&&!macStateDirty){void (async()=>{
-  if(data.event==='registry-changed'){macCloudDirectory=await macRPC('directory');shopRegistry=macCloudDirectory.stores;renderOptions();renderAccess();return;}
+ if(data.kind==='event'&&session){void (async()=>{
+  if(data.event==='preferences-changed'){const prefs=await macRPC('preferences');macVolatilePrefs.clear();for(const [k,v] of Object.entries(prefs||{}))macVolatilePrefs.set(k,v);return;}
+  if(data.event==='registry-changed'){macCloudDirectory=await macRPC('directory');shopRegistry=macCloudDirectory.stores;renderOptions();renderAccess();await window.rcLoadGlobalSettings?.();return;}
+  if(macStateDirty||saveTimer!==null)return;
   const next=await readKey('store:'+currentShopId);if(next){state=shape(next);render();}
  })().catch(console.warn);}
 });
@@ -26,10 +28,10 @@ readKey=async function(key){
 };
 writeKey=async function(key,value){
  if(key===REGISTRY_KEY){await macRPC('registry-save',{stores:value});macCloudDirectory=await macRPC('directory');return true;}
- if(key===MAC_PENDING_MANAGER_KEY||key===MAC_SETUP_WORKSPACE_KEY){macSessionDraft.set(key,structuredClone(value));return macRPC('write',{key,value});}
+ if(key===MAC_PENDING_MANAGER_KEY||key===MAC_SETUP_WORKSPACE_KEY){await macRPC('write',{key,value});macSessionDraft.set(key,structuredClone(value));return true;}
  return macRPC('write',{key,value});
 };
-deleteKey=async function(key){if(key===MAC_PENDING_MANAGER_KEY||key===MAC_SETUP_WORKSPACE_KEY){macSessionDraft.delete(key);return;}return macRPC('delete',{key});};
+deleteKey=async function(key){await macRPC('delete',{key});macSessionDraft.delete(key);return true;};
 readLegacyState=async()=>null;
 clearPreviousMacVisionDataOnce=async()=>{};
 resetMacStoresForFirstStartOnce=async()=>{};
@@ -56,7 +58,7 @@ makeUser=async function(name,role,password,employee=''){
 const macOriginalSubmitLogin=submitLogin;
 submitLogin=async function(event){
  event.preventDefault();const {shop,user}=selectedLoginAccount();if(!shop||!user)return authError('Escolhe acesso, utilizador e loja.');
- try{await macRPC('login',{id:user.id,password:document.getElementById('loginPassword').value});const access=Object.fromEntries(shopRegistry.filter(s=>s.users.some(u=>u.id===user.id)).map(s=>[s.id,user.id]));await loginToStore(shop,user,access,document.getElementById('loginRole').value);authError('');}catch(error){authError(error.message);}
+ try{await macRPC('login',{id:user.id,password:document.getElementById('loginPassword').value});macCloudDirectory=await macRPC('directory');shopRegistry=macCloudDirectory.stores;const privateShop=shopRegistry.find(s=>s.id===shop.id),privateUser=privateShop?.users.find(u=>u.id===user.id);if(!privateShop||!privateUser)throw Error('Acesso à loja não autorizado.');const access=Object.fromEntries(shopRegistry.filter(s=>s.users.some(u=>u.id===user.id)).map(s=>[s.id,user.id]));await loginToStore(privateShop,privateUser,access,document.getElementById('loginRole').value);authError('');}catch(error){authError(error.message);}
 };
 const macOriginalLogout=logout;
 logout=async function(){const result=await macOriginalLogout.apply(this,arguments);if(!session)await macRPC('logout');return result;};
@@ -81,10 +83,12 @@ finishAreaSetup=async function(){
 };
 
 const macVolatilePrefs=new Map();
+let macPrefQueue=Promise.resolve();
+function macQueuePreference(key,value){if(!session)return;macPrefQueue=macPrefQueue.catch(()=>{}).then(()=>macRPC('preference',{key:String(key),value}));void macPrefQueue.catch(error=>{setLocalStatus(false);macOriginalToast('Preferência não guardada na Cloud: '+error.message,true);});}
 Object.defineProperty(window,'localStorage',{value:{
  getItem:key=>macVolatilePrefs.get(String(key))??null,
- setItem(key,value){macVolatilePrefs.set(String(key),String(value));if(session)void macRPC('preference',{key:String(key),value:String(value)}).catch(console.warn);},
- removeItem(key){macVolatilePrefs.delete(String(key));},
+ setItem(key,value){macVolatilePrefs.set(String(key),String(value));macQueuePreference(key,String(value));},
+ removeItem(key){macVolatilePrefs.delete(String(key));macQueuePreference(key,null);},
  key:index=>[...macVolatilePrefs.keys()][index]??null,
  get length(){return macVolatilePrefs.size;}
 }});
@@ -103,3 +107,16 @@ resetUserPassword=async function(id,shopId=viewedAccessShop()?.id){
  const password=prompt('Nova password para '+user.name+' (mínimo 4 números):');if(password===null)return;
  try{await macRPC('password',{id,password,storeId:shopId});toast('Password alterada na Cloud.');}catch(error){toast(error.message,true);}
 };
+
+// A success message is never evidence of persistence until Cloud acknowledges it.
+const macOriginalToast=toast;
+toast=function(message,error=false){
+ if(!error&&session&&(macStateDirty||saveTimer!==null)&&/registad|atualizad|guardad|eliminad|removid|restaurad|importad|conclu[ií]d|partilhad|retirada/i.test(String(message))){
+  void macFlushChangesForExit().then(ok=>{if(ok)macOriginalToast(message,false);else macOriginalToast('Não guardado na Cloud. Alterações pendentes nesta sessão; não feches o navegador.',true);});return;
+ }
+ return macOriginalToast(message,error);
+};
+setLocalStatus=function(ok){localStatus=ok?'ok':'nok';const led=document.getElementById('localSyncIndicator'),label=document.getElementById('localSyncLabel');if(!led||!label)return;led.classList.toggle('bad',!ok);led.classList.toggle('ok',!!ok);led.title=ok?'Cloud: gravação confirmada':'Cloud: alterações não guardadas';label.textContent=led.title;};
+const macOriginalMarkUnsaved=macMarkUnsaved;
+macMarkUnsaved=function(){macOriginalMarkUnsaved();setLocalStatus(false);};
+window.addEventListener('beforeunload',event=>{if(macStateDirty||saveTimer!==null){event.preventDefault();event.returnValue='';}});

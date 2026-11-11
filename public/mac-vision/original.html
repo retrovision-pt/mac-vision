@@ -2587,7 +2587,7 @@ let macLastSaveFailureAt=0;
 function macMarkUnsaved(){macStateDirty=true;macStateRevision++;}
 async function persist(){
  if(!currentShopId||!session)return true;
- const shopId=currentShopId,snapshot=state,revision=macStateRevision;
+ const shopId=currentShopId,snapshot=structuredClone(state),revision=macStateRevision;
  // A escrita seguinte começa apenas depois de a anterior terminar.
  const task=macSaveQueue.catch(()=>false).then(async()=>{
   try{
@@ -2603,7 +2603,7 @@ async function persist(){
    const quota=err?.name==='QuotaExceededError'||/quota|storage.*full|space|capacidade|espaço/i.test(String(err?.message||''));
    const message=quota
     ?'Armazenamento do navegador cheio. Exporta um backup JSON antes de sair; os dados ainda não foram guardados.'
-    :'Não foi possível guardar os dados. Exporta um backup JSON antes de sair.';
+    :'Não guardado na Cloud. Mantém esta sessão aberta e volta a guardar quando a ligação regressar.';
    if(Date.now()-macLastSaveFailureAt>8000){macLastSaveFailureAt=Date.now();toast(message,true)}
    return false;
   }
@@ -3507,7 +3507,7 @@ async function submitNewStore(e){
   if($('newStoreManagerPhoto').files?.[0])user.photo=await compressPhoto($('newStoreManagerPhoto').files[0]);
   user.cargo ||= 'Gestor';
   const newShop={id,name,excelCode:'',users:[user]};
-  shopRegistry.push(newShop);await writeKey('store:'+id,shape(blankStoreData(newShop)));await saveRegistry();
+  shopRegistry.push(newShop);await saveRegistry();await writeKey('store:'+id,shape(blankStoreData(newShop)));
   if(sameManager)session.managerAccess[id]=user.id;
   e.target.reset();renderAccess();renderOptions();renderEmployeeShopSelector();
   toast('Loja '+name+' criada.'+(sameManager?' Podes selecioná-la no topo.':' Termina a sessão para entrar com o gestor da nova loja.'));
@@ -4017,7 +4017,7 @@ async function updateLocalHealth(){
   if(currentShopId!==shopId||!session)return;
   // Releitura local, apenas fora de formulários e sem gravações pendentes.
   // Nunca comunica com o Teams nem substitui alterações por guardar.
-  if(saveTimer===null&&!['sales','config'].includes(page)){
+  if(saveTimer===null&&!macStateDirty&&!['sales','config'].includes(page)){
    const saved=await readKey('store:'+shopId);
    if(saved&&currentShopId===shopId&&session){
     const keys=['sales','tickets','schedules','employees','imports'];
@@ -4028,7 +4028,7 @@ async function updateLocalHealth(){
     }
    }
   }
-  setLocalStatus(true);
+  setLocalStatus(!macStateDirty);
   if(isCollaborator()&&state.selectedDate!==localTodayIso()){lockCollaboratorDate();updateDateView()}
   if(page==='dashboard'){renderMetrics();renderDashboard()}
   if(page==='ios')renderIOS();
@@ -4886,7 +4886,7 @@ async function start(){
     if(!master)return toast('A conta administradora não está disponível.',true);
     try{
      const id='loja-'+randomHex(8),st={id,name,excelCode:'',users:[{...master}]};
-     shopRegistry.push(st);await writeKey('store:'+id,shape(blankStoreData(st)));await saveRegistry();
+     shopRegistry.push(st);await saveRegistry();await writeKey('store:'+id,shape(blankStoreData(st)));
      $id('newStoreForm').reset();dialog.close();renderAccess();renderOptions();
      toast('Loja '+name+' criada. Podes associar um Gestor de Loja posteriormente.');
     }catch(err){toast('Falha ao criar loja: '+err.message,true)}
@@ -4897,7 +4897,7 @@ async function start(){
    if(shopRegistry.some(x=>norm(x.name)===norm(name)))return toast('Já existe uma loja com esse nome.',true);
    const user=shopRegistry.flatMap(x=>x.users).find(x=>x.id===managerId&&x.role==='gestor');if(!user)return toast('Seleciona um gestor disponível.',true);
    const id='loja-'+randomHex(8),st={id,name,excelCode:'',users:[{...user}]};
-   shopRegistry.push(st);await writeKey('store:'+id,shape(blankStoreData(st)));await saveRegistry();
+   shopRegistry.push(st);await saveRegistry();await writeKey('store:'+id,shape(blankStoreData(st)));
    if(session?.role==='gestor'&&norm(user.name)===norm(session.name))session.managerAccess[id]=user.id;
    $id('newStoreForm').reset();dialog.close();renderAccess();renderOptions();toast('Loja '+name+' criada com gestor associado.');
   };
@@ -9001,7 +9001,7 @@ function macRenderManagerStores(){
   }
   function visibleChatMessages(){
     if(!cloudReady || !cloudUser)return [];
-    if(chatRecipient===null) return cloudMessages.filter(m=>!m.recipient_id&&m.store_id===chatStoreId());
+    if(chatRecipient===null) return cloudMessages.filter(m=>!m.deleted_at&&!m.recipient_id&&m.store_id===chatStoreId());
     const store=chatStoreFor(chatRecipient);
     return cloudMessages.filter(m=>!m.deleted_at&&(
       m.sender_id===cloudUser.id&&m.recipient_id===chatRecipient ||
@@ -9043,7 +9043,7 @@ function macRenderManagerStores(){
     if(history)history.innerHTML=cloudReady ? (current.length?current.map(m=>{
       const name=memberName(m.sender_id),mine=m.sender_id===cloudUser.id;
       const time=new Date(m.created_at).toLocaleString('pt-PT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
-      const actions=chatManager()&&chatEditMode?'<span class="mac-chat-message-actions"><button type="button" data-cloud-edit="'+escChat(m.id)+'">✏️</button><button type="button" data-cloud-delete="'+escChat(m.id)+'">🗑️</button></span>':'';
+      const actions=mine&&chatEditMode?'<span class="mac-chat-message-actions"><button type="button" data-cloud-edit="'+escChat(m.id)+'">✏️</button><button type="button" data-cloud-delete="'+escChat(m.id)+'">🗑️</button></span>':'';
       const status=mine&&m.recipient_id?(cloudReceipts[m.id]?.includes(m.recipient_id)?' · ✓✓ Lida':' · ✓ Enviada'):'';
       return '<div class="mac-chat-message '+(mine?'own':'')+'"><div class="mac-chat-message-head"><span class="mac-chat-message-avatar-fallback">'+escChat(name.slice(0,1))+'</span><strong>'+escChat(name)+'</strong>'+actions+'</div><div class="mac-chat-message-body">'+escChat(m.body)+'</div><small>'+time+(m.edited_at?' · editada':'')+status+'</small></div>';
     }).join(''):'<div class="smalltext muted">Ainda não existem mensagens nesta conversa.</div>'):'<div class="smalltext muted">Não é possível consultar mensagens sem ligação à cloud.</div>';
@@ -11490,7 +11490,7 @@ body.mac-import-multishop #macImportsStoreFilter{display:none!important}
    request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error||Error('Falha ao abrir a biblioteca de fontes.'));});return dbPromise;}
  async function fontRecords(){const items=await readKey('custom-fonts')||[];return items.map(x=>({...x,data:Uint8Array.from(atob(x.data),c=>c.charCodeAt(0)).buffer}));}
  async function saveFontRecord(item){const items=await readKey('custom-fonts')||[];const bytes=new Uint8Array(item.data);let text='';for(let i=0;i<bytes.length;i+=8192)text+=String.fromCharCode(...bytes.subarray(i,i+8192));await writeKey('custom-fonts',[...items.filter(x=>x.id!==item.id),{...item,data:btoa(text)}]);}
- async function deleteFontRecord(id){throw Error('A eliminação requer autorização específica.');}
+ async function deleteFontRecord(id){const items=await readKey('custom-fonts')||[];await writeKey('custom-fonts',items.filter(x=>x.id!==id));}
  function safeId(str){return String(str).replace(/[^A-Za-z0-9_-]/g,'_').slice(0,60)}
  async function installFont(item){const family='MAC_Font_'+safeId(item.id);if(!fontItems.has(item.id)){
   const face=new FontFace(family,item.data);await face.load();document.fonts.add(face);fontItems.set(item.id,{...item,family});}
