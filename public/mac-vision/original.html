@@ -2672,7 +2672,7 @@ async function resetMacStoresForFirstStartOnce(){
 }
 async function restorePendingFirstManager(){
  const value=await readKey(MAC_PENDING_MANAGER_KEY);
- pendingSetupManager=value?.id&&value?.hash&&value?.salt&&value?.role==='gestor'&&value?.isAreaMaster===true?value:null;
+ pendingSetupManager=value?.id&&value?.role==='gestor'&&value?.isAreaMaster===true?value:null;
  const draft=await readKey(MAC_SETUP_WORKSPACE_KEY);
  pendingSetupWorkspace=draft&&Array.isArray(draft.managers)&&Array.isArray(draft.stores)?draft:{managers:[],stores:[]};
 }
@@ -3449,7 +3449,7 @@ async function submitUserProfileEdit(e){
   const formerEmployee=oldData.employees.find(x=>norm(x.name)===norm(u.employee||u.name));
   const avatarFile=$('editUserPhoto').files?.[0],removePhoto=$('editUserRemovePhoto').checked;
   const newPhoto=avatarFile?await compressPhoto(avatarFile):(removePhoto?'':undefined);
-  if(password){u.salt=randomHex();u.hash=await hashPassword(password,u.salt);u.pbkdf2Iterations=MAC_PASSWORD_ITERATIONS}
+  if(password){await macRPC('password',{id:u.id,password,storeId:oldShopId});}
   if(newPhoto!==undefined)u.photo=newPhoto;
   const formerRole=u.role;
   // Mover apenas a conta; manter histórico comercial e MOVIIK da loja original intactos.
@@ -10403,38 +10403,8 @@ window.macRefreshWalletLabel=function(){const el=document.getElementById('profil
   resetInput.value='';resetConfirm.disabled=true;resetError.hidden=true;
   resetDialog.showModal();resetInput.focus();
  },true);
- async function clearOwnedStorage(){
-  // Esta instalação HTML usa IndexedDB para contas, lojas, vendas, horários e senhas.
-  if(typeof db!=='undefined'&&db){
-   await new Promise((resolve,reject)=>{
-    const tx=db.transaction('storage','readwrite');tx.objectStore('storage').clear();
-    tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||new Error('IndexedDB indisponível'));
-    tx.onabort=()=>reject(tx.error||new Error('Transação interrompida'));
-   });
-  }
-  // Anexos MOVIIK são guardados numa segunda base independente.
-  if(window.indexedDB){
-   const attachments=await new Promise((resolve,reject)=>{
-    const request=indexedDB.open('rc-clean-install-20261110-import-files-v1',1);
-    request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains('attachments'))request.result.createObjectStore('attachments')};
-    request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);
-   });
-   try{
-    if(attachments.objectStoreNames.contains('attachments'))await new Promise((resolve,reject)=>{
-     const tx=attachments.transaction('attachments','readwrite');tx.objectStore('attachments').clear();
-     tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error('Falha ao limpar anexos'));
-     tx.onabort=()=>reject(tx.error||new Error('Falha ao limpar anexos'));
-    });
-   }finally{attachments.close();}
-  }
-  const remove=[];
-  for(let i=0;i<localStorage.length;i++){
-   const key=localStorage.key(i);
-   if(key&&key.startsWith('rc-clean-install-20261110'))remove.push(key);
-  }
-  for(const key of remove)localStorage.removeItem(key);
-  for(const key of Object.keys(sessionStorage))if(key.startsWith('rc-clean-install-20261110'))sessionStorage.removeItem(key);
- }
+ async function clearOwnedStorage(){throw Error('A eliminação Cloud requer autorização específica. Nenhum dado foi apagado.');}
+
  resetForm?.addEventListener('submit',async event=>{
   event.preventDefault();
   if(clearing||!canReset())return showError('A tua sessão já não permite executar esta operação.');
@@ -11518,9 +11488,9 @@ body.mac-import-multishop #macImportsStoreFilter{display:none!important}
   if(!dbPromise)dbPromise=new Promise((resolve,reject)=>{const request=indexedDB.open('mac-vision-custom-fonts-v1',1);
    request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains('fonts'))request.result.createObjectStore('fonts',{keyPath:'id'})};
    request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error||Error('Falha ao abrir a biblioteca de fontes.'));});return dbPromise;}
- async function fontRecords(){const db=await openDB();return new Promise((resolve,reject)=>{const tx=db.transaction('fonts','readonly'),req=tx.objectStore('fonts').getAll();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error);});}
- async function saveFontRecord(item){const db=await openDB();return new Promise((resolve,reject)=>{const tx=db.transaction('fonts','readwrite');tx.objectStore('fonts').put(item);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}
- async function deleteFontRecord(id){const db=await openDB();return new Promise((resolve,reject)=>{const tx=db.transaction('fonts','readwrite');tx.objectStore('fonts').delete(id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}
+ async function fontRecords(){const items=await readKey('custom-fonts')||[];return items.map(x=>({...x,data:Uint8Array.from(atob(x.data),c=>c.charCodeAt(0)).buffer}));}
+ async function saveFontRecord(item){const items=await readKey('custom-fonts')||[];const bytes=new Uint8Array(item.data);let text='';for(let i=0;i<bytes.length;i+=8192)text+=String.fromCharCode(...bytes.subarray(i,i+8192));await writeKey('custom-fonts',[...items.filter(x=>x.id!==item.id),{...item,data:btoa(text)}]);}
+ async function deleteFontRecord(id){throw Error('A eliminação requer autorização específica.');}
  function safeId(str){return String(str).replace(/[^A-Za-z0-9_-]/g,'_').slice(0,60)}
  async function installFont(item){const family='MAC_Font_'+safeId(item.id);if(!fontItems.has(item.id)){
   const face=new FontFace(family,item.data);await face.load();document.fonts.add(face);fontItems.set(item.id,{...item,family});}

@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { macBootstrap, macCreateAccount, macDirectory, macSaveRegistry } from './mac.functions';
+import { macBootstrap, macCreateAccount, macDirectory, macSaveRegistry, macUpdatePassword } from './mac.functions';
 import { loginAddress, mergeChanges } from './mac-rules';
 
 export function mountMacBridge(frame: HTMLIFrameElement) {
@@ -25,7 +25,8 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
     const base=cache.get(key)||{value:null,revision:0};
     let next=value,rev=base.revision;
     for(let i=0;i<5;i++){
-      const result=await supabase.rpc('mac_put_document',{w:walletId,k:key,s:key.startsWith('store:')?key.slice(6):key.startsWith('status:')?key.slice(7):'',v:next,r:rev});
+      const storeId=key.startsWith('store:')?key.slice(6):key.startsWith('status:')?key.slice(7):key.startsWith('attachment:')?value.storeId||'':key.includes('audit-v1:')?key.split('audit-v1:')[1]||'':'';
+      const result=await supabase.rpc('mac_put_document',{w:walletId,k:key,s:storeId,v:next,r:rev});
       if(!result.error){cache.set(key,{value:structuredClone(next),revision:result.data});return true;}
       if(!result.error.message.includes('CONFLICT'))throw Error(result.error.message);
       const remote=await read(key);rev=cache.get(key)?.revision||0;next=mergeChanges(base.value,value,remote);
@@ -47,7 +48,12 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
     }
     if(name==='logout'){await supabase.auth.signOut();walletId='';cache.clear();return true;}
     if(name==='account')return macCreateAccount({data:p});
+    if(name==='password')return macUpdatePassword({data:p});
     if(name==='registry-save')return macSaveRegistry({data:{stores:p.stores}});
+    if(name==='read'&&p.key==='rc-clean-install-20261110-app-global-settings-v1'){
+      const me=await identity();const w=await supabase.from('mac_wallets').select('name,app_name').eq('id',me.wallet_id).single();
+      return w.data?{appName:w.data.app_name,carteira:w.data.name}:null;
+    }
     if(name==='read')return read(p.key);
     if(name==='write')return write(p.key,p.value);
     if(name==='delete')throw Error('A eliminação Cloud requer autorização específica; nenhum dado foi apagado.');
@@ -65,13 +71,16 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
     if(name==='hello'){
       const members=await supabase.from('mac_memberships').select('*');
       const accounts=await supabase.from('mac_accounts').select('id,name');
-      return {user:{id:me.id},members:(members.data||[]).map(m=>({...m,display_name:accounts.data?.find(a=>a.id===m.user_id)?.name||'',active:true})),settings:{}};
+      const settings=await supabase.from('mac_chat_settings').select('*');
+      return {user:{id:me.id},members:(members.data||[]).map(m=>({...m,display_name:accounts.data?.find(a=>a.id===m.user_id)?.name||'',active:true})),settings:Object.fromEntries((settings.data||[]).map(s=>[s.store_id,s.enabled]))};
     }
     if(name==='load'){
-      const messages=await supabase.from('mac_messages').select('*').eq('wallet_id',walletId).order('created_at').limit(1000);
+      const messages=await supabase.from('mac_messages').select('*').eq('wallet_id',walletId).order('created_at',{ascending:false}).limit(1000);
       if(messages.error)throw Error(messages.error.message);
       const reads=await supabase.from('mac_reads').select('message_id');
-      return {messages:messages.data,readIds:reads.data?.map(r=>r.message_id)||[],receipts:{},presence:{},settings:{}};
+      const presence=await supabase.from('mac_presence').select('*');
+      const settings=await supabase.from('mac_chat_settings').select('*');
+      return {messages:[...messages.data].reverse(),readIds:reads.data?.map(r=>r.message_id)||[],receipts:{},presence:Object.fromEntries((presence.data||[]).map(u=>[u.user_id,u.last_seen])),settings:Object.fromEntries((settings.data||[]).map(s=>[s.store_id,s.enabled]))};
     }
     if(name==='send'){
       const result=await supabase.from('mac_messages').insert({wallet_id:walletId,store_id:p.storeId,sender_id:me.id,recipient_id:p.recipientId||null,body:String(p.body).slice(0,1000)});
@@ -81,7 +90,12 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
       const result=await supabase.from('mac_reads').upsert((p.ids||[]).map((id:string)=>({message_id:id,user_id:me.id})));
       if(result.error)throw Error(result.error.message);return true;
     }
-    if(name==='presence')return true;
+    if(name==='presence'){const r=await supabase.from('mac_presence').upsert({user_id:me.id,wallet_id:me.wallet_id,last_seen:new Date().toISOString()});if(r.error)throw Error(r.error.message);return true;}
+    if(name==='set_store_enabled'){const r=await supabase.from('mac_chat_settings').upsert({store_id:p.storeId,enabled:!!p.enabled});if(r.error)throw Error(r.error.message);return true;}
+    if(name==='moderate'){
+      const r=await supabase.from('mac_messages').update(p.body===null?{deleted_at:new Date().toISOString()}:{body:String(p.body).slice(0,1000)}).eq('id',p.messageId).eq('sender_id',me.id).select('id');
+      if(r.error||!r.data?.length)throw Error('Só podes editar as tuas mensagens.');return true;
+    }
     throw Error('Esta operação Cloud ainda não está disponível; nenhum dado foi alterado.');
   }
   async function listener(event:MessageEvent){
@@ -92,6 +106,6 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
     catch(error){send({...marker,kind:'response',id:d.id,error:error instanceof Error?error.message:'Erro Cloud'});}
   }
   window.addEventListener('message',listener);
-  const channel=supabase.channel(`mac-${crypto.randomUUID()}`).on('postgres_changes',{event:'*',schema:'public',table:'mac_documents'},()=>send({macVisionBridge:1,kind:'event',event:'data-changed'})).on('postgres_changes',{event:'*',schema:'public',table:'mac_messages'},()=>send({macVisionChatBridge:1,kind:'event',event:'messages-changed'})).subscribe();
+  const channel=supabase.channel(`mac-${crypto.randomUUID()}`).on('postgres_changes',{event:'*',schema:'public',table:'mac_documents'},()=>send({macVisionBridge:1,kind:'event',event:'data-changed'})).on('postgres_changes',{event:'*',schema:'public',table:'mac_messages'},()=>send({macVisionChatBridge:1,kind:'event',event:'messages-changed'})).on('postgres_changes',{event:'*',schema:'public',table:'mac_stores'},()=>send({macVisionBridge:1,kind:'event',event:'registry-changed'})).on('postgres_changes',{event:'*',schema:'public',table:'mac_memberships'},()=>send({macVisionBridge:1,kind:'event',event:'registry-changed'})).on('postgres_changes',{event:'*',schema:'public',table:'mac_chat_settings'},()=>send({macVisionChatBridge:1,kind:'event',event:'messages-changed'})).on('postgres_changes',{event:'*',schema:'public',table:'mac_presence'},()=>send({macVisionChatBridge:1,kind:'event',event:'presence-changed'})).subscribe();
   return ()=>{window.removeEventListener('message',listener);void supabase.removeChannel(channel);};
 }

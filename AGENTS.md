@@ -33,4 +33,6 @@ use the editor.
 
 - Serve the uploaded standalone document in a full-viewport same-origin iframe; the host must not reconstruct or restyle its UI because the document owns the existing application behavior and design.
 - Keep Cloud profile fields separate from protected role assignments; user-editable profile data must never grant access.
-- Track imported capabilities and verification in the migration ledger; missing browser data exports must remain explicit blockers rather than be replaced with invented accounts or records.
+- Track capability verification in the migration ledger; fresh installations never import browser records, and disposable verification data is removed only with explicit authorization.
+- Use a same-origin message bridge and versioned Cloud documents for the original script; optimistic revisions and three-way merges preserve concurrent independent records without rebuilding forms.
+- Create and update authentication credentials only through verified server handlers; synthetic internal addresses support the original username selectors without exposing credentials in documents.

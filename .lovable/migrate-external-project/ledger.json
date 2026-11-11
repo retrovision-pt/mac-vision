@@ -1,18 +1,97 @@
 {
   "source": "Standalone MAC Vision HTML",
   "capabilities": [
-    {"capability":"Original interface and menus","source":"Uploaded HTML","outcome":"preserve","status":"verified","next_action":"Byte-identical HTML served in a full-viewport frame; desktop and mobile welcome screen visible without page errors; 13 original navigation entries present."},
-    {"capability":"Business schema","source":"IndexedDB storage, localStorage settings, attachment database","outcome":"migrate","status":"pending","next_action":"Map the original registry and store data using an existing application backup before connecting writes."},
-    {"capability":"Existing records","source":"User's original browser storage; not included in HTML","outcome":"migrate","status":"blocked","next_action":"User supplies an application backup/export from the browser containing the existing data; do not delete originals."},
-    {"capability":"Auth identities and profiles","source":"Local numeric-password accounts and profile fields","outcome":"migrate","status":"blocked","next_action":"Obtain existing user identities and verified email mapping from the backup; preserve names and profiles, require first-login email verification and password setup."},
-    {"capability":"Store permissions","source":"Original local role checks","outcome":"migrate","status":"pending","next_action":"Map ownership and membership to verified Cloud identities and enforce server-side policies."},
-    {"capability":"MOVIIK files","source":"Separate browser attachments database","outcome":"migrate","status":"blocked","next_action":"Obtain original files or exported attachment bytes; metadata alone does not include files."},
-    {"capability":"Realtime business changes","source":"Local BroadcastChannel notices","outcome":"migrate","status":"pending","next_action":"Connect Cloud transactions and authorized subscriptions after membership mapping."},
-    {"capability":"Chat Vision","source":"Existing same-origin parent message bridge","outcome":"migrate","status":"pending","next_action":"Implement authenticated hello/load/send/edit/read bridge backed by Cloud policies and Realtime; migrate available history."},
-    {"capability":"External providers","source":"SheetJS CDN script","outcome":"preserve","status":"pending","next_action":"Verify the existing spreadsheet import dependency without rebuilding the UI."},
-    {"capability":"Public endpoints, callbacks, webhooks and schedules","source":"Source inspection","outcome":"preserve","status":"not_detected","next_action":"No external endpoint or scheduled server job was detected."},
-    {"capability":"Secrets","source":"Source inspection","outcome":"preserve","status":"not_detected","next_action":"No provider credential was detected; keep generated Cloud secrets server-side."},
-    {"capability":"Cutover","source":"Explicit preservation instructions","outcome":"preserve","status":"blocked","next_action":"Do not publish without explicit user authorization."},
-    {"capability":"End-to-end verification","source":"Requested login, two-browser sales, MOVIIK, schedules, chat and persistence tests","outcome":"verify","status":"blocked","next_action":"Welcome screen verified on desktop and mobile; routing test passes and build reports OK. Remaining business checks require imported records and verified Cloud accounts; Cloud login is not implemented."}
-  ]
+    {
+      "capability": "Original interface and menus",
+      "source": "Uploaded HTML",
+      "outcome": "preserve",
+      "status": "verified",
+      "next_action": "Original standalone interface remains in same-origin frame; only integration code, Nome da Carteira and cross-store chat filtering changed. Desktop and mobile inspected."
+    },
+    {
+      "capability": "Business schema",
+      "source": "IndexedDB storage, localStorage settings, attachment database",
+      "outcome": "migrate",
+      "status": "implemented",
+      "next_action": "Cloud wallet, accounts, stores, membership, profiles, versioned business documents, messages, receipts and presence exist with RLS. No old data imported."
+    },
+    {
+      "capability": "Existing records",
+      "source": "User's original browser storage; not included in HTML",
+      "outcome": "migrate",
+      "status": "not_requested",
+      "next_action": "Do not import old browser records. Disposable TESTECLOUD verification records were removed with explicit approval."
+    },
+    {
+      "capability": "Auth identities and profiles",
+      "source": "Local numeric-password accounts and profile fields",
+      "outcome": "migrate",
+      "status": "partially_verified",
+      "next_action": "Original Cloud account creation/login, sale synchronization, MOVIIK import and attachment read, general and cross-store private messaging verified in separate browsers; remaining account lifecycle and full chat history operations require completion."
+    },
+    {
+      "capability": "Store permissions",
+      "source": "Original local role checks",
+      "outcome": "migrate",
+      "status": "partially_verified",
+      "next_action": "Server and RLS enforce wallet/store membership and protected role creation; collaborator restrictions on configuration and other user sales exist. Full adversarial end-to-end coverage outstanding."
+    },
+    {
+      "capability": "MOVIIK files",
+      "source": "Separate browser attachments database",
+      "outcome": "migrate",
+      "status": "partially_verified",
+      "next_action": "Original Cloud account creation/login, sale synchronization, MOVIIK import and attachment read, general and cross-store private messaging verified in separate browsers; remaining account lifecycle and full chat history operations require completion."
+    },
+    {
+      "capability": "Realtime business changes",
+      "source": "Local BroadcastChannel notices",
+      "outcome": "migrate",
+      "status": "partially_verified",
+      "next_action": "Original Cloud account creation/login, sale synchronization, MOVIIK import and attachment read, general and cross-store private messaging verified in separate browsers; remaining account lifecycle and full chat history operations require completion."
+    },
+    {
+      "capability": "Chat Vision",
+      "source": "Existing same-origin parent message bridge",
+      "outcome": "migrate",
+      "status": "partially_verified",
+      "next_action": "Original Cloud account creation/login, sale synchronization, MOVIIK import and attachment read, general and cross-store private messaging verified in separate browsers; remaining account lifecycle and full chat history operations require completion."
+    },
+    {
+      "capability": "External providers",
+      "source": "SheetJS CDN script",
+      "outcome": "preserve",
+      "status": "pending",
+      "next_action": "Verify the existing spreadsheet import dependency without rebuilding the UI."
+    },
+    {
+      "capability": "Public endpoints, callbacks, webhooks and schedules",
+      "source": "Source inspection",
+      "outcome": "preserve",
+      "status": "not_detected",
+      "next_action": "No external endpoint or scheduled server job was detected."
+    },
+    {
+      "capability": "Secrets",
+      "source": "Source inspection",
+      "outcome": "preserve",
+      "status": "not_detected",
+      "next_action": "No provider credential was detected; keep generated Cloud secrets server-side."
+    },
+    {
+      "capability": "Cutover",
+      "source": "Explicit preservation instructions",
+      "outcome": "preserve",
+      "status": "blocked",
+      "next_action": "Do not publish without explicit user authorization."
+    },
+    {
+      "capability": "End-to-end verification",
+      "source": "Requested login, two-browser sales, MOVIIK, schedules, chat and persistence tests",
+      "outcome": "verify",
+      "status": "partial",
+      "next_action": "Creation, login, sale synchronization, MOVIIK attachment, private cross-store chat and reopening verified. Schedule and real commission workbook checks, full account edits/deletions, paginated chat history and complete permission testing outstanding."
+    }
+  ],
+  "mode": "Fresh Cloud installation; user explicitly declined old records"
 }

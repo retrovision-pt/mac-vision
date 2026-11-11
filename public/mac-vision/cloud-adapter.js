@@ -11,7 +11,10 @@ window.addEventListener('message',event=>{
  if(event.source!==parent||event.origin!==location.origin||event.data?.macVisionBridge!==1)return;
  const data=event.data;
  if(data.kind==='response'){const job=macRpcPending.get(data.id);if(!job)return;clearTimeout(job.timer);macRpcPending.delete(data.id);data.error?job.reject(Error(data.error)):job.resolve(data.result);}
- if(data.kind==='event'&&session&&!macStateDirty){void (async()=>{const next=await readKey('store:'+currentShopId);if(next){state=shape(next);render();}})().catch(console.warn);}
+ if(data.kind==='event'&&session&&!macStateDirty){void (async()=>{
+  if(data.event==='registry-changed'){macCloudDirectory=await macRPC('directory');shopRegistry=macCloudDirectory.stores;renderOptions();renderAccess();return;}
+  const next=await readKey('store:'+currentShopId);if(next){state=shape(next);render();}
+ })().catch(console.warn);}
 });
 const macSessionDraft=new Map();
 let macCloudDirectory=null;
@@ -95,3 +98,8 @@ async function macSaveBlob(file,key){
  return macRPC('write',{key:'attachment:'+key,value:{data:btoa(text),name:file.name||'',type:file.type||'',storeId:currentShopId}});
 }
 async function macGetBlob(key){const item=await macRPC('read',{key:'attachment:'+key});if(!item)return null;return new File([Uint8Array.from(atob(item.data),c=>c.charCodeAt(0))],item.name,{type:item.type});}
+resetUserPassword=async function(id,shopId=viewedAccessShop()?.id){
+ const user=shopRegistry.find(s=>s.id===shopId)?.users.find(u=>u.id===id);if(!user)return;
+ const password=prompt('Nova password para '+user.name+' (mínimo 4 números):');if(password===null)return;
+ try{await macRPC('password',{id,password,storeId:shopId});toast('Password alterada na Cloud.');}catch(error){toast(error.message,true);}
+};

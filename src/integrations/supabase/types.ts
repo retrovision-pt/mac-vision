@@ -61,6 +61,29 @@ export type Database = {
         }
         Relationships: []
       }
+      mac_chat_settings: {
+        Row: {
+          enabled: boolean
+          store_id: string
+        }
+        Insert: {
+          enabled?: boolean
+          store_id: string
+        }
+        Update: {
+          enabled?: boolean
+          store_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mac_chat_settings_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: true
+            referencedRelation: "mac_stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mac_documents: {
         Row: {
           key: string
@@ -170,6 +193,32 @@ export type Database = {
           },
           {
             foreignKeyName: "mac_messages_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "mac_wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mac_presence: {
+        Row: {
+          last_seen: string
+          user_id: string
+          wallet_id: string
+        }
+        Insert: {
+          last_seen?: string
+          user_id: string
+          wallet_id: string
+        }
+        Update: {
+          last_seen?: string
+          user_id?: string
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mac_presence_wallet_id_fkey"
             columns: ["wallet_id"]
             isOneToOne: false
             referencedRelation: "mac_wallets"

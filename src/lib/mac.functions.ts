@@ -70,3 +70,16 @@ export const macSaveRegistry = createServerFn({method:'POST'}).middleware([requi
   }
   return true;
  });
+
+export const macUpdatePassword = createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
+ .inputValidator((input:{id:string;password:string;storeId:string})=>input)
+ .handler(async({data,context})=>{
+  const actor=checked(await context.supabase.from('mac_accounts').select('*').eq('id',context.userId).single()).data;
+  const target=checked(await context.supabase.from('mac_accounts').select('*').eq('id',data.id).single()).data;
+  const membership=checked(await context.supabase.from('mac_memberships').select('role').eq('store_id',data.storeId).eq('user_id',context.userId).maybeSingle()).data;
+  if(!actor||!target||actor.wallet_id!==target.wallet_id||!(actor.role==='admin'||(membership?.role==='gestor'&&target.role==='colaborador')))throw Error('Sem permissão para alterar esta password.');
+  if(!/^\d{4,}$/.test(data.password))throw Error('Password inválida.');
+  const {supabaseAdmin:admin}=await import('@/integrations/supabase/client.server');
+  checked(await admin.auth.admin.updateUserById(target.id,{password:data.password}));
+  return true;
+ });
