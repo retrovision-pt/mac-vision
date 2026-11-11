@@ -1,4 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useRef } from 'react';
+import { mountMacBridge } from '@/lib/mac-bridge';
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -15,10 +17,18 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
+  const frame = useRef<HTMLIFrameElement>(null);
+  useEffect(() => {
+    if (!frame.current) return;
+    const cleanup = mountMacBridge(frame.current);
+    frame.current.src = '/mac-vision/original.html';
+    return cleanup;
+  }, []);
   return (
     <iframe
+      ref={frame}
       className="mac-original-frame"
-      src="/mac-vision/original.html"
+      src="about:blank"
       title="MAC Vision"
       allow="fullscreen; clipboard-write"
     />

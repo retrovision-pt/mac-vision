@@ -14,6 +14,245 @@ export type Database = {
   }
   public: {
     Tables: {
+      mac_accounts: {
+        Row: {
+          id: string
+          name: string
+          role: string
+          username: string
+          wallet_id: string
+        }
+        Insert: {
+          id: string
+          name: string
+          role: string
+          username: string
+          wallet_id: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          role?: string
+          username?: string
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mac_accounts_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "mac_wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mac_bootstrap_lock: {
+        Row: {
+          owner_id: string
+          singleton: boolean
+        }
+        Insert: {
+          owner_id: string
+          singleton?: boolean
+        }
+        Update: {
+          owner_id?: string
+          singleton?: boolean
+        }
+        Relationships: []
+      }
+      mac_documents: {
+        Row: {
+          key: string
+          revision: number
+          store_id: string | null
+          updated_at: string
+          value: Json
+          wallet_id: string
+        }
+        Insert: {
+          key: string
+          revision?: number
+          store_id?: string | null
+          updated_at?: string
+          value: Json
+          wallet_id: string
+        }
+        Update: {
+          key?: string
+          revision?: number
+          store_id?: string | null
+          updated_at?: string
+          value?: Json
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mac_documents_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "mac_stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mac_documents_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "mac_wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mac_memberships: {
+        Row: {
+          role: string
+          store_id: string
+          user_id: string
+        }
+        Insert: {
+          role: string
+          store_id: string
+          user_id: string
+        }
+        Update: {
+          role?: string
+          store_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mac_memberships_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "mac_stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mac_messages: {
+        Row: {
+          body: string
+          created_at: string
+          deleted_at: string | null
+          id: string
+          recipient_id: string | null
+          sender_id: string
+          store_id: string
+          wallet_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          recipient_id?: string | null
+          sender_id: string
+          store_id: string
+          wallet_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          recipient_id?: string | null
+          sender_id?: string
+          store_id?: string
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mac_messages_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "mac_stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mac_messages_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "mac_wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mac_reads: {
+        Row: {
+          message_id: string
+          read_at: string
+          user_id: string
+        }
+        Insert: {
+          message_id: string
+          read_at?: string
+          user_id: string
+        }
+        Update: {
+          message_id?: string
+          read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mac_reads_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "mac_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mac_stores: {
+        Row: {
+          id: string
+          name: string
+          wallet_id: string
+        }
+        Insert: {
+          id: string
+          name: string
+          wallet_id: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mac_stores_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "mac_wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mac_wallets: {
+        Row: {
+          app_name: string
+          created_at: string
+          id: string
+          name: string
+          owner_id: string
+        }
+        Insert: {
+          app_name: string
+          created_at?: string
+          id?: string
+          name: string
+          owner_id: string
+        }
+        Update: {
+          app_name?: string
+          created_at?: string
+          id?: string
+          name?: string
+          owner_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -61,7 +300,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      mac_put_document: {
+        Args: { k: string; r: number; s: string; v: Json; w: string }
+        Returns: number
+      }
+      mac_reserve_bootstrap: { Args: { u: string }; Returns: undefined }
+      mac_store_access: { Args: { s: string }; Returns: boolean }
+      mac_wallet_access: { Args: { w: string }; Returns: boolean }
+      mac_wallet_admin: { Args: { w: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

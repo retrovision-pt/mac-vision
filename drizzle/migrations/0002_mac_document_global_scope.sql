@@ -1,0 +1,5 @@
+CREATE OR REPLACE FUNCTION public.mac_put_document(w uuid,k text,s text,v jsonb,r integer) RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$ DECLARE next_rev integer; actual_store text:=NULLIF(s,''); BEGIN
+ IF NOT public.mac_wallet_access(w) THEN RAISE EXCEPTION 'Sem acesso à carteira'; END IF;
+ IF actual_store IS NULL THEN IF NOT public.mac_wallet_admin(w) THEN RAISE EXCEPTION 'Apenas administrador'; END IF; ELSE IF NOT public.mac_store_access(actual_store) OR NOT EXISTS(SELECT 1 FROM public.mac_stores WHERE id=actual_store AND wallet_id=w) THEN RAISE EXCEPTION 'Sem acesso à loja'; END IF; END IF;
+ INSERT INTO public.mac_documents(wallet_id,key,store_id,value,revision) VALUES(w,k,actual_store,v,1) ON CONFLICT(wallet_id,key) DO UPDATE SET value=v, revision=mac_documents.revision+1,updated_at=now() WHERE mac_documents.revision=r RETURNING revision INTO next_rev;
+ IF next_rev IS NULL THEN RAISE EXCEPTION 'CONFLICT'; END IF; RETURN next_rev; END $$;

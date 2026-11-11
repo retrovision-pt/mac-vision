@@ -8,6 +8,27 @@
       "when": 1794439174381,
       "tag": "0000_mac_vision_profile_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794439711175,
+      "tag": "0001_mac_cloud_workspaces",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794439837071,
+      "tag": "0002_mac_document_global_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794440396085,
+      "tag": "0003_mac_enforce_business_permissions",
+      "breakpoints": true
     }
   ]
 }
