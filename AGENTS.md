@@ -28,3 +28,9 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## Original application boundary
+
+- Serve the uploaded standalone document in a full-viewport same-origin iframe; the host must not reconstruct or restyle its UI because the document owns the existing application behavior and design.
+- Keep Cloud profile fields separate from protected role assignments; user-editable profile data must never grant access.
+- Track imported capabilities and verification in the migration ledger; missing browser data exports must remain explicit blockers rather than be replaced with invented accounts or records.
