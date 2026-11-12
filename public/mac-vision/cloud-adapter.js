@@ -319,3 +319,23 @@ setTimeout(macCloudHealth,1500);
  boot();
  const lg=loginToStore;loginToStore=async function(){const r=await lg.apply(this,arguments);if(session){beat(true);void loadPresence();}return r;};
 })();
+// Chat Vision layout fix: single action bar, no permanent participants box, one open-conversations row, circular photos.
+(function(){
+ const st=document.createElement('style');
+ st.textContent=`html body #macChatPanel #macChatParticipants.mac-chat-participants{display:none!important}
+html body #macChatPanel .mac-chat-head .mac-chat-head-actions #macChatEditMode,html body #macChatPanel .mac-chat-head .mac-chat-head-actions #macChatDeleteConversation{display:none!important}
+html body #macChatPanel .mac-chat-head .mac-chat-head-actions .btn[hidden]{display:none!important}
+html body #macChatPanel .mac-chat-head{display:flex!important;flex-wrap:wrap!important;align-items:center!important;row-gap:4px!important}
+html body #macChatPanel .mac-chat-head>div:not(#mcvHead):not(.mac-chat-head-actions):not(#mcvTabs){display:none!important}
+html body #macChatPanel .mac-chat-head>#mcvHead{flex:1 1 100%!important;width:100%!important;order:0}
+html body #macChatPanel .mac-chat-head>.mac-chat-head-actions{order:1;flex:1 1 100%!important;width:100%!important;min-width:0!important;justify-content:flex-start!important;margin-left:0!important;flex-wrap:nowrap!important}
+html body #macChatPanel .mac-chat-head>.mac-chat-head-actions #macChatClose{margin-left:auto!important}
+html body #macChatPanel .mac-chat-head>#mcvTabs{order:2;flex:1 1 100%!important;width:100%!important;margin:0!important;display:flex;gap:4px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+html body #macChatPanel #mcvTabs::-webkit-scrollbar{display:none}html body #macChatPanel #mcvTabs:empty{display:none!important}
+html body #macChatPanel .mcv-tab{height:36px;padding:2px 6px 2px 2px}
+html body #macChatPanel .mcv-tab .employee-avatar,html body #macChatPanel .mcv-item .employee-avatar{width:30px!important;height:30px!important;min-width:30px!important;max-width:30px!important;min-height:30px!important;max-height:30px!important;aspect-ratio:1/1!important;border-radius:50%!important;overflow:hidden!important;flex-shrink:0!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;padding:0!important;font-size:11px!important}
+html body #macChatPanel .mcv-tab .employee-avatar img,html body #macChatPanel .mcv-item .employee-avatar img,html body #macChatPanel .mcv-tab img.employee-avatar,html body #macChatPanel .mcv-item img.employee-avatar{width:100%!important;height:100%!important;object-fit:cover!important;object-position:center!important;border-radius:50%!important;display:block!important}`;
+ document.head.appendChild(st);
+ const move=()=>{const head=document.querySelector('#macChatPanel .mac-chat-head'),t=document.getElementById('mcvTabs');if(!head||!t)return setTimeout(move,500);if(t.parentElement!==head)head.appendChild(t);const m=document.getElementById('mcvMenu');if(m)m.style.top=(head.offsetTop+head.offsetHeight)+'px';};
+ move();document.addEventListener('click',e=>{if(e.target.closest('#mcvPick,#macChatBubble'))setTimeout(move,0);},true);
+})();
