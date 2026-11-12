@@ -1,5 +1,12 @@
 # MAC Vision
 
+## Reposição total e instalação limpa (12/11)
+- [x] Cópia de segurança privada antes da eliminação; zero contas, carteiras, lojas, vendas, mensagens e passwords após o reset.
+- [x] Causas corrigidas: sincronização que apagava acessos, login que alterava passwords, autopreenchimento do navegador nos campos de criação, contas de carteiras sem GA no ecrã de entrada; mensagem de ligação privada removida.
+- [x] Configuração inicial termina só com lojas; GL e colaboradores adicionados depois pelos menus originais.
+- [x] Testado com dados temporários (apagados): GA, carteira em maiúsculas, loja sem GL, GL e colaborador, recarregar, entrar noutro computador, password errada, password inalterada.
+- [ ] Criação real do GA e da configuração: aguarda o utilizador. Publicação aguarda autorização.
+
 ## Integridade de utilizadores e passwords
 - [x] Gestor MAC Vision mantém tipo administrativo protegido e acesso administrativo total após reabrir; não atribuir privilégios apenas pelo nome.
 - [x] Guardar cópia privada do estado Cloud antes de alterações; inventariar contas e operações destrutivas.

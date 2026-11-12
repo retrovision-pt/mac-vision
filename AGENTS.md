@@ -45,3 +45,5 @@ use the editor.
 - Registry saves send only changed records and never infer deletion from missing users; access removal has a separate admin-authorized RPC to protect concurrent accounts.
 - PIN login performs read-only credential validation, including legacy accounts; credential writes belong only to account creation or explicit authorized password changes.
 - Persist administrator subtypes in protected account fields, not registry metadata, so full MAC administrator access survives reopening without name-based privileges.
+- Initial wallet setup may finish with stores only; store managers and collaborators are added later through the original access menus, so setup never forces placeholder accounts.
+- The public login directory lists only wallets with a valid GA and their own stores/accounts, so orphaned records never resurface after a reset.
