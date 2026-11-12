@@ -601,15 +601,22 @@ html body #macChatPanel .mcv-item{align-items:center!important}html body #macCha
  // Uma loja associada a um ficheiro que não se consegue ler nunca devolve o registo sem catálogo,
  // porque isso apagaria o catálogo da sessão em curso.
  async function hydrate(storeId, value) {
-  if (!value || typeof value !== 'object') return value;
+  if (value !== null && value !== undefined && typeof value !== 'object') return value;
   try { await loadFiles(); } catch (e) {}
   if (!covered(storeId)) return value;
   let r = null;
   try { r = await resolve(storeId); }
   catch (e) { throw Error('Não foi possível ler o ficheiro de comissionamento desta loja: ' + (e && e.message || e)); }
   if (!r) throw Error('Esta loja está associada a um ficheiro de comissionamento que já não está disponível na Cloud.');
-  const copy = { ...value };
-  copy.weights = applyFields({ ...(value.weights || {}) }, r.file, r.payload.catalog);
+  let base = value;
+  if (!base || typeof base !== 'object') {
+   // Loja ainda sem registo na Cloud: parte da base vazia original para que a cópia continue válida.
+   const shop = (typeof shopRegistry !== 'undefined' && Array.isArray(shopRegistry) ? shopRegistry : []).find(s => String(s.id) === String(storeId));
+   if (typeof blankStoreData !== 'function' || !shop) return value;
+   base = blankStoreData(shop);
+  }
+  const copy = { ...base };
+  copy.weights = applyFields({ ...(base.weights || {}) }, r.file, r.payload.catalog);
   if (String(storeId) === String(currentShopId)) loaded = r.payload;
   return copy;
  }
@@ -753,12 +760,13 @@ html body #macChatPanel .mcv-item{align-items:center!important}html body #macCha
  }
 
  // ---------- estado mostrado no menu ----------
- const originalStatus = typeof macCommissionShowStatus === 'function' ? macCommissionShowStatus : null;
- macCommissionShowStatus = function () {
+ // O script original declara macCommissionShowStatus mais abaixo na página e essa declaração
+ // volta a escrever a função, por isso a substituição só é instalada quando o documento termina.
+ function paintSharedStatus() {
   const el = $e('macSharedCommissionStatus');
   if (!el) return;
   const file = currentFile();
-  if (!file) { if (originalStatus) return originalStatus(); return; }
+  if (!file) { if (window.macCommissionOriginalStatus) return window.macCommissionOriginalStatus(); return; }
   const w = state?.weights || {};
   const products = Array.isArray(w.importedCatalog?.products) ? w.importedCatalog.products.length : 0;
   const mobiles = Array.isArray(w.importedCatalog?.mobiles) ? w.importedCatalog.mobiles.length : 0;
@@ -768,7 +776,15 @@ html body #macChatPanel .mcv-item{align-items:center!important}html body #macCha
    products + ' produtos', mobiles + ' tarifários',
    stores + (stores === 1 ? ' loja' : ' lojas'), 'atualizado por ' + esc(w.macCommissionUpdatedBy || '—')
   ].join(' · ');
- };
+ }
+ function installSharedStatus() {
+  if (window.macCommissionOriginalStatus || typeof macCommissionShowStatus !== 'function') return;
+  window.macCommissionOriginalStatus = macCommissionShowStatus;
+  macCommissionShowStatus = paintSharedStatus;
+  try { paintSharedStatus(); } catch (e) {}
+ }
+ document.addEventListener('DOMContentLoaded', installSharedStatus, { once: true });
+ if (document.readyState !== 'loading') installSharedStatus();
 
  // ---------- atualização imediata quando outra sessão grava uma nova versão ----------
  async function refresh(force) {

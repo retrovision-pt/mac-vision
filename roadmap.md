@@ -47,4 +47,14 @@
 - [ ] Validação de fórmulas comerciais reais: aguarda catálogo e regras reais fornecidos pelo utilizador.
 - [ ] Limpeza dos dados comerciais da carteira AUDITORIA20261111: não autorizada; as contas foram eliminadas na reposição, mas vendas, anexos e mensagens foram preservados.
 
+## Ponderação e Comissionamento partilhado
+- [x] Um único ficheiro de comissionamento por carteira, associado a várias lojas; o catálogo é guardado uma só vez na Cloud e lido por todas as lojas associadas.
+- [x] Popup original preservado: escolha de lojas com pesquisa, todas/nenhuma, pessoas, produtos e tarifários; só o estado passa a ser partilhado.
+- [x] Cache local por carteira, ficheiro e versão; o catálogo só se descarrega quando a versão local não coincide.
+- [x] Versões e permissões: colaborador não grava; revisão otimista rejeita gravações de outra sessão; na mesma versão só são aceites associações com o mesmo catálogo.
+- [x] Atualização imediata quando outra sessão grava: nova versão aplicada e anunciada; estado "● Ficheiro partilhado · nome · vN · produtos · tarifários · lojas · atualizado por".
+- [x] Loja sem registo próprio recebe o catálogo partilhado sem criar cópia; a cópia local nunca volta a ser gravada na loja.
+- [x] Verificado de ponta a ponta com dados de teste apagados depois: guardar, segunda loja, recarregar, cache, conflito de versão e atualização por outra sessão.
+- [ ] Importação do ficheiro real do utilizador e validação das fórmulas comerciais: aguarda o ficheiro e a autorização para importar.
+
 Não publicar sem autorização.
