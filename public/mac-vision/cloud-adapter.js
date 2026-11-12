@@ -21,7 +21,7 @@ window.addEventListener('message',event=>{
   if(data.key&&!String(data.key).startsWith('store:'+currentShopId))return;
   if(macStateDirty||saveTimer!==null){window.macPullAfterSave=true;return;}
   const raw=await macRPC('read',{key:'store:'+currentShopId,accept:true});
-  const next=window.macCommissionHydrate?await window.macCommissionHydrate(currentShopId,raw):raw;
+  let next;try{next=window.macCommissionHydrate?await window.macCommissionHydrate(currentShopId,raw):raw;}catch(e){return;}
   if(next&&!sameState(next,state)){state=shape(next);render();}
  })().catch(console.warn);}
 });
@@ -440,7 +440,7 @@ html body #macChatPanel .mcv-item{align-items:center!important}html body #macCha
   busy=true;const shopId=currentShopId;
   try{
    const raw=await macRPC('read',{key:'store:'+shopId,accept:true});
-   const next=window.macCommissionHydrate?await window.macCommissionHydrate(shopId,raw):raw;
+   let next;try{next=window.macCommissionHydrate?await window.macCommissionHydrate(shopId,raw):raw;}catch(e){return;}
    if(!next||!session||currentShopId!==shopId||macStateDirty||saveTimer!==null)return;
    if(!sameState(next,state)){const d=state.selectedDate;state=shape(next);if(d)state.selectedDate=d;render();}
   }catch(e){console.warn('Atualização Cloud da loja não concluída',e);}finally{busy=false;}
@@ -497,6 +497,10 @@ html body #macChatPanel .mcv-item{align-items:center!important}html body #macCha
   checksum(text) { let h = 0x811c9dc5; for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16); }
  };
  window.macCommissionRules = rules;
+
+ // Soma de controlo estável: a Cloud reordena as chaves dos objetos, por isso compara-se uma forma canónica.
+ function canonical(v) { if (Array.isArray(v)) return v.map(canonical); if (v && typeof v === 'object') { const o = {}; for (const k of Object.keys(v).sort()) o[k] = canonical(v[k]); return o; } return v; }
+ const digest = obj => rules.checksum(JSON.stringify(canonical(obj)));
 
  // ---------- cópia local: memória + IndexedDB, identificada por carteira, ficheiro e versão ----------
  function db() {
@@ -563,7 +567,7 @@ html body #macChatPanel .mcv-item{align-items:center!important}html body #macCha
   const raw = await macRPC('commission-read', { fileId: file.id });
   if (!raw) throw Error('O ficheiro de comissionamento não está disponível na Cloud.');
   const catalog = raw.catalog || { products: [], mobiles: [] };
-  if (file.checksum && rules.checksum(JSON.stringify(catalog)) !== String(file.checksum)) throw Error('O ficheiro não passou na verificação de integridade.');
+  if (file.checksum && digest(catalog) !== String(file.checksum)) throw Error('O ficheiro não passou na verificação de integridade.');
   const payload = { id: file.id, version: Number(file.version) || 0, catalog, source: raw.source || null, previous: raw.previous && raw.previous.catalog ? raw.previous : null, at: Date.now() };
   await cacheSet(key, payload);
   await cachePrune(key);
@@ -594,11 +598,16 @@ html body #macChatPanel .mcv-item{align-items:center!important}html body #macCha
   return out;
  }
  // Leitura de uma loja: a cópia partilhada é aplicada em memória, nunca volta a ser gravada na loja.
+ // Uma loja associada a um ficheiro que não se consegue ler nunca devolve o registo sem catálogo,
+ // porque isso apagaria o catálogo da sessão em curso.
  async function hydrate(storeId, value) {
   if (!value || typeof value !== 'object') return value;
+  try { await loadFiles(); } catch (e) {}
+  if (!covered(storeId)) return value;
   let r = null;
-  try { r = await resolve(storeId); } catch { return value; }
-  if (!r) return value;
+  try { r = await resolve(storeId); }
+  catch (e) { throw Error('Não foi possível ler o ficheiro de comissionamento desta loja: ' + (e && e.message || e)); }
+  if (!r) throw Error('Esta loja está associada a um ficheiro de comissionamento que já não está disponível na Cloud.');
   const copy = { ...value };
   copy.weights = applyFields({ ...(value.weights || {}) }, r.file, r.payload.catalog);
   if (String(storeId) === String(currentShopId)) loaded = r.payload;
@@ -656,7 +665,7 @@ html body #macChatPanel .mcv-item{align-items:center!important}html body #macCha
    id, name: (current && current.name) || state?.weights?.macCommissionSourceName || 'comissionamento',
    version, updatedAt: new Date().toISOString(), updatedBy: who(),
    storeIds: (storeIds || []).slice(), sharedWith: (sharedWith || []).slice(),
-   checksum: rules.checksum(JSON.stringify(next))
+   checksum: digest(next)
   };
   let source = sourceOverride === undefined ? ((loaded && loaded.source) || null) : sourceOverride;
   // Loja que ainda só tinha catálogo próprio: o original guardado até agora é aproveitado, não duplicado.
@@ -677,6 +686,7 @@ html body #macChatPanel .mcv-item{align-items:center!important}html body #macCha
   macMarkUnsaved();
   if (!await persist()) toast('O ficheiro está guardado na Cloud, mas esta loja não foi atualizada. Reabre a loja.', true);
   document.dispatchEvent(new Event('mac-catalog-updated'));
+  try { macCommissionShowStatus(); } catch (e) {}
   if (typeof renderConfig === 'function') renderConfig();
   macCommissionShowStatus();
   return meta;
@@ -697,7 +707,7 @@ html body #macChatPanel .mcv-item{align-items:center!important}html body #macCha
    updatedAt: new Date().toISOString(), updatedBy: who(),
    storeIds: current && current.storeIds && current.storeIds.length ? current.storeIds.slice() : [currentShopId],
    sharedWith: (current && current.sharedWith || []).slice(),
-   checksum: rules.checksum(JSON.stringify(catalog))
+   checksum: digest(catalog)
   };
   const source = await fileToSource(file);
   await macRPC('commission-save', { meta, data: { catalog, source }, revision });
@@ -711,6 +721,7 @@ html body #macChatPanel .mcv-item{align-items:center!important}html body #macCha
   macMarkUnsaved();
   if (!await persist()) toast('O ficheiro está guardado na Cloud, mas esta loja não foi atualizada. Reabre a loja.', true);
   document.dispatchEvent(new Event('mac-catalog-updated'));
+  try { macCommissionShowStatus(); } catch (e) {}
   if (typeof renderConfig === 'function') renderConfig();
   macCommissionShowStatus();
   toast('Ficheiro «' + meta.name + '» guardado na Cloud (v' + meta.version + ') · ' + meta.storeIds.length + (meta.storeIds.length === 1 ? ' loja' : ' lojas') + ' associada(s).');
@@ -735,6 +746,7 @@ html body #macChatPanel .mcv-item{align-items:center!important}html body #macCha
   macMarkUnsaved();
   if (!await persist()) toast('A associação foi retirada na Cloud, mas esta loja não foi atualizada.', true);
   document.dispatchEvent(new Event('mac-catalog-updated'));
+  try { macCommissionShowStatus(); } catch (e) {}
   if (typeof renderConfig === 'function') renderConfig();
   macCommissionShowStatus();
   toast('O ficheiro deixou de estar associado a esta loja. O ficheiro e os dados comerciais foram preservados.');
