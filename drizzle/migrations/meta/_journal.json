@@ -64,6 +64,27 @@
       "when": 1794444560103,
       "tag": "0008_mac_preview_reset_authorization",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794446525242,
+      "tag": "0009_mac_incremental_registry_integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794446674249,
+      "tag": "0010_mac_protected_administrator_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794446707333,
+      "tag": "0011_mac_registry_role_update_order",
+      "breakpoints": true
     }
   ]
 }

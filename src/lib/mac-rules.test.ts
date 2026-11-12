@@ -1,6 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeWallet, authorizeAccountCreation, mergeChanges, hasValidAreaManager, canStartWalletSetup, canStartPreviewSetup } from './mac-rules';
+import { normalizeWallet, authorizeAccountCreation, mergeChanges, hasValidAreaManager, canStartWalletSetup, canStartPreviewSetup, registryChanges } from './mac-rules';
 describe('MAC Vision Cloud rules', () => {
+  it('allows a protected MAC administrator to manage every account role',()=>{
+    for(const role of ['admin','gestor','colaborador'])expect(authorizeAccountCreation('admin',role)).toBe(true);
+  });
+  it('does not remove three collaborators missing from a stale browser list',()=>{
+    const ga={id:'ga',name:'GA'},users=[ga,{id:'c1'},{id:'c2'},{id:'c3'}];
+    expect(registryChanges([{id:'store',users}],[{id:'store',users:[ga]}])).toEqual([]);
+  });
+  it('sends only a changed account and preserves its permanent identifier',()=>{
+    expect(registryChanges([{id:'s',users:[{id:'1',name:'Old'},{id:'2'}]}],[{id:'s',users:[{id:'1',name:'New'},{id:'2'}]}])).toEqual([{id:'s',users:[{id:'1',name:'New'}]}]);
+  });
+  it('rejects duplicate user identifiers rather than overwriting another account',()=>expect(()=>registryChanges([],[{id:'s',users:[{id:'1'},{id:'1'}]}])).toThrow('duplicado'));
   const previewGrant={expires_at:'2026-11-26T00:00:00Z',consumed_by:null};
   const resetTime=Date.parse('2026-11-12T00:47:00Z');
   it('opens authorized preview setup with no valid GA even when old wallets remain',()=>expect(canStartPreviewSetup(true,false,previewGrant,resetTime)).toBe(true));

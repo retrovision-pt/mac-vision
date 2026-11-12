@@ -13,7 +13,7 @@ window.addEventListener('message',event=>{
  if(data.kind==='response'){const job=macRpcPending.get(data.id);if(!job)return;clearTimeout(job.timer);macRpcPending.delete(data.id);data.error?job.reject(Error(data.error)):job.resolve(data.result);}
  if(data.kind==='event'&&session){void (async()=>{
   if(data.event==='preferences-changed'){const prefs=await macRPC('preferences');macVolatilePrefs.clear();for(const [k,v] of Object.entries(prefs||{}))macVolatilePrefs.set(k,v);return;}
-  if(data.event==='registry-changed'){macCloudDirectory=await macRPC('directory');shopRegistry=macCloudDirectory.stores;renderOptions();renderAccess();await window.rcLoadGlobalSettings?.();return;}
+  if(data.event==='registry-changed'){return;} // Refresh on explicit load/save; never replace an in-progress account edit.
   if(macStateDirty||saveTimer!==null)return;
   const next=await macRPC('read',{key:'store:'+currentShopId,accept:true});if(next&&JSON.stringify(next)!==JSON.stringify(state)){state=shape(next);render();}
  })().catch(console.warn);}
@@ -27,7 +27,7 @@ readKey=async function(key){
  try{return await macRPC('read',{key,accept:!macStateDirty&&saveTimer===null});}catch(error){if(!session&&!pendingSetupManager)return null;throw error;}
 };
 writeKey=async function(key,value){
- if(key===REGISTRY_KEY){await macRPC('registry-save',{stores:value});macCloudDirectory=await macRPC('directory');return true;}
+ if(key===REGISTRY_KEY){await macRPC('registry-save',{stores:value});macCloudDirectory=await macRPC('directory');shopRegistry=structuredClone(macCloudDirectory.stores);return true;}
  if(key===MAC_PENDING_MANAGER_KEY||key===MAC_SETUP_WORKSPACE_KEY){await macRPC('write',{key,value});macSessionDraft.set(key,structuredClone(value));return true;}
  return macRPC('write',{key,value});
 };
@@ -58,7 +58,7 @@ submitLogin=async function(event){
 const macOriginalLogout=logout;
 logout=async function(){const result=await macOriginalLogout.apply(this,arguments);if(!session)await macRPC('logout');return result;};
 const macOriginalLoadRegistry=loadRegistry;
-loadRegistry=async function(){shopRegistry=macCloudDirectory?.stores||[];};
+loadRegistry=async function(){shopRegistry=structuredClone(macCloudDirectory?.stores||[]);};
 const macRestorePending=restorePendingFirstManager;
 restorePendingFirstManager=async function(){
  if(macCloudDirectory?.setupAuthorized){pendingSetupManager=null;pendingSetupWorkspace={managers:[],stores:[]};macSessionDraft.clear();return;}
@@ -111,6 +111,12 @@ resetUserPassword=async function(id,shopId=viewedAccessShop()?.id){
  const user=shopRegistry.find(s=>s.id===shopId)?.users.find(u=>u.id===id);if(!user)return;
  const password=prompt('Nova password para '+user.name+' (mínimo 4 números):');if(password===null)return;
  try{await macRPC('password',{id,password,storeId:shopId});toast('Password alterada na Cloud.');}catch(error){toast(error.message,true);}
+};
+removeUser=async function(id,shopId=viewedAccessShop()?.id){
+ const user=shopRegistry.find(s=>s.id===shopId)?.users.find(u=>u.id===id);if(!user)return;
+ if(!confirm('Remover explicitamente o acesso de '+user.name+' a esta loja? A conta será preservada na Cloud.'))return;
+ await macRPC('remove-access',{id,storeId:shopId});
+ macCloudDirectory=await macRPC('directory');shopRegistry=structuredClone(macCloudDirectory.stores);renderAccess();renderOptions();toast('Acesso removido; conta preservada na Cloud.');
 };
 
 // A success message is never evidence of persistence until Cloud acknowledges it.

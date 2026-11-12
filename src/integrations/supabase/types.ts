@@ -14,8 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      mac_account_events: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          details: Json
+          event: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          event: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          event?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       mac_accounts: {
         Row: {
+          admin_type: string
           id: string
           name: string
           role: string
@@ -23,6 +51,7 @@ export type Database = {
           wallet_id: string
         }
         Insert: {
+          admin_type?: string
           id: string
           name: string
           role: string
@@ -30,6 +59,7 @@ export type Database = {
           wallet_id: string
         }
         Update: {
+          admin_type?: string
           id?: string
           name?: string
           role?: string
@@ -448,9 +478,17 @@ export type Database = {
         Args: { k: string; r: number; s: string; v: Json; w: string }
         Returns: number
       }
+      mac_remove_access: {
+        Args: { a: string; s: string; u: string }
+        Returns: undefined
+      }
       mac_reserve_bootstrap: { Args: { u: string }; Returns: undefined }
       mac_save_registry: {
         Args: { a: string; items: Json }
+        Returns: undefined
+      }
+      mac_set_admin_type: {
+        Args: { a: string; t: string; u: string }
         Returns: undefined
       }
       mac_set_preference: { Args: { k: string; v: Json }; Returns: undefined }

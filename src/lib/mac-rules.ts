@@ -13,6 +13,18 @@ export function canStartPreviewSetup(development: boolean, hasManager: boolean, 
 export function authorizeAccountCreation(actor: string, target: string) {
   return actor === 'admin' || (actor === 'gestor' && target === 'colaborador');
 }
+// Missing users are never deletions. Only the explicit remove-access operation removes access.
+export function registryChanges(base: any[], next: any[]) {
+  return next.flatMap(store => {
+    const old=base.find(item=>item.id===store.id);
+    const seen=new Set<string>();
+    for(const user of store.users||[]){if(seen.has(user.id))throw Error('Identificador de utilizador duplicado.');seen.add(user.id);}
+    const users=(store.users||[]).filter((user:any)=>JSON.stringify(old?.users?.find((u:any)=>u.id===user.id))!==JSON.stringify(user));
+    const {users:ignored,...fields}=store;
+    const {users:previous,...oldFields}=old||{};
+    return users.length||JSON.stringify(fields)!==JSON.stringify(oldFields)?[{...fields,users}]:[];
+  });
+}
 export function mergeChanges(base: any, local: any, remote: any): any {
   if (JSON.stringify(base) === JSON.stringify(local)) return remote;
   if (JSON.stringify(base) === JSON.stringify(remote)) return local;

@@ -1,10 +1,11 @@
 import { supabase } from '@/integrations/supabase/client';
-import { macBootstrap, macSetupAuthorization, macCreateAccount, macDirectory, macPrivateDirectory, macSaveRegistry, macUpdatePassword, macUpdateWallet, macPinLogin } from './mac.functions';
-import { mergeChanges } from './mac-rules';
+import { macBootstrap, macSetupAuthorization, macCreateAccount, macDirectory, macPrivateDirectory, macSaveRegistry, macUpdatePassword, macUpdateWallet, macPinLogin, macRemoveAccess } from './mac.functions';
+import { mergeChanges, registryChanges } from './mac-rules';
 import { friendlyError } from './mac-pin';
 
 export function mountMacBridge(frame: HTMLIFrameElement) {
   const cache = new Map<string,{value:any;revision:number}>();
+  let registryBase:any[]=[];
   let setupToken=new URLSearchParams(window.location.hash.slice(1)).get('configurar')||'';
   if(setupToken){window.sessionStorage.setItem('mac-private-setup',setupToken);window.history.replaceState(null,'',window.location.pathname+window.location.search);}
   else setupToken=window.sessionStorage.getItem('mac-private-setup')||'';
@@ -52,6 +53,7 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
       const session=await supabase.auth.getUser();
       if(session.error)await supabase.auth.signOut({scope:'local'});
       const directory=session.data.user?await macPrivateDirectory():await macDirectory();
+      registryBase=structuredClone(directory.stores);
       return {...directory,setupAuthorized:false};
     }
     if(name==='bootstrap'){
@@ -67,7 +69,12 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
     if(name==='logout'){await supabase.auth.signOut();walletId='';cache.clear();return true;}
     if(name==='account')return macCreateAccount({data:p});
     if(name==='password')return macUpdatePassword({data:p});
-    if(name==='registry-save')return macSaveRegistry({data:{stores:p.stores}});
+    if(name==='remove-access')return macRemoveAccess({data:p});
+    if(name==='registry-save'){
+      const changes=registryChanges(registryBase,p.stores);
+      if(changes.length)await macSaveRegistry({data:{stores:changes}});
+      registryBase=structuredClone(p.stores);return true;
+    }
     if(name==='read'&&p.key==='rc-clean-install-20261110-app-global-settings-v1'){
       const me=await identity();const w=await supabase.from('mac_wallets').select('name,app_name').eq('id',me.wallet_id).single();
       return w.data?{appName:w.data.app_name,carteira:w.data.name}:null;

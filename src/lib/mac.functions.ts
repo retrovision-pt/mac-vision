@@ -77,12 +77,12 @@ export const macDirectory = createServerFn({method:'GET'}).handler(async () => {
   const { supabaseAdmin: admin } = await import('@/integrations/supabase/client.server');
    const allWallets = checked(await admin.from('mac_wallets').select('id,name,app_name,owner_id')).data || [];
   const stores = checked(await admin.from('mac_stores').select('id,wallet_id,name')).data || [];
-  const accounts = checked(await admin.from('mac_accounts').select('id,wallet_id,name,role')).data || [];
+  const accounts = checked(await admin.from('mac_accounts').select('id,wallet_id,name,role,admin_type')).data || [];
   const members = checked(await admin.from('mac_memberships').select('user_id,store_id,role')).data || [];
    const roles=checked(await admin.from('user_roles').select('user_id,role')).data||[];
    const wallets=allWallets.filter(w=>hasValidAreaManager(w,accounts,roles));
   return {wallets, accounts:accounts.map(a=>({id:a.id,name:a.name,wallet_id:a.wallet_id,role:a.role})), stores:stores.map(s=>({...s, users:members.filter(m=>m.store_id===s.id).flatMap(m=>{
-    const a=accounts.find(a=>a.id===m.user_id); return a?[{id:a.id,name:a.name,role:a.role==='colaborador'?'colaborador':'gestor',employee:a.role==='colaborador'?a.name:'',isAreaMaster:a.role==='admin',adminRole:a.role==='admin'?'area':undefined}]:[];
+    const a=accounts.find(a=>a.id===m.user_id); return a?[{id:a.id,name:a.name,role:a.role==='colaborador'?'colaborador':'gestor',employee:a.role==='colaborador'?a.name:'',isAreaMaster:a.role==='admin',adminRole:a.role==='admin'?a.admin_type:undefined}]:[];
   })}))};
 });
 
@@ -123,10 +123,9 @@ export const macPinLogin = createServerFn({method:'POST'})
   let ok=false;
   if(cred)ok=await verifyPin(data.pin,cred.pin_hash,pepper());
   else{
-   // One-time upgrade of accounts created before PIN credentials existed.
+   // Legacy validation is read-only: credentials may change only in an authorized password action.
    const legacy=await publicAuthClient().auth.signInWithPassword({email:loginAddress(data.id),password:data.pin});
    ok=!legacy.error&&!!legacy.data.session;
-   if(ok){await storePin(admin,data.id,data.pin);checked(await admin.auth.admin.updateUserById(data.id,{password:internalSecret()}));}
   }
   if(!ok)throw Error(generic);
   checked(await admin.rpc('mac_pin_success',{u:data.id}));
@@ -158,6 +157,11 @@ export const macSaveRegistry = createServerFn({method:'POST'}).middleware([requi
   if(!actor||actor.role==='colaborador')throw Error('Sem permissão.');
   const {supabaseAdmin:admin}=await import('@/integrations/supabase/client.server');
   checked(await admin.rpc('mac_save_registry',{a:context.userId,items:data.stores}));
+  if(actor.role==='admin'){
+   for(const store of data.stores)for(const user of store.users||[]){
+    if(user.isAreaMaster&&['area','beta','mac'].includes(user.adminRole))checked(await admin.rpc('mac_set_admin_type',{a:context.userId,u:user.id,t:user.adminRole}));
+   }
+  }
   return true;
  });
 
@@ -174,16 +178,25 @@ export const macUpdatePassword = createServerFn({method:'POST'}).middleware([req
   await storePin(admin,target.id,data.password);
   checked(await admin.rpc('mac_pin_success',{u:target.id}));
   checked(await admin.auth.admin.updateUserById(target.id,{password:internalSecret()}));
+  checked(await admin.from('mac_account_events').insert({actor_id:context.userId,user_id:target.id,event:'password_changed'}));
   return true;
+ });
+
+export const macRemoveAccess=createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
+ .inputValidator((input:{id:string;storeId:string})=>input).handler(async({data,context})=>{
+  const actor=checked(await context.supabase.from('mac_accounts').select('role').eq('id',context.userId).single()).data;
+  if(actor?.role!=='admin')throw Error('Só um administrador pode remover acessos.');
+  const {supabaseAdmin:admin}=await import('@/integrations/supabase/client.server');
+  checked(await admin.rpc('mac_remove_access',{a:context.userId,u:data.id,s:data.storeId}));return true;
  });
 
 export const macPrivateDirectory = createServerFn({method:'GET'}).middleware([requireSupabaseAuth]).handler(async({context})=>{
  const wallets=checked(await context.supabase.from('mac_wallets').select('id,name,app_name')).data||[];
  const stores=checked(await context.supabase.from('mac_stores').select('*')).data||[];
- const accounts=checked(await context.supabase.from('mac_accounts').select('id,wallet_id,name,role')).data||[];
+ const accounts=checked(await context.supabase.from('mac_accounts').select('id,wallet_id,name,role,admin_type')).data||[];
  const members=checked(await context.supabase.from('mac_memberships').select('*')).data||[];
  return {wallets,accounts,stores:stores.map(s=>({...s.metadata as object,id:s.id,name:s.name,wallet_id:s.wallet_id,users:members.filter(m=>m.store_id===s.id).flatMap(m=>{
-  const a=accounts.find(a=>a.id===m.user_id);return a?[{...m.metadata as object,id:a.id,name:a.name,role:a.role==='colaborador'?'colaborador':'gestor',isAreaMaster:a.role==='admin',adminRole:a.role==='admin'?'area':undefined}]:[];
+  const a=accounts.find(a=>a.id===m.user_id);return a?[{...m.metadata as object,id:a.id,name:a.name,role:a.role==='colaborador'?'colaborador':'gestor',isAreaMaster:a.role==='admin',adminRole:a.role==='admin'?a.admin_type:undefined}]:[];
  })}))};
 });
 

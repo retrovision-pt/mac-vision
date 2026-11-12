@@ -42,3 +42,6 @@ use the editor.
 - After an authorized account reset, automatic setup is development-only and requires a server-pepper-derived, expiring single-use grant plus absence of a valid GA; production never receives that capability, and preserved wallets cannot be reassigned.
 - Treat Cloud acknowledgement as the only persistence success signal; snapshots and same-field conflict rejection prevent queued writes and refreshes from hiding unsaved changes.
 - Persist original registry metadata transactionally through the privileged registry function after server authorization; personal preferences use atomic per-key updates separate from roles.
+- Registry saves send only changed records and never infer deletion from missing users; access removal has a separate admin-authorized RPC to protect concurrent accounts.
+- PIN login performs read-only credential validation, including legacy accounts; credential writes belong only to account creation or explicit authorized password changes.
+- Persist administrator subtypes in protected account fields, not registry metadata, so full MAC administrator access survives reopening without name-based privileges.

@@ -1,12 +1,19 @@
 # MAC Vision
 
+## Integridade de utilizadores e passwords
+- [x] Gestor MAC Vision mantém tipo administrativo protegido e acesso administrativo total após reabrir; não atribuir privilégios apenas pelo nome.
+- [x] Guardar cópia privada do estado Cloud antes de alterações; inventariar contas e operações destrutivas.
+- [x] Sincronização incremental sem eliminação implícita; remoção de acesso separada e autorizada; login sem atualização de credenciais.
+- [x] Duas sessões autenticadas preservam os quatro acessos das duas contas após gravação parcial e reabertura; datas das credenciais inalteradas; relatório entregue.
+- [ ] Testes solicitados de novo GA, três colaboradores, venda e escala com dados reais: aguardam configuração do utilizador; não criar contas fictícias ou outro GA nem alterar registos reais.
+
 ## Reposição autorizada de todas as contas
 - [x] Eliminadas 13 identidades pela administração Auth; consulta final confirma zero utilizadores, sessões, refresh tokens, perfis, permissões, associações, credenciais e presenças. Carteiras e dados comerciais preservados.
 - [x] Formulário original abre automaticamente no Preview e após atualizar, em 1280×1800 e 591×754; autorização backend única até 26/11, indisponível em produção; nomes de carteiras anteriores continuam protegidos.
 - [ ] Verificar o formulário sem criar dados fictícios; criação real e configuração de lojas aguardam os dados introduzidos pelo utilizador.
 
 ## Passwords numéricas e criação do GA
-- [x] Password de mínimo 4 números para GA, gestores e colaboradores, validada só na Cloud com impressão digital protegida, bloqueio após 5 tentativas e sessão real; contas antigas convertidas no primeiro login.
+- [x] Password de mínimo 4 números para GA, gestores e colaboradores, validada só na Cloud com impressão digital protegida, bloqueio após 5 tentativas e sessão real; contas antigas apenas validadas no login, sem conversão automática.
 - [x] Mensagens técnicas em inglês substituídas por mensagens em português.
 - [x] Testado com 4, 5 e 6 dígitos: GA, loja, gestor, colaborador, login noutro navegador e bloqueio; carteiras TESTEPIN4/5/6 mantidas até autorização para apagar.
 - [ ] Ligação publicada: aguarda autorização para publicar.
