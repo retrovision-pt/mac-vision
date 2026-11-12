@@ -257,7 +257,7 @@ setTimeout(macCloudHealth,1500);
  const isAdmin=()=>!!(session&&(session.isAreaMaster||session.adminRole));
  const dd=d=>String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- function stateOf(id){if(id===TODOS)return 'on';const t=presence[id]?new Date(presence[id]).getTime():0,a=Date.now()-t;return !t?'off':a<120000?'on':a<300000?'away':'off';}
+ function stateOf(id){if(id===TODOS)return 'on';const t=presence[id]?new Date(presence[id]).getTime():0,a=Date.now()-t;return !t?'off':a<60000?'on':a<300000?'away':'off';}
  const rank={on:0,away:1,off:2};
  function photoOf(id,name){const u=(macCloudDirectory?.stores||[]).flatMap(s=>s.users||[]).find(u=>u.id===id&&u.photo);try{return u?.photo||employeePhotoIn(state,name)||''}catch{return u?.photo||''}}
  function startOf(name){try{const today=new Date().toISOString().slice(0,10);const s=state.schedules.find(x=>x.date===today&&norm(x.employee)===norm(name));return s?(s.start||state.codeTimes?.[s.code]?.start||''):''}catch{return''}}
@@ -296,7 +296,7 @@ setTimeout(macCloudHealth,1500);
   const ps=people(),byId=Object.fromEntries(ps.map(p=>[p.id,p]));
   const active=ps.find(p=>p.active)?.id;
   let open=getOpen().filter(id=>byId[id]);if(active&&active!==TODOS&&!open.includes(active))open.push(active);setOpen(open);
-  $c('mcvTabs').innerHTML=open.map(id=>{const p=byId[id];return '<span class="mcv-tab '+(p.active?'active':'')+'" data-mcv-tab="'+esc(id)+'" role="button" tabindex="0">'+avatar(p)+'<span>'+esc(p.name.split(/\s+/)[0])+'</span><span class="mcv-dot '+stateOf(id)+'"></span>'+(p.count?'<span class="mcv-count">'+p.count+'</span>':'')+'<button type="button" class="mcv-x" data-mcv-close="'+esc(id)+'" aria-label="Fechar conversa">✕</button></span>';}).join('');
+  $c('mcvTabs').innerHTML=open.map(id=>{const p=byId[id];return '<span class="mcv-tab '+(p.active?'active':'')+'" data-mcv-tab="'+esc(id)+'" role="button" tabindex="0">'+avatar(p)+'<span class="mcv-tname" title="'+esc(p.name)+'">'+esc(p.name.split(/\s+/)[0])+'</span><span class="mcv-dot '+stateOf(id)+'"></span>'+(p.count?'<span class="mcv-count">'+p.count+'</span>':'')+'<button type="button" class="mcv-x" data-mcv-close="'+esc(id)+'" aria-label="Fechar conversa">✕</button></span>';}).join('');
   const admin=isAdmin(),setP=(el,k,v)=>{if(el&&el[k]!==v)el[k]=v;};setP($c('mcvEdit'),'hidden',!admin);setP($c('mcvDel'),'hidden',!admin);
   if(selected&&!document.querySelector('[data-msg-id="'+CSS.escape(selected)+'"]'))selected='';
   const dis=!selected||!admin;setP($c('mcvEdit'),'disabled',dis);setP($c('mcvDel'),'disabled',dis);
@@ -316,6 +316,7 @@ setTimeout(macCloudHealth,1500);
   new MutationObserver(()=>paint()).observe(parts,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
   new MutationObserver(()=>paint()).observe(msgs,{childList:true});
   $c('macChatBubble')?.addEventListener('click',()=>{beat(true);void loadPresence();});paint();}
+ window.mcvChoose=choose;
  boot();
  const lg=loginToStore;loginToStore=async function(){const r=await lg.apply(this,arguments);if(session){beat(true);void loadPresence();}return r;};
 })();
@@ -347,7 +348,7 @@ html body #macChatPanel .mac-chat-head>#mcvHead{flex:1 1 0!important;width:auto!
 html body #macChatPanel .mac-chat-head>#mcvHead .mcv-title{min-height:32px;overflow:hidden}
 html body #macChatPanel .mac-chat-head>.mac-chat-head-actions{order:1!important;flex:0 0 auto!important;width:auto!important;display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:4px!important;margin-left:auto!important}
 html body #macChatPanel .mac-chat-head>.mac-chat-head-actions #macChatClose{margin-left:0!important}
-html body #macChatPanel .mac-chat-head>.mac-chat-head-actions #mcvEdit[hidden],html body #macChatPanel .mac-chat-head>.mac-chat-head-actions #mcvDel[hidden]{display:inline-flex!important}
+html body #macChatPanel .mac-chat-head>.mac-chat-head-actions #mcvEdit[hidden],html body #macChatPanel .mac-chat-head>.mac-chat-head-actions #mcvDel[hidden]{display:none!important}
 html body #macChatPanel .mac-chat-head>.mac-chat-head-actions .btn:disabled{opacity:.4;cursor:not-allowed}
 html body #macChatPanel .employee-avatar.mcv-todos{background:#FFFFFF!important;color:initial!important;font-size:16px!important;line-height:1!important}`;
  document.head.appendChild(st);
@@ -356,4 +357,53 @@ html body #macChatPanel .employee-avatar.mcv-todos{background:#FFFFFF!important;
   document.querySelectorAll('#macChatPanel [data-mcv-tab="todos"] .employee-avatar,#macChatPanel [data-mcv="todos"] .employee-avatar').forEach(a=>{if(!a.classList.contains('mcv-todos'))a.classList.add('mcv-todos')});};
  const boot=()=>{const p=document.getElementById('macChatPanel');if(!p)return setTimeout(boot,500);new MutationObserver(fix).observe(p,{childList:true,subtree:true,attributes:true,attributeFilter:['hidden','disabled']});fix();};
  boot();
+})();
+// Session survives refresh: Cloud Auth keeps the session; the host stores only {user, store, page, last human activity}.
+(function(){
+ let at=0,restoring=false,lastSent=0;
+ const save=force=>{if(!session||!currentShopId)return;const now=Date.now();if(!force&&now-lastSent<5000)return;lastSent=now;void macRPC('session-meta-set',{userId:String(session.id),storeId:currentShopId,accessKind:session.accessKind||'',page:page||'dashboard',at:at||now}).catch(()=>{});};
+ macLastActivity=()=>at;
+ macTouch=function(force){if(restoring)return;at=Date.now();save(!!force);};
+ rememberLocalSession=function(){save(true);};
+ forgetLocalSession=function(){at=0;void macRPC('session-meta-clear').catch(()=>{});};
+ restoreLocalSession=async function(){
+  let meta=null;try{meta=await macRPC('session-meta-get');}catch{return false;}
+  if(!meta)return false;
+  if(!meta.at||Date.now()-meta.at>=MAC_IDLE_MS){forgetLocalSession();try{await macRPC('logout');}catch{}return false;}
+  const shop=shopRegistry.find(s=>s.id===meta.storeId),user=shop?.users?.find(u=>u.id===meta.userId);
+  if(!shop||!user)return false;
+  const access=Object.fromEntries(shopRegistry.filter(s=>s.users.some(u=>u.id===user.id)).map(s=>[s.id,user.id]));
+  restoring=true;at=meta.at;
+  try{await loginToStore(shop,user,access,meta.accessKind);}finally{restoring=false;}
+  if(!session)return false;at=meta.at;save(true);
+  if(meta.page&&meta.page!=='dashboard')go(meta.page);
+  return true;
+ };
+ window.addEventListener('message',e=>{
+  if(e.source!==parent||e.origin!==location.origin||e.data?.macVisionBridge!==1||e.data.kind!=='event')return;
+  if(e.data.event==='session-ended'&&session)void macIdleLogout(false);
+  if(e.data.event==='activity'&&Number(e.data.at)>at)at=Number(e.data.at);
+  if(e.data.event==='message-new')macAutoOpen(e.data.message||{});
+ });
+ // Auto-open Chat Vision on a newly received private message (never for loaded history).
+ const seen=new Set();let lastSwitch=0;
+ function macAutoOpen(m){
+  if(!session||!m.id||seen.has(m.id))return;seen.add(m.id);
+  if(String(m.recipient_id||'')!==String(session.id)||String(m.sender_id)===String(session.id))return;
+  const panel=document.getElementById('macChatPanel'),text=document.getElementById('macChatText');
+  if(panel?.hidden)document.getElementById('macChatBubble')?.click();
+  const typing=text&&document.activeElement===text&&text.value.trim();
+  const active=document.querySelector('#macChatParticipants [data-cloud-person].active')?.dataset.cloudPerson;
+  if(typing||active===String(m.sender_id))return;
+  if(active&&active!=='todos'&&Date.now()-lastSwitch<15000)return; // keep current conversation; tab counters show the rest
+  const pick=()=>{if(document.querySelector('#macChatParticipants [data-cloud-person="'+CSS.escape(String(m.sender_id))+'"]')){lastSwitch=Date.now();window.mcvChoose?.(String(m.sender_id));return true;}return false;};
+  if(!pick()){let n=0;const t=setInterval(()=>{if(pick()||++n>20)clearInterval(t);},250);}
+ }
+ const st=document.createElement('style');
+ st.textContent=`html body #macChatPanel .mcv-tab{display:inline-flex!important;align-items:center!important;gap:6px!important;height:36px!important;box-sizing:border-box!important;line-height:1!important}
+html body #macChatPanel .mcv-tab .mcv-tname{max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html body #macChatPanel .mcv-tab .mcv-dot,html body #macChatPanel .mcv-item .mcv-dot{flex:0 0 9px;align-self:center}
+html body #macChatPanel .mcv-tab .mcv-x{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;flex:0 0 18px}
+html body #macChatPanel .mcv-item{align-items:center!important}html body #macChatPanel .mcv-name{white-space:nowrap}`;
+ document.head.appendChild(st);
 })();
