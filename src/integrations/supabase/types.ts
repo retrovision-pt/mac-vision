@@ -508,6 +508,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      mac_can_manage_photo: { Args: { u: string }; Returns: boolean }
+      mac_can_view_photo: { Args: { u: string }; Returns: boolean }
       mac_complete_setup: {
         Args: {
           application_name: string
@@ -555,10 +557,18 @@ export type Database = {
         Args: { a: string; t: string; u: string }
         Returns: undefined
       }
+      mac_set_photo: { Args: { p: string; u: string }; Returns: undefined }
       mac_set_preference: { Args: { k: string; v: Json }; Returns: undefined }
       mac_store_access: { Args: { s: string }; Returns: boolean }
       mac_wallet_access: { Args: { w: string }; Returns: boolean }
       mac_wallet_admin: { Args: { w: string }; Returns: boolean }
+      mac_wallet_photos: {
+        Args: never
+        Returns: {
+          path: string
+          user_id: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

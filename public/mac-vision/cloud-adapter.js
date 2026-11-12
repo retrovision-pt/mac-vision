@@ -16,6 +16,7 @@ window.addEventListener('message',event=>{
  if(data.kind==='response'){const job=macRpcPending.get(data.id);if(!job)return;clearTimeout(job.timer);macRpcPending.delete(data.id);data.error?job.reject(Error(data.error)):job.resolve(data.result);}
  if(data.kind==='event'&&session){void (async()=>{
   if(data.event==='preferences-changed'){const prefs=await macRPC('preferences');macVolatilePrefs.clear();for(const [k,v] of Object.entries(prefs||{}))macVolatilePrefs.set(k,v);return;}
+  if(data.event==='photos-changed'){macApplyPhotos(data.photos||{});return;}
   if(data.event==='registry-changed'){return;} // Refresh on explicit load/save; never replace an in-progress account edit.
   if(String(data.key||'').startsWith('commission:')){if(window.macCommissionRefresh)await window.macCommissionRefresh(true);return;}
   if(data.key&&!String(data.key).startsWith('store:'+currentShopId))return;
@@ -25,6 +26,17 @@ window.addEventListener('message',event=>{
   if(next&&!sameState(next,state)){state=shape(next);render();}
  })().catch(console.warn);}
 });
+// Fotografias únicas por ID Cloud: aplicadas ao registo, aos colaboradores ligados e ao Chat Vision sem recarregar.
+function macApplyPhotos(map){
+ const nm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+ for(const list of [macCloudDirectory?.stores,typeof shopRegistry!=='undefined'?shopRegistry:null])for(const s of list||[])for(const u of s.users||[])if(u?.id&&map[u.id])u.photo=map[u.id];
+ try{const store=(macCloudDirectory?.stores||[]).find(s=>s.id===currentShopId);
+  for(const e of state?.employees||[]){const ids=[...new Set((store?.users||[]).filter(u=>nm(u.employee)===nm(e.name)||nm(u.name)===nm(e.name)).map(u=>u.id))];if(ids.length===1&&map[ids[0]])e.photo=map[ids[0]];}
+ }catch(_){}
+ try{if(typeof render==='function')render();}catch(_){}
+ try{if(typeof renderSessionPhoto==='function')renderSessionPhoto();}catch(_){}
+ try{window.dispatchEvent(new Event('mac-photos-updated'));}catch(_){}
+}
 const macSessionDraft=new Map();
 let macCloudDirectory=null;
 initDB=async function(){db=null;storageKind='cloud';macCloudDirectory=await macRPC('directory');};
@@ -318,6 +330,7 @@ window.macIsChatAdmin=()=>{if(!session)return false;if(session.isAreaMaster||ses
  let lastBeat=0;
  function beat(force){if(!session||document.hidden)return;const at=macLastActivity()||Date.now();if(Date.now()-at>=120000)return;if(!force&&Date.now()-lastBeat<20000)return;lastBeat=Date.now();presence[String(session.id)]=new Date(at).toISOString();void macRPC('human-presence',{at}).catch(()=>{});}
  ['pointerdown','keydown','touchstart','wheel'].forEach(t=>window.addEventListener(t,e=>{if(e.isTrusted)setTimeout(()=>beat(false),0);},{passive:true,capture:true}));
+ window.addEventListener('mac-photos-updated',()=>{try{paintList();paint();}catch(_){}});
  document.addEventListener('visibilitychange',()=>{if(!document.hidden){beat(true);void loadPresence();}});
  setInterval(()=>{beat(false);void loadPresence();},30000);
  setInterval(paint,15000);
@@ -973,3 +986,6 @@ html body #macChatPanel .mcv-item{align-items:center!important}html body #macCha
 @media(max-width:600px){.mcw-shops{grid-template-columns:minmax(0,1fr)}.mcw-tools input{flex:1 1 100%}}`;
  document.head.appendChild(style);
 })();
+
+// Avatares sempre circulares em toda a aplicação, sem alterar dimensões próprias de cada menu.
+(()=>{const st=document.createElement('style');st.textContent=`html body .employee-avatar{aspect-ratio:1/1!important;border-radius:50%!important;overflow:hidden!important;flex-shrink:0!important}html body .employee-avatar img,html body img.employee-avatar{width:100%!important;height:100%!important;object-fit:cover!important;object-position:center!important;border-radius:50%!important;display:block!important}`;(document.head||document.documentElement).appendChild(st);})();

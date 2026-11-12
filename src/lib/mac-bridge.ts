@@ -2,6 +2,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { macBootstrap, macSetupAuthorization, macCreateAccount, macDirectory, macPrivateDirectory, macSaveRegistry, macUpdatePassword, macUpdateWallet, macPinLogin, macRemoveAccess } from './mac.functions';
 import { mergeChanges, registryChanges } from './mac-rules';
 import { friendlyError } from './mac-pin';
+import { applyRegistryPhotos, applyEmployeePhotos, splitEmployeePhotos, registryPhotoChanges } from './mac-photo-rules';
 
 export function mountMacBridge(frame: HTMLIFrameElement) {
   const cache = new Map<string,{value:any;revision:number}>();
@@ -16,6 +17,52 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
   const META_KEY='mac-vision-session-meta';
   const metaGet=()=>{try{return JSON.parse(window.localStorage.getItem(META_KEY)||'null')}catch{return null}};
   const send=(data:any)=>frame.contentWindow?.postMessage(data,window.location.origin);
+  // Fotografias: uma por ID Cloud no Storage privado; referência no perfil; cache por caminho versionado.
+  let photos:Record<string,string>={};let photoPaths:Record<string,string>={};let photoLoad:Promise<Record<string,string>>|null=null;
+  const PHOTO_CACHE='mac-photo:';
+  const blobToData=(b:Blob)=>new Promise<string>((ok,ko)=>{const r=new FileReader();r.onload=()=>ok(String(r.result));r.onerror=()=>ko(r.error);r.readAsDataURL(b);});
+  async function fetchPhotos(){
+    const r=await supabase.rpc('mac_wallet_photos' as any);if(r.error)throw Error(r.error.message);
+    const next:Record<string,string>={},paths:Record<string,string>={};
+    await Promise.all(((r.data as any[])||[]).map(async row=>{
+      const id=String(row.user_id),path=String(row.path);paths[id]=path;
+      if(photoPaths[id]===path&&photos[id]){next[id]=photos[id];return;}
+      let data='';try{data=window.localStorage.getItem(PHOTO_CACHE+path)||'';}catch{}
+      if(!data){const d=await supabase.storage.from('mac-photos').download(path);if(d.error||!d.data)return;data=(await blobToData(d.data)).replace(/^data:[^;]+;/,'data:image/jpeg;');try{window.localStorage.setItem(PHOTO_CACHE+path,data);}catch{}}
+      next[id]=data;
+    }));
+    for(const [id,old] of Object.entries(photoPaths))if(paths[id]!==old){try{window.localStorage.removeItem(PHOTO_CACHE+old);}catch{}}
+    photos=next;photoPaths=paths;return photos;
+  }
+  const loadPhotos=(force=false)=>{if(force||!photoLoad)photoLoad=fetchPhotos().catch(e=>{photoLoad=null;throw e;});return photoLoad;};
+  let photoChannel:any=null;
+  async function savePhoto(id:string,data:string){
+    let path='';
+    if(data){
+      const bin=atob(data.split(',')[1]||'');const bytes=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+      path=`${id}/${Date.now()}.jpg`;
+      const up=await supabase.storage.from('mac-photos').upload(path,new Blob([bytes],{type:'image/jpeg'}),{contentType:'image/jpeg',upsert:false});
+      if(up.error)throw Error('Não foi possível guardar a fotografia na Cloud.');
+      try{window.localStorage.setItem(PHOTO_CACHE+path,data);}catch{}
+    }
+    const r=await supabase.rpc('mac_set_photo' as any,{u:id,p:path||null});if(r.error)throw Error(r.error.message);
+    if(data){photos[id]=data;photoPaths[id]=path;}else{delete photos[id];delete photoPaths[id];}
+  }
+  async function savePhotos(changes:Record<string,string>,quiet=false){
+    const ids=Object.keys(changes);if(!ids.length)return;
+    for(const id of ids){try{await savePhoto(id,changes[id]||"");}catch(e){if(!quiet)throw e;}}
+    photoLoad=Promise.resolve(photos);
+    send({macVisionBridge:1,kind:'event',event:'photos-changed',photos:{...photos}});
+    photoChannel?.send({type:'broadcast',event:'photo',payload:{at:Date.now()}});
+  }
+  function joinPhotoChannel(){
+    if(photoChannel||!walletId)return;
+    photoChannel=supabase.channel(`mac-photos-${walletId}`).on('broadcast',{event:'photo'},async()=>{
+      try{const map=await loadPhotos(true);send({macVisionBridge:1,kind:'event',event:'photos-changed',photos:{...map}});}catch{}
+    }).subscribe();
+  }
+  const storeOf=(id:string)=>registryBase.find((s:any)=>String(s.id)===id);
+  const withPhotos=(key:string,value:any)=>isStore(key)?applyEmployeePhotos(value,storeOf(key.slice(6)),photos):value;
   async function identity(){
     const {data,error}=await supabase.auth.getUser();
     if(error||!data.user)throw Error('Inicia sessão na Cloud.');
@@ -42,14 +89,14 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
   }
   async function read(key:string){
     const hit=realtimeLive&&walletId?readCache.get(key):undefined;
-    if(hit){if(!cache.has(key))cache.set(key,structuredClone(hit));return structuredClone(hit.value);}
+    if(hit){if(!cache.has(key))cache.set(key,structuredClone(hit));return withPhotos(key,structuredClone(hit.value));}
     await identity();
     const result=await supabase.from('mac_documents').select('value,revision').eq('wallet_id',walletId).eq('key',key).maybeSingle();
     if(result.error)throw Error(result.error.message);
     const value=await withSales(key,result.data?.value??null);
     if(!cache.has(key))cache.set(key,{value:structuredClone(value),revision:result.data?.revision??0});
     readCache.set(key,{value:structuredClone(value),revision:result.data?.revision??0});
-    return value;
+    return withPhotos(key,value);
   }
   async function write(key:string,value:any){
     await identity();
@@ -58,6 +105,8 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
     if(isStore(key)&&value&&typeof value==='object'){
       // Sales live in their own Cloud table: send only changed/removed sales, keyed by their id (idempotent on retry).
       const storeId=key.slice(6);
+      const split=splitEmployeePhotos(value,base.value,storeOf(storeId),photos);value=split.doc;
+      await savePhotos(split.changes);
       const before=new Map<string,any>((base.value?.sales||[]).map((x:any)=>[String(x.id),x]));
       const now=(value.sales||[]) as any[];
       const ids=new Set(now.map(x=>String(x.id)));
@@ -121,6 +170,15 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
       const session=await supabase.auth.getUser();
       if(session.error)await supabase.auth.signOut({scope:'local'});
       const directory=session.data.user?await macPrivateDirectory():await macDirectory();
+      if(session.data.user){
+        try{await identity();joinPhotoChannel();await Promise.race([loadPhotos(),new Promise(r=>setTimeout(r,3000))]);}catch{}
+        // Fotografias antigas guardadas só no registo passam para o Storage (sem apagar nada), quando há permissão.
+        const legacy:Record<string,string>={};
+        for(const s of directory.stores as any[])for(const u of s.users||[])if(u?.id&&!photoPaths[u.id]&&typeof u.photo==='string'&&u.photo.startsWith('data:image/jpeg;base64,'))legacy[u.id]=u.photo;
+        applyRegistryPhotos(directory.stores as any[],photos);
+        if(Object.keys(legacy).length)void savePhotos(legacy,true);
+        if(photoLoad)photoLoad.then(map=>send({macVisionBridge:1,kind:'event',event:'photos-changed',photos:{...map}})).catch(()=>{});
+      }
       registryBase=structuredClone(directory.stores);
       return {...directory,setupAuthorized:false};
     }
@@ -134,11 +192,13 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
       await startSession(await macPinLogin({data:{id:String(p.id||''),pin:String(p.password||'')}}));
       cache.clear();readCache.clear();return identity();
     }
-    if(name==='logout'){const u=await supabase.auth.getUser();if(u.data.user)await supabase.from('mac_presence').delete().eq('user_id',u.data.user.id);await supabase.auth.signOut();window.localStorage.removeItem(META_KEY);walletId='';cache.clear();readCache.clear();return true;}
+    if(name==='logout'){if(photoChannel){void supabase.removeChannel(photoChannel);photoChannel=null;}const u=await supabase.auth.getUser();if(u.data.user)await supabase.from('mac_presence').delete().eq('user_id',u.data.user.id);await supabase.auth.signOut();window.localStorage.removeItem(META_KEY);walletId='';cache.clear();readCache.clear();return true;}
     if(name==='account')return macCreateAccount({data:p});
     if(name==='password')return macUpdatePassword({data:p});
     if(name==='remove-access')return macRemoveAccess({data:p});
     if(name==='registry-save'){
+      const prev:Record<string,string>={};for(const s of registryBase)for(const u of s.users||[])if(u?.id&&u.photo)prev[u.id]=u.photo;
+      await savePhotos(registryPhotoChanges(p.stores,{},prev));
       const changes=registryChanges(registryBase,p.stores);
       if(changes.length)await macSaveRegistry({data:{stores:changes}});
       registryBase=structuredClone(p.stores);return true;
@@ -273,5 +333,5 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
     if(live&&!realtimeLive)send({macVisionBridge:1,kind:'event',event:'data-changed'});
     realtimeLive=live;
   });
-  return ()=>{window.removeEventListener('message',listener);window.removeEventListener('storage',onStorage);void supabase.removeChannel(channel);};
+  return ()=>{window.removeEventListener('message',listener);window.removeEventListener('storage',onStorage);void supabase.removeChannel(channel);if(photoChannel)void supabase.removeChannel(photoChannel);};
 }
