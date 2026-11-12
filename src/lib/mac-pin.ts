@@ -5,9 +5,9 @@ export const PIN_ITERATIONS = 100000; // Cloudflare Workers PBKDF2 maximum.
 export const isValidPin = (pin: unknown): pin is string => typeof pin === 'string' && PIN_PATTERN.test(pin);
 
 const hex = (bytes: Uint8Array) => Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
-const unhex = (value: string) => Uint8Array.from(value.match(/../g) || [], b => parseInt(b, 16));
+const unhex = (value: string): Uint8Array<ArrayBuffer> => Uint8Array.from(value.match(/../g) || [], b => parseInt(b, 16));
 
-async function derive(pin: string, pepper: string, salt: Uint8Array, iterations: number) {
+async function derive(pin: string, pepper: string, salt: Uint8Array<ArrayBuffer>, iterations: number) {
   const enc = new TextEncoder();
   const hmacKey = await crypto.subtle.importKey('raw', enc.encode(pepper), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   const peppered = new Uint8Array(await crypto.subtle.sign('HMAC', hmacKey, enc.encode(pin)));

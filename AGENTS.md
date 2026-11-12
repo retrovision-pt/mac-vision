@@ -36,6 +36,8 @@ use the editor.
 - Track capability verification in the migration ledger; fresh installations never import browser records, and disposable verification data is removed only with explicit authorization.
 - Use a same-origin message bridge and versioned Cloud documents for the original script; optimistic revisions and three-way merges preserve concurrent independent records without rebuilding forms.
 - Create and update authentication credentials only through verified server handlers; synthetic internal addresses support the original username selectors without exposing credentials in documents.
+- Numeric PINs are verified only server-side against peppered PBKDF2 hashes with reserved-attempt lockouts, then a real Auth session is issued server-side; Auth identities keep random unknown passwords so provider password rules and leaked-password checks stay enabled.
+- Bridge and adapter translate provider, database and script errors into Portuguese before the original document displays them.
 - Provision new wallets only with a hashed, expiring, one-use private setup grant; consume it alongside wallet/account/role creation in one locked transaction, compensating only the newly created unassigned Auth identity on failure, because existing accounts must never authorize wallet takeover.
 - Treat Cloud acknowledgement as the only persistence success signal; snapshots and same-field conflict rejection prevent queued writes and refreshes from hiding unsaved changes.
 - Persist original registry metadata transactionally through the privileged registry function after server authorization; personal preferences use atomic per-key updates separate from roles.

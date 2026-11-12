@@ -1,5 +1,11 @@
 # MAC Vision
 
+## Passwords numéricas e criação do GA
+- [x] Password de mínimo 4 números para GA, gestores e colaboradores, validada só na Cloud com impressão digital protegida, bloqueio após 5 tentativas e sessão real; contas antigas convertidas no primeiro login.
+- [x] Mensagens técnicas em inglês substituídas por mensagens em português.
+- [x] Testado com 4, 5 e 6 dígitos: GA, loja, gestor, colaborador, login noutro navegador e bloqueio; carteiras TESTEPIN4/5/6 mantidas até autorização para apagar.
+- [ ] Ligação publicada: aguarda autorização para publicar.
+
 ## Recuperar criação do GA
 - [x] Reabrir a configuração original para uma carteira real separada, por autorização privada de utilização única; formulário verificado em computador e no tamanho atual do Preview.
 - [x] Implementar criação transacional de carteira, GA e permissões, autorização de 14 dias, proteção de carteiras existentes e retoma autenticada da configuração pendente; 14 testes passaram.
