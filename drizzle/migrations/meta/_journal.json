@@ -43,6 +43,13 @@
       "when": 1794441007228,
       "tag": "0005_mac_audit_atomic_registry_receipts",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794442786970,
+      "tag": "0006_mac_authorized_wallet_setup",
+      "breakpoints": true
     }
   ]
 }

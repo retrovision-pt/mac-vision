@@ -1,6 +1,12 @@
 export const normalizeWallet = (value: string) => value.trim().toUpperCase();
 export const normalizeUsername = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/gi, '').toLowerCase();
 export const loginAddress = (id: string) => `${id}@macvision.local`;
+export function hasValidAreaManager(wallet: {id:string;owner_id:string}, accounts: {id:string;wallet_id:string;role:string}[], roles: {user_id:string;role:string}[]) {
+  return accounts.some(a=>a.id===wallet.owner_id&&a.wallet_id===wallet.id&&a.role==='admin') && roles.some(r=>r.user_id===wallet.owner_id&&r.role==='admin');
+}
+export function canStartWalletSetup(grant: {expires_at:string;consumed_by:string|null}|null, now: number, walletExists: boolean) {
+  return !!grant && !grant.consumed_by && Date.parse(grant.expires_at)>now && !walletExists;
+}
 export function authorizeAccountCreation(actor: string, target: string) {
   return actor === 'admin' || (actor === 'gestor' && target === 'colaborador');
 }

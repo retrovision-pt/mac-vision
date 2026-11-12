@@ -1,9 +1,12 @@
 import { supabase } from '@/integrations/supabase/client';
-import { macBootstrap, macCreateAccount, macDirectory, macPrivateDirectory, macSaveRegistry, macUpdatePassword, macUpdateWallet } from './mac.functions';
+import { macBootstrap, macSetupAuthorization, macCreateAccount, macDirectory, macPrivateDirectory, macSaveRegistry, macUpdatePassword, macUpdateWallet } from './mac.functions';
 import { loginAddress, mergeChanges } from './mac-rules';
 
 export function mountMacBridge(frame: HTMLIFrameElement) {
   const cache = new Map<string,{value:any;revision:number}>();
+  let setupToken=new URLSearchParams(window.location.hash.slice(1)).get('configurar')||'';
+  if(setupToken){window.sessionStorage.setItem('mac-private-setup',setupToken);window.history.replaceState(null,'',window.location.pathname+window.location.search);}
+  else setupToken=window.sessionStorage.getItem('mac-private-setup')||'';
   let walletId='';
   const send=(data:any)=>frame.contentWindow?.postMessage(data,window.location.origin);
   async function identity(){
@@ -39,13 +42,17 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
   async function action(name:string,p:any){
     if(name==='directory'){
       const session=await supabase.auth.getSession();
-      return session.data.session?macPrivateDirectory():macDirectory();
+      const setupAuthorized=setupToken?await macSetupAuthorization({data:{token:setupToken}}):false;
+      if(setupAuthorized)return {wallets:[],accounts:[],stores:[],setupAuthorized:true};
+      const directory=session.data.session?await macPrivateDirectory():await macDirectory();
+      return {...directory,setupAuthorized:false};
     }
     if(name==='bootstrap'){
-      const result=await macBootstrap({data:p});
+      const result=await macBootstrap({data:{...p,token:setupToken}});
+      setupToken='';window.sessionStorage.removeItem('mac-private-setup');
       const login=await supabase.auth.signInWithPassword({email:result.email,password:p.password});
       if(login.error)throw Error(login.error.message);
-      walletId=result.walletId;return {id:result.id,name:p.name,role:'gestor',isAreaMaster:true,adminRole:'area',carteira:p.wallet,rcAppName:p.appName};
+      cache.clear();walletId=result.walletId;if(login.data.session)await supabase.realtime.setAuth(login.data.session.access_token);return {id:result.id,name:p.name,role:'gestor',isAreaMaster:true,adminRole:'area',carteira:p.wallet,rcAppName:p.appName};
     }
     if(name==='login'){
       const result=await supabase.auth.signInWithPassword({email:loginAddress(p.id),password:p.password});

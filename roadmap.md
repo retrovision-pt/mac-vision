@@ -1,5 +1,10 @@
 # MAC Vision
 
+## Recuperar criação do GA
+- [x] Reabrir a configuração original para uma carteira real separada, por autorização privada de utilização única; formulário verificado em computador e no tamanho atual do Preview.
+- [x] Implementar criação transacional de carteira, GA e permissões, autorização de 14 dias, proteção de carteiras existentes e retoma autenticada da configuração pendente; 14 testes passaram.
+- [ ] Verificar criação real do GA, primeiras lojas, login posterior e persistência: aguarda nomes e password introduzidos pelo utilizador na ligação privada; não criar contas fictícias nem consumir a autorização em testes.
+
 ## Auditoria integral solicitada
 - [x] Inventariar chamadas locais e operações Cloud; relatório distingue caminhos inspecionados de operações realmente testadas.
 - [x] Corrigir falsos sucessos offline, recibos, snapshots, conflitos no mesmo campo, preferências atómicas e metadados persistidos.

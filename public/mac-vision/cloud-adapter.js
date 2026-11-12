@@ -43,16 +43,11 @@ forgetLocalSession=()=>{};
 signalMacLocalChange=()=>{};
 const macOriginalMakeUser=makeUser;
 makeUser=async function(name,role,password,employee=''){
- if(!pendingSetupManager&&!session&&macCloudDirectory?.wallets?.length&&!macCloudDirectory?.stores?.length){
-  const account=macCloudDirectory.accounts?.find(a=>a.name===name&&a.role==='admin');
-  if(!account)throw Error('A carteira já tem administrador. Usa a conta existente.');
-  await macRPC('login',{id:account.id,password});
-  return {id:account.id,name,role:'gestor',isAreaMaster:true,adminRole:'area'};
- }
- if(!pendingSetupManager&&!session&&!(macCloudDirectory?.wallets?.length)){
+  if(!pendingSetupManager&&!session&&macCloudDirectory?.setupAuthorized){
   const wallet=document.getElementById('setupCarteira').value.trim().toUpperCase();
   return macRPC('bootstrap',{name,role,password,wallet,appName:document.getElementById('setupAppName').value});
  }
+  if(!pendingSetupManager&&!session)throw Error('Usa a ligação privada de configuração ou o acesso da carteira existente.');
  return macRPC('account',{name,role,password,employee});
 };
 const macOriginalSubmitLogin=submitLogin;
@@ -64,6 +59,14 @@ const macOriginalLogout=logout;
 logout=async function(){const result=await macOriginalLogout.apply(this,arguments);if(!session)await macRPC('logout');return result;};
 const macOriginalLoadRegistry=loadRegistry;
 loadRegistry=async function(){shopRegistry=macCloudDirectory?.stores||[];};
+const macRestorePending=restorePendingFirstManager;
+restorePendingFirstManager=async function(){
+ await macRestorePending();
+ if(pendingSetupManager){
+  const valid=macCloudDirectory?.accounts?.some(a=>a.id===pendingSetupManager.id&&a.role==='admin');
+  if(!valid){pendingSetupManager=null;pendingSetupWorkspace={managers:[],stores:[]};}
+ }
+};
 const macOriginalStart=start;
 start=async function(){
  const field=document.getElementById('setupCarteira');

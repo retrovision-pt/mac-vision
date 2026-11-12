@@ -258,6 +258,30 @@ export type Database = {
           },
         ]
       }
+      mac_setup_grants: {
+        Row: {
+          consumed_at: string | null
+          consumed_by: string | null
+          expires_at: string
+          id: string
+          token_hash: string
+        }
+        Insert: {
+          consumed_at?: string | null
+          consumed_by?: string | null
+          expires_at: string
+          id?: string
+          token_hash: string
+        }
+        Update: {
+          consumed_at?: string | null
+          consumed_by?: string | null
+          expires_at?: string
+          id?: string
+          token_hash?: string
+        }
+        Relationships: []
+      }
       mac_stores: {
         Row: {
           id: string
@@ -358,6 +382,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      mac_complete_setup: {
+        Args: {
+          application_name: string
+          ga_name: string
+          ga_username: string
+          t: string
+          u: string
+          wallet_name: string
+        }
+        Returns: string
+      }
       mac_delete_document: {
         Args: { k: string; w: string }
         Returns: undefined
