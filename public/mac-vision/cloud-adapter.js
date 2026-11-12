@@ -339,3 +339,21 @@ html body #macChatPanel .mcv-tab .employee-avatar img,html body #macChatPanel .m
  const move=()=>{const head=document.querySelector('#macChatPanel .mac-chat-head'),t=document.getElementById('mcvTabs');if(!head||!t)return setTimeout(move,500);if(t.parentElement!==head)head.appendChild(t);const m=document.getElementById('mcvMenu');if(m)m.style.top=(head.offsetTop+head.offsetHeight)+'px';};
  move();document.addEventListener('click',e=>{if(e.target.closest('#mcvPick,#macChatBubble'))setTimeout(move,0);},true);
 })();
+// Chat Vision header fix: title left + 👥 ✏️ 🗑️ ✖ right on one line, date below; edit/delete always visible (disabled without selection/permission); white "Todos" avatar.
+(function(){
+ const st=document.createElement('style');
+ st.textContent=`html body #macChatPanel .mac-chat-head{align-items:flex-start!important;justify-content:space-between!important}
+html body #macChatPanel .mac-chat-head>#mcvHead{flex:1 1 0!important;width:auto!important;min-width:0!important;order:0}
+html body #macChatPanel .mac-chat-head>#mcvHead .mcv-title{min-height:32px;overflow:hidden}
+html body #macChatPanel .mac-chat-head>.mac-chat-head-actions{order:1!important;flex:0 0 auto!important;width:auto!important;display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:4px!important;margin-left:auto!important}
+html body #macChatPanel .mac-chat-head>.mac-chat-head-actions #macChatClose{margin-left:0!important}
+html body #macChatPanel .mac-chat-head>.mac-chat-head-actions #mcvEdit[hidden],html body #macChatPanel .mac-chat-head>.mac-chat-head-actions #mcvDel[hidden]{display:inline-flex!important}
+html body #macChatPanel .mac-chat-head>.mac-chat-head-actions .btn:disabled{opacity:.4;cursor:not-allowed}
+html body #macChatPanel .employee-avatar.mcv-todos{background:#FFFFFF!important;color:initial!important;font-size:16px!important;line-height:1!important}`;
+ document.head.appendChild(st);
+ const fix=()=>{const ed=document.getElementById('mcvEdit'),del=document.getElementById('mcvDel');
+  if(ed&&del){const admin=!!(session&&(session.isAreaMaster||session.adminRole));if(!admin){ed.disabled=del.disabled=true;}}
+  document.querySelectorAll('#macChatPanel [data-mcv-tab="todos"] .employee-avatar,#macChatPanel [data-mcv="todos"] .employee-avatar').forEach(a=>a.classList.add('mcv-todos'));};
+ const boot=()=>{const p=document.getElementById('macChatPanel');if(!p)return setTimeout(boot,500);new MutationObserver(fix).observe(p,{childList:true,subtree:true,attributes:true,attributeFilter:['hidden','disabled']});fix();};
+ boot();
+})();
