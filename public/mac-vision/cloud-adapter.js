@@ -297,12 +297,12 @@ setTimeout(macCloudHealth,1500);
   const active=ps.find(p=>p.active)?.id;
   let open=getOpen().filter(id=>byId[id]);if(active&&active!==TODOS&&!open.includes(active))open.push(active);setOpen(open);
   $c('mcvTabs').innerHTML=open.map(id=>{const p=byId[id];return '<span class="mcv-tab '+(p.active?'active':'')+'" data-mcv-tab="'+esc(id)+'" role="button" tabindex="0">'+avatar(p)+'<span>'+esc(p.name.split(/\s+/)[0])+'</span><span class="mcv-dot '+stateOf(id)+'"></span>'+(p.count?'<span class="mcv-count">'+p.count+'</span>':'')+'<button type="button" class="mcv-x" data-mcv-close="'+esc(id)+'" aria-label="Fechar conversa">✕</button></span>';}).join('');
-  const admin=isAdmin();$c('mcvEdit').hidden=$c('mcvDel').hidden=!admin;
+  const admin=isAdmin(),setP=(el,k,v)=>{if(el&&el[k]!==v)el[k]=v;};setP($c('mcvEdit'),'hidden',!admin);setP($c('mcvDel'),'hidden',!admin);
   if(selected&&!document.querySelector('[data-msg-id="'+CSS.escape(selected)+'"]'))selected='';
-  $c('mcvEdit').disabled=$c('mcvDel').disabled=!selected;
+  const dis=!selected||!admin;setP($c('mcvEdit'),'disabled',dis);setP($c('mcvDel'),'disabled',dis);
   document.querySelectorAll('.mac-chat-message.mcv-sel').forEach(m=>m.classList.remove('mcv-sel'));
   if(selected)document.querySelector('[data-msg-id="'+CSS.escape(selected)+'"]')?.classList.add('mcv-sel');
-  $c('mcvMenu').hidden=!menuOpen;if(menuOpen)paintList();
+  setP($c('mcvMenu'),'hidden',!menuOpen);if(menuOpen)paintList();
   }finally{painting=false;}
  }
  async function loadPresence(){if(!session)return;try{presence=await macRPC('presence-list')||{};}catch{}paint();}
@@ -352,8 +352,8 @@ html body #macChatPanel .mac-chat-head>.mac-chat-head-actions .btn:disabled{opac
 html body #macChatPanel .employee-avatar.mcv-todos{background:#FFFFFF!important;color:initial!important;font-size:16px!important;line-height:1!important}`;
  document.head.appendChild(st);
  const fix=()=>{const ed=document.getElementById('mcvEdit'),del=document.getElementById('mcvDel');
-  if(ed&&del){const admin=!!(session&&(session.isAreaMaster||session.adminRole));if(!admin){ed.disabled=del.disabled=true;}}
-  document.querySelectorAll('#macChatPanel [data-mcv-tab="todos"] .employee-avatar,#macChatPanel [data-mcv="todos"] .employee-avatar').forEach(a=>a.classList.add('mcv-todos'));};
+  if(ed&&del){const admin=!!(session&&(session.isAreaMaster||session.adminRole));if(!admin){if(!ed.disabled)ed.disabled=true;if(!del.disabled)del.disabled=true;}}
+  document.querySelectorAll('#macChatPanel [data-mcv-tab="todos"] .employee-avatar,#macChatPanel [data-mcv="todos"] .employee-avatar').forEach(a=>{if(!a.classList.contains('mcv-todos'))a.classList.add('mcv-todos')});};
  const boot=()=>{const p=document.getElementById('macChatPanel');if(!p)return setTimeout(boot,500);new MutationObserver(fix).observe(p,{childList:true,subtree:true,attributes:true,attributeFilter:['hidden','disabled']});fix();};
  boot();
 })();
