@@ -43,6 +43,8 @@ forgetLocalSession=()=>{};
 signalMacLocalChange=()=>{};
 const macOriginalMakeUser=makeUser;
 makeUser=async function(name,role,password,employee=''){
+  // A page opened before a reset may hold an outdated setup state; re-check Cloud before refusing.
+  if(!pendingSetupManager&&!session&&!macCloudDirectory?.setupAuthorized){try{macCloudDirectory=await macRPC('directory');}catch(_){}}
   if(!pendingSetupManager&&!session&&macCloudDirectory?.setupAuthorized){
   const wallet=document.getElementById('setupCarteira').value.trim().toUpperCase();
   return macRPC('bootstrap',{name,role,password,wallet,appName:document.getElementById('setupAppName').value});
