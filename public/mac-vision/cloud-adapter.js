@@ -187,3 +187,52 @@ loginToStore=async function(){
  if(session&&lang)setLanguageForSession(lang);
  return result;
 };
+
+// Session inactivity (30 min), cross-tab logout, Cloud health light and chat status dot.
+const MAC_IDLE_MS=30*60*1000,MAC_ACTIVITY_KEY='mac-vision-last-activity',MAC_LOGOUT_KEY='mac-vision-logout';
+function macLastActivity(){return Number(localStorage.getItem(MAC_ACTIVITY_KEY)||0);}
+let macActivityWrite=0;
+function macTouch(force){const now=Date.now();if(!force&&now-macActivityWrite<5000)return;macActivityWrite=now;try{localStorage.setItem(MAC_ACTIVITY_KEY,String(now));}catch{}}
+['pointerdown','keydown','touchstart','wheel'].forEach(t=>window.addEventListener(t,e=>{if(e.isTrusted&&session)macTouch(false);},{passive:true,capture:true}));
+let macIdleClosing=false;
+async function macIdleLogout(broadcast){
+ if(!session||macIdleClosing)return;macIdleClosing=true;
+ try{if(broadcast)localStorage.setItem(MAC_LOGOUT_KEY,String(Date.now()));await logout();}finally{macIdleClosing=false;}
+}
+function macIdleCheck(){if(session&&macLastActivity()&&Date.now()-macLastActivity()>=MAC_IDLE_MS)void macIdleLogout(true);}
+setInterval(macIdleCheck,15000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){macIdleCheck();void macCloudHealth();}});
+window.addEventListener('focus',macIdleCheck);
+window.addEventListener('storage',e=>{if(e.key===MAC_LOGOUT_KEY&&e.newValue)void macIdleLogout(false);});
+const macRestoreWithIdle=restoreLocalSession;
+restoreLocalSession=async function(){
+ const last=macLastActivity();
+ if(last&&Date.now()-last>=MAC_IDLE_MS){forgetLocalSession();try{await macRPC('logout');}catch{}return false;}
+ const ok=await macRestoreWithIdle.apply(this,arguments);if(ok)macTouch(true);return ok;
+};
+const macLoginWithIdle=loginToStore;
+loginToStore=async function(){macTouch(true);const r=await macLoginWithIdle.apply(this,arguments);if(session)macTouch(true);return r;};
+const macLogoutWithBroadcast=logout;
+logout=async function(){const was=!!session;const r=await macLogoutWithBroadcast.apply(this,arguments);if(was&&!session&&!macIdleClosing){try{localStorage.setItem(MAC_LOGOUT_KEY,String(Date.now()));}catch{}}return r;};
+
+let macCloudOk=true,macHealthBusy=false,macHealthDelay=30000,macHealthTimer=null;
+function macPaintHealth(){const led=document.getElementById('localSyncIndicator'),label=document.getElementById('localSyncLabel');if(!led||!label)return;const ok=macCloudOk&&localStatus!=='nok';led.classList.toggle('bad',!ok);led.classList.toggle('ok',ok);led.title=!macCloudOk?'Cloud: sem ligação':ok?'Cloud: ligada e verificada':'Cloud: alterações não guardadas';label.textContent=led.title;}
+async function macCloudHealth(){
+ if(macHealthBusy)return;macHealthBusy=true;clearTimeout(macHealthTimer);
+ try{await macRPC('ping');macCloudOk=true;macHealthDelay=30000;}catch{macCloudOk=false;macHealthDelay=Math.min(macHealthDelay===30000?5000:macHealthDelay*2,60000);}
+ finally{macHealthBusy=false;macPaintHealth();macHealthTimer=setTimeout(macCloudHealth,macHealthDelay);}
+}
+const macSetLocalStatusHealth=setLocalStatus;
+setLocalStatus=function(ok){macSetLocalStatusHealth(ok);macPaintHealth();};
+window.addEventListener('online',()=>void macCloudHealth());
+window.addEventListener('offline',()=>{macCloudOk=false;macPaintHealth();});
+setTimeout(macCloudHealth,1500);
+
+(function(){
+ const st=document.createElement('style');
+ st.textContent='#macChatCloudStatus{font-size:0!important;line-height:0!important;display:block;width:9px;height:9px;min-width:9px;border-radius:50%;margin-top:5px!important;background:#e5484d}#macChatCloudStatus.mac-cloud-on{background:#19c989}#macChatCloudStatus.mac-cloud-off{background:#e5484d}';
+ document.head.appendChild(st);
+ const sync=el=>{const on=el.classList.contains('mac-cloud-on');const l=on?'Chat Vision ligado à Cloud':'Chat Vision sem ligação à Cloud';if(el.getAttribute('aria-label')!==l){el.setAttribute('aria-label',l);el.setAttribute('role','status');el.title=l;}};
+ const hook=()=>{const el=document.getElementById('macChatCloudStatus');if(!el)return false;sync(el);new MutationObserver(()=>sync(el)).observe(el,{attributes:true,attributeFilter:['class']});return true;};
+ if(!hook())document.addEventListener('DOMContentLoaded',hook,{once:true});
+})();

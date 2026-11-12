@@ -47,6 +47,12 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
     throw Error('Alterações simultâneas: tenta guardar novamente.');
   }
   async function action(name:string,p:any){
+    if(name==='ping'){
+      const {data:{session}}=await supabase.auth.getSession();
+      if(session){const r=await supabase.auth.getUser();if(r.error||!r.data.user)throw Error('Sessão Cloud inválida.');return true;}
+      const r=await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/health`,{headers:{apikey:import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}});
+      if(!r.ok)throw Error('Sem ligação à Cloud.');return true;
+    }
     if(name==='directory'){
       const setupAuthorized=await macSetupAuthorization({data:{token:setupToken}});
       if(setupAuthorized){await supabase.auth.signOut({scope:'local'});cache.clear();walletId='';return {wallets:[],accounts:[],stores:[],setupAuthorized:true};}
