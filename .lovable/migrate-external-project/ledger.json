@@ -117,6 +117,23 @@
       "real commission workbook",
       "all preferences and reports"
     ],
-    "test_data": "AUDITORIA20261111 retained; explicit cleanup approval required"
+    "test_data": "User authorized deletion of all accounts on 2026-11-12. All 13 Auth identities and account dependencies removed; commercial documents and messages preserved. No new fictional data created.",
+    "account_reset": {
+      "date": "2026-11-12",
+      "auth_users": 0,
+      "sessions": 0,
+      "refresh_tokens": 0,
+      "accounts": 0,
+      "profiles": 0,
+      "roles": 0,
+      "memberships": 0,
+      "credentials": 0,
+      "preserved_wallets": 4,
+      "preserved_documents": 19,
+      "preserved_messages": 1,
+      "preview_form": "Verified immediately and after refresh on desktop and user viewport; no runtime errors.",
+      "first_real_GA": "Awaiting user input; deliberately not created or tested with fictional identities. Numeric 4-digit validation, hash verification and setup security rules passed unit tests.",
+      "production": "Not published; automatic preview authorization is development-only."
+    }
   }
 }

@@ -1,8 +1,8 @@
 # MAC Vision
 
 ## Reposição autorizada de todas as contas
-- [ ] Eliminar todas as identidades Cloud deste projeto, perfis, permissões, associações e credenciais; verificar revogação de sessões.
-- [ ] Reabrir automaticamente o formulário original no Preview com autorização temporária exclusiva da configuração de desenvolvimento; impedir apropriação de carteiras existentes.
+- [x] Eliminadas 13 identidades pela administração Auth; consulta final confirma zero utilizadores, sessões, refresh tokens, perfis, permissões, associações, credenciais e presenças. Carteiras e dados comerciais preservados.
+- [x] Formulário original abre automaticamente no Preview e após atualizar, em 1280×1800 e 591×754; autorização backend única até 26/11, indisponível em produção; nomes de carteiras anteriores continuam protegidos.
 - [ ] Verificar o formulário sem criar dados fictícios; criação real e configuração de lojas aguardam os dados introduzidos pelo utilizador.
 
 ## Passwords numéricas e criação do GA
@@ -31,6 +31,6 @@
 - [x] Nome da Carteira e conversão para maiúsculas verificados.
 - [ ] Certificação 100%: editor/criação de lojas, revogação, metadados em tempo real, dois colaboradores em lojas distintas, eliminações e testes de volume não concluídos; não classificados como confirmados no relatório.
 - [ ] Validação de fórmulas comerciais reais: aguarda catálogo e regras reais fornecidos pelo utilizador.
-- [ ] Limpeza da carteira AUDITORIA20261111: aguarda autorização específica; nenhum dado apagado nesta auditoria.
+- [ ] Limpeza dos dados comerciais da carteira AUDITORIA20261111: não autorizada; as contas foram eliminadas na reposição, mas vendas, anexos e mensagens foram preservados.
 
 Não publicar sem autorização.
