@@ -36,6 +36,7 @@ describe('MAC Vision Cloud rules', () => {
     expect(mergeChanges([], [{id:'sale-a'}], [{id:'sale-b'}])).toEqual([{id:'sale-b'},{id:'sale-a'}]);
   });
   it('rejects competing changes to the same schedule instead of silently losing one',()=>{
+    expect(mergeChanges({selectedDate:'2026-11-10',sales:[]},{selectedDate:'2026-11-12',sales:[{id:'a'}]},{selectedDate:'2026-11-11',sales:[{id:'b'}]})).toEqual({selectedDate:'2026-11-12',sales:[{id:'b'},{id:'a'}]});
     expect(()=>mergeChanges({start:'09:00'},{start:'10:00'},{start:'11:00'})).toThrow('CONFLICT');
   });
   it('preserves an authorized deletion while retaining another new sale',()=>{

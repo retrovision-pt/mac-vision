@@ -14,7 +14,8 @@ window.addEventListener('message',event=>{
  if(data.kind==='event'&&session){void (async()=>{
   if(data.event==='preferences-changed'){const prefs=await macRPC('preferences');macVolatilePrefs.clear();for(const [k,v] of Object.entries(prefs||{}))macVolatilePrefs.set(k,v);return;}
   if(data.event==='registry-changed'){return;} // Refresh on explicit load/save; never replace an in-progress account edit.
-  if(macStateDirty||saveTimer!==null)return;
+  if(data.key&&!String(data.key).startsWith('store:'+currentShopId))return;
+  if(macStateDirty||saveTimer!==null){window.macPullAfterSave=true;return;}
   const next=await macRPC('read',{key:'store:'+currentShopId,accept:true});if(next&&JSON.stringify(next)!==JSON.stringify(state)){state=shape(next);render();}
  })().catch(console.warn);}
 });
@@ -437,8 +438,19 @@ html body #macChatPanel .mcv-item{align-items:center!important}html body #macCha
    if(JSON.stringify(next)!==JSON.stringify(state)){const d=state.selectedDate;state=shape(next);if(d)state.selectedDate=d;render();}
   }catch(e){console.warn('Atualização Cloud da loja não concluída',e);}finally{busy=false;}
  }
- setInterval(macPullStore,15000);
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)macPullStore();});
  window.addEventListener('focus',macPullStore);
- const p=persist;persist=async function(){const ok=await p.apply(this,arguments);if(ok)setTimeout(macPullStore,1500);return ok;};
+ const p=persist;persist=async function(){const ok=await p.apply(this,arguments);if(ok&&window.macPullAfterSave){window.macPullAfterSave=false;setTimeout(macPullStore,0);}return ok;};
+})();
+/* Venda: a notificação de sucesso só aparece depois de a Cloud confirmar a gravação. */
+(function(){
+ const t=toast;
+ toast=function(message,bad){
+  if(bad||!/^Venda (registada|atualizada)/.test(String(message||'')))return t.apply(this,arguments);
+  (async()=>{
+   for(let i=0;i<100&&saveTimer!==null;i++)await new Promise(r=>setTimeout(r,50));
+   const ok=await macSaveQueue.catch(()=>false);
+   if(ok!==false&&!macStateDirty)t(String(message).replace(/^Venda (registada|atualizada)/,m=>m+' na Cloud'));
+  })();
+ };
 })();

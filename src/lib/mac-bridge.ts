@@ -192,7 +192,7 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
   const channel=supabase.channel(`mac-${crypto.randomUUID()}`).on('postgres_changes',{event:'*',schema:'public',table:'mac_documents'},payload=>{
     const key='key' in payload.new?String(payload.new['key']):'';
     if(key)readCache.delete(key);else readCache.clear();
-    if(!key.startsWith('status:'))send({macVisionBridge:1,kind:'event',event:'data-changed'});
+    if(!key.startsWith('status:')&&!key.includes('audit-v1'))send({macVisionBridge:1,kind:'event',event:'data-changed',key});
   }).on('postgres_changes',{event:'*',schema:'public',table:'mac_messages'},payload=>{
     send({macVisionChatBridge:1,kind:'event',event:'messages-changed'});
     const m=payload.new as any;

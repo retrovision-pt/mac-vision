@@ -25,6 +25,8 @@ export function registryChanges(base: any[], next: any[]) {
     return users.length||JSON.stringify(fields)!==JSON.stringify(oldFields)?[{...fields,users}]:[];
   });
 }
+// Per-device view state (e.g. the date being viewed): the saving device's value wins, never a conflict.
+const VIEW_FIELDS = new Set(['selectedDate']);
 export function mergeChanges(base: any, local: any, remote: any): any {
   if (JSON.stringify(base) === JSON.stringify(local)) return remote;
   if (JSON.stringify(base) === JSON.stringify(remote)) return local;
@@ -44,6 +46,7 @@ export function mergeChanges(base: any, local: any, remote: any): any {
     const result = { ...remote };
     for (const k of new Set([...Object.keys(base || {}), ...Object.keys(local)])) {
       if (!(k in local)) delete result[k];
+      else if (VIEW_FIELDS.has(k)) result[k] = local[k];
       else result[k] = mergeChanges(base?.[k], local[k], remote[k]);
     }
     return result;
