@@ -16,6 +16,16 @@ export const macSetupAuthorization=createServerFn({method:'POST'})
  });
 
 async function setupPermission(admin:any,token:string){
+ // A stale or consumed private link kept in the browser must not hide the
+ // development-only reset grant; production still needs a valid private link.
+ if(token){
+  const own=await grantPermission(admin,token);
+  if(own.allowed&&canStartWalletSetup(own.grant,Date.now(),false))return own;
+  if(!import.meta.env.DEV)return own;
+ }
+ return grantPermission(admin,'');
+}
+async function grantPermission(admin:any,token:string){
  const hash=await setupDigest(token || (import.meta.env.DEV ? pepper()+':mac-preview-reset-20261112' : ''));
  const grant=checked(await admin.from('mac_setup_grants').select('expires_at,consumed_by,preview_only').eq('token_hash',hash).maybeSingle()).data;
  if(!grant)return {hash,grant,allowed:false};
