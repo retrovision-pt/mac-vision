@@ -73,12 +73,31 @@ async function removeIdentity(admin:any,id:string){
  await admin.from('mac_pin_credentials').delete().eq('user_id',id);
  const cleanup=await admin.auth.admin.deleteUser(id);if(cleanup.error)console.error('New identity cleanup failed');
 }
+// Cargo apresentado no Bem-vindo: subtipo protegido para administradores; cargo do cadastro para os restantes.
+const ADMIN_LABEL:Record<string,string>={area:'Gestor de Área',beta:'Gestor Beta Tester',mac:'Gestor MAC Vision'};
+function loginCargo(a:{role:string;admin_type?:string|null},meta:any){
+  if(a.role==='admin')return meta?.cargo==='Administrador'?'Administrador':ADMIN_LABEL[a.admin_type||'area']||'Administrador';
+  const c=typeof meta?.cargo==='string'?meta.cargo.trim().slice(0,60):'';
+  return c||(a.role==='gestor'?'Gestor de Loja':'Colaborador');
+}
+// Fotografia antes do login: apenas de uma conta ativa pedida pelo ID, nunca a lista completa.
+export const macLoginPhoto = createServerFn({method:'POST'}).inputValidator((input:{id:string})=>input).handler(async({data})=>{
+  if(!/^[0-9a-f-]{36}$/i.test(String(data.id||'')))return '';
+  const { supabaseAdmin: admin } = await import('@/integrations/supabase/client.server');
+  const acc=checked(await admin.from('mac_accounts').select('id,wallet_id').eq('id',data.id).maybeSingle()).data;if(!acc)return '';
+  const prof=checked(await admin.from('profiles').select('avatar_url').eq('id',acc.id).maybeSingle()).data;
+  const path=prof?.avatar_url;if(!path||!path.startsWith(acc.id+'/'))return '';
+  const file=await admin.storage.from('mac-photos').download(path);if(file.error||!file.data||file.data.size>300000)return '';
+  const buf=new Uint8Array(await file.data.arrayBuffer());let bin='';for(let i=0;i<buf.length;i+=8192)bin+=String.fromCharCode(...buf.subarray(i,i+8192));
+  return 'data:image/jpeg;base64,'+btoa(bin);
+});
+
 export const macDirectory = createServerFn({method:'GET'}).handler(async () => {
   const { supabaseAdmin: admin } = await import('@/integrations/supabase/client.server');
    const allWallets = checked(await admin.from('mac_wallets').select('id,name,app_name,owner_id')).data || [];
   const stores = checked(await admin.from('mac_stores').select('id,wallet_id,name')).data || [];
   const accounts = checked(await admin.from('mac_accounts').select('id,wallet_id,name,role,admin_type')).data || [];
-  const members = checked(await admin.from('mac_memberships').select('user_id,store_id,role')).data || [];
+  const members = checked(await admin.from('mac_memberships').select('user_id,store_id,role,metadata')).data || [];
    const roles=checked(await admin.from('user_roles').select('user_id,role')).data||[];
    const wallets=allWallets.filter(w=>hasValidAreaManager(w,accounts,roles));
    // Records from wallets without a valid GA are never offered on the login screen.
@@ -86,7 +105,7 @@ export const macDirectory = createServerFn({method:'GET'}).handler(async () => {
    const visibleAccounts=accounts.filter(a=>active.has(a.wallet_id));
    const visibleStores=stores.filter(s=>active.has(s.wallet_id));
   return {wallets, accounts:visibleAccounts.map(a=>({id:a.id,name:a.name,wallet_id:a.wallet_id,role:a.role})), stores:visibleStores.map(s=>({...s, users:members.filter(m=>m.store_id===s.id).flatMap(m=>{
-    const a=visibleAccounts.find(a=>a.id===m.user_id); return a?[{id:a.id,name:a.name,role:a.role==='colaborador'?'colaborador':'gestor',employee:a.role==='colaborador'?a.name:'',isAreaMaster:a.role==='admin',adminRole:a.role==='admin'?a.admin_type:undefined}]:[];
+    const a=visibleAccounts.find(a=>a.id===m.user_id); return a?[{id:a.id,name:a.name,role:a.role==='colaborador'?'colaborador':'gestor',employee:a.role==='colaborador'?a.name:'',cargo:loginCargo(a,m.metadata),isAreaMaster:a.role==='admin',adminRole:a.role==='admin'?a.admin_type:undefined}]:[];
   })}))};
 });
 

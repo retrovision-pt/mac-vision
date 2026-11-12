@@ -989,3 +989,19 @@ html body #macChatPanel .mcv-item{align-items:center!important}html body #macCha
 
 // Avatares sempre circulares em toda a aplicação, sem alterar dimensões próprias de cada menu.
 (()=>{const st=document.createElement('style');st.textContent=`html body .employee-avatar{aspect-ratio:1/1!important;border-radius:50%!important;overflow:hidden!important;flex-shrink:0!important}html body .employee-avatar img,html body img.employee-avatar{width:100%!important;height:100%!important;object-fit:cover!important;object-position:center!important;border-radius:50%!important;display:block!important}`;(document.head||document.documentElement).appendChild(st);})();
+// Bem-vindo: fotografia circular + nome + cargo real (Cloud) do utilizador selecionado, pelo ID único.
+window.addEventListener('load',()=>{
+ if(typeof renderLoginPhoto!=='function'||typeof selectedLoginAccount!=='function')return;
+ const cachePhoto=new Map();let req=0;
+ renderLoginPhoto=async function(){
+  const n=++req,d=document.getElementById('loginUserPhoto');if(!d)return;
+  const {user}=selectedLoginAccount()||{};if(!user){d.innerHTML='';return;}
+  const cargo=String(user.cargo||'').trim()||(user.role==='gestor'?'Gestor de Loja':'Colaborador');
+  const paint=photo=>{if(n!==req)return;d.innerHTML=avatarFor(user.name,photo||'','login')+'<span class="mac-login-names"><strong>'+h(user.name)+'</strong><small>'+h(cargo)+'</small></span>';};
+  const known=cachePhoto.get(user.id);paint(known||user.photo||'');
+  if(known!==undefined||user.photo)return;
+  try{const photo=await macRPC('login-photo',{id:user.id});cachePhoto.set(user.id,photo||'');paint(photo||'');}catch(_){}
+ };
+ window.addEventListener('mac-photos-updated',()=>{cachePhoto.clear();try{renderLoginPhoto();}catch(_){}});
+ const st=document.createElement('style');st.textContent='#loginUserPhoto .mac-login-names{display:flex;flex-direction:column;text-align:left}#loginUserPhoto .mac-login-names small{font-size:12px;font-weight:400;opacity:.75}';document.head.appendChild(st);
+});

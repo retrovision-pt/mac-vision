@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { macBootstrap, macSetupAuthorization, macCreateAccount, macDirectory, macPrivateDirectory, macSaveRegistry, macUpdatePassword, macUpdateWallet, macPinLogin, macRemoveAccess } from './mac.functions';
+import { macBootstrap, macSetupAuthorization, macCreateAccount, macDirectory, macPrivateDirectory, macSaveRegistry, macUpdatePassword, macUpdateWallet, macPinLogin, macRemoveAccess, macLoginPhoto } from './mac.functions';
 import { mergeChanges, registryChanges } from './mac-rules';
 import { friendlyError } from './mac-pin';
 import { applyRegistryPhotos, applyEmployeePhotos, splitEmployeePhotos, registryPhotoChanges } from './mac-photo-rules';
@@ -181,6 +181,10 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
       }
       registryBase=structuredClone(directory.stores);
       return {...directory,setupAuthorized:false};
+    }
+    if(name==='login-photo'){
+      const id=String(p.id||'');if(photos[id])return photos[id];
+      return await macLoginPhoto({data:{id}});
     }
     if(name==='bootstrap'){
       const result=await macBootstrap({data:{...p,token:setupToken}});
