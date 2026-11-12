@@ -50,7 +50,7 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
     if(name==='ping'){
       const {data:{session}}=await supabase.auth.getSession();
       if(session){const r=await supabase.auth.getUser();if(r.error||!r.data.user)throw Error('Sessão Cloud inválida.');return true;}
-      const r=await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/health`,{headers:{apikey:import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}});
+      const r=await fetch(`${import.meta.env['VITE_SUPABASE_URL']}/auth/v1/health`,{headers:{apikey:import.meta.env['VITE_SUPABASE_PUBLISHABLE_KEY']}});
       if(!r.ok)throw Error('Sem ligação à Cloud.');return true;
     }
     if(name==='directory'){
