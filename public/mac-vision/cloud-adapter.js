@@ -61,6 +61,7 @@ const macOriginalLoadRegistry=loadRegistry;
 loadRegistry=async function(){shopRegistry=macCloudDirectory?.stores||[];};
 const macRestorePending=restorePendingFirstManager;
 restorePendingFirstManager=async function(){
+ if(macCloudDirectory?.setupAuthorized){pendingSetupManager=null;pendingSetupWorkspace={managers:[],stores:[]};macSessionDraft.clear();return;}
  await macRestorePending();
  if(pendingSetupManager){
   const valid=macCloudDirectory?.accounts?.some(a=>a.id===pendingSetupManager.id&&a.role==='admin');

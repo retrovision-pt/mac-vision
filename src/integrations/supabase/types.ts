@@ -306,6 +306,7 @@ export type Database = {
           consumed_by: string | null
           expires_at: string
           id: string
+          preview_only: boolean
           token_hash: string
         }
         Insert: {
@@ -313,6 +314,7 @@ export type Database = {
           consumed_by?: string | null
           expires_at: string
           id?: string
+          preview_only?: boolean
           token_hash: string
         }
         Update: {
@@ -320,6 +322,7 @@ export type Database = {
           consumed_by?: string | null
           expires_at?: string
           id?: string
+          preview_only?: boolean
           token_hash?: string
         }
         Relationships: []

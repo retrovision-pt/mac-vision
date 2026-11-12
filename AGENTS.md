@@ -39,5 +39,6 @@ use the editor.
 - Numeric PINs are verified only server-side against peppered PBKDF2 hashes with reserved-attempt lockouts, then a real Auth session is issued server-side; Auth identities keep random unknown passwords so provider password rules and leaked-password checks stay enabled.
 - Bridge and adapter translate provider, database and script errors into Portuguese before the original document displays them.
 - Provision new wallets only with a hashed, expiring, one-use private setup grant; consume it alongside wallet/account/role creation in one locked transaction, compensating only the newly created unassigned Auth identity on failure, because existing accounts must never authorize wallet takeover.
+- After an authorized account reset, automatic setup is development-only and requires a server-pepper-derived, expiring single-use grant plus absence of a valid GA; production never receives that capability, and preserved wallets cannot be reassigned.
 - Treat Cloud acknowledgement as the only persistence success signal; snapshots and same-field conflict rejection prevent queued writes and refreshes from hiding unsaved changes.
 - Persist original registry metadata transactionally through the privileged registry function after server authorization; personal preferences use atomic per-key updates separate from roles.

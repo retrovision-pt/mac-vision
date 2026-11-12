@@ -47,10 +47,11 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
   }
   async function action(name:string,p:any){
     if(name==='directory'){
-      const session=await supabase.auth.getSession();
-      const setupAuthorized=setupToken?await macSetupAuthorization({data:{token:setupToken}}):false;
-      if(setupAuthorized)return {wallets:[],accounts:[],stores:[],setupAuthorized:true};
-      const directory=session.data.session?await macPrivateDirectory():await macDirectory();
+      const setupAuthorized=await macSetupAuthorization({data:{token:setupToken}});
+      if(setupAuthorized){await supabase.auth.signOut({scope:'local'});cache.clear();walletId='';return {wallets:[],accounts:[],stores:[],setupAuthorized:true};}
+      const session=await supabase.auth.getUser();
+      if(session.error)await supabase.auth.signOut({scope:'local'});
+      const directory=session.data.user?await macPrivateDirectory():await macDirectory();
       return {...directory,setupAuthorized:false};
     }
     if(name==='bootstrap'){

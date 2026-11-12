@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeWallet, authorizeAccountCreation, mergeChanges, hasValidAreaManager, canStartWalletSetup } from './mac-rules';
+import { normalizeWallet, authorizeAccountCreation, mergeChanges, hasValidAreaManager, canStartWalletSetup, canStartPreviewSetup } from './mac-rules';
 describe('MAC Vision Cloud rules', () => {
+  const previewGrant={expires_at:'2026-11-26T00:00:00Z',consumed_by:null};
+  const resetTime=Date.parse('2026-11-12T00:47:00Z');
+  it('opens authorized preview setup with no valid GA even when old wallets remain',()=>expect(canStartPreviewSetup(true,false,previewGrant,resetTime)).toBe(true));
+  it('never authorizes automatic setup on the published app',()=>expect(canStartPreviewSetup(false,false,previewGrant,resetTime)).toBe(false));
+  it('closes preview setup when a GA exists',()=>expect(canStartPreviewSetup(true,true,previewGrant,resetTime)).toBe(false));
+  it('requires backend authorization even in preview',()=>expect(canStartPreviewSetup(true,false,null,resetTime)).toBe(false));
   it('does not consider unrelated test accounts a valid GA',()=>expect(hasValidAreaManager({id:'real',owner_id:'ga'},[{id:'test',wallet_id:'audit',role:'admin'}],[{user_id:'test',role:'admin'}])).toBe(false));
   it('requires the owner account and protected admin assignment for a valid GA',()=>{
     const wallet={id:'real',owner_id:'ga'},accounts=[{id:'ga',wallet_id:'real',role:'admin'}];

@@ -7,6 +7,9 @@ export function hasValidAreaManager(wallet: {id:string;owner_id:string}, account
 export function canStartWalletSetup(grant: {expires_at:string;consumed_by:string|null}|null, now: number, walletExists: boolean) {
   return !!grant && !grant.consumed_by && Date.parse(grant.expires_at)>now && !walletExists;
 }
+export function canStartPreviewSetup(development: boolean, hasManager: boolean, grant: {expires_at:string;consumed_by:string|null}|null, now:number) {
+  return development && !hasManager && canStartWalletSetup(grant,now,false);
+}
 export function authorizeAccountCreation(actor: string, target: string) {
   return actor === 'admin' || (actor === 'gestor' && target === 'colaborador');
 }

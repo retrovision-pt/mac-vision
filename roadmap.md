@@ -1,5 +1,10 @@
 # MAC Vision
 
+## Reposição autorizada de todas as contas
+- [ ] Eliminar todas as identidades Cloud deste projeto, perfis, permissões, associações e credenciais; verificar revogação de sessões.
+- [ ] Reabrir automaticamente o formulário original no Preview com autorização temporária exclusiva da configuração de desenvolvimento; impedir apropriação de carteiras existentes.
+- [ ] Verificar o formulário sem criar dados fictícios; criação real e configuração de lojas aguardam os dados introduzidos pelo utilizador.
+
 ## Passwords numéricas e criação do GA
 - [x] Password de mínimo 4 números para GA, gestores e colaboradores, validada só na Cloud com impressão digital protegida, bloqueio após 5 tentativas e sessão real; contas antigas convertidas no primeiro login.
 - [x] Mensagens técnicas em inglês substituídas por mensagens em português.

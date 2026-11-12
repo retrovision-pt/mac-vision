@@ -2,7 +2,7 @@ import { createServerFn } from '@tanstack/react-start';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import { createClient } from '@supabase/supabase-js';
 import { hashPin, verifyPin, isValidPin, internalSecret, friendlyError } from './mac-pin';
-import { normalizeUsername, normalizeWallet, loginAddress, authorizeAccountCreation, hasValidAreaManager, canStartWalletSetup } from './mac-rules';
+import { normalizeUsername, normalizeWallet, loginAddress, authorizeAccountCreation, hasValidAreaManager, canStartWalletSetup, canStartPreviewSetup } from './mac-rules';
 
 async function setupDigest(token:string) {
  const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token));
@@ -11,9 +11,20 @@ async function setupDigest(token:string) {
 export const macSetupAuthorization=createServerFn({method:'POST'})
  .inputValidator((input:{token:string})=>input).handler(async({data})=>{
   const {supabaseAdmin:admin}=await import('@/integrations/supabase/client.server');
-  const grant=checked(await admin.from('mac_setup_grants').select('expires_at,consumed_by').eq('token_hash',await setupDigest(data.token)).maybeSingle()).data;
-  return canStartWalletSetup(grant,Date.now(),false);
+  const {grant,allowed}=await setupPermission(admin,data.token);
+  return allowed && canStartWalletSetup(grant,Date.now(),false);
  });
+
+async function setupPermission(admin:any,token:string){
+ const hash=await setupDigest(token || (import.meta.env.DEV ? pepper()+':mac-preview-reset-20261112' : ''));
+ const grant=checked(await admin.from('mac_setup_grants').select('expires_at,consumed_by,preview_only').eq('token_hash',hash).maybeSingle()).data;
+ if(!grant)return {hash,grant,allowed:false};
+ if(!grant.preview_only)return {hash,grant,allowed:!!token};
+ const wallets=checked(await admin.from('mac_wallets').select('id,owner_id')).data||[];
+ const accounts=checked(await admin.from('mac_accounts').select('id,wallet_id,role')).data||[];
+ const roles=checked(await admin.from('user_roles').select('user_id,role')).data||[];
+ return {hash,grant,allowed:canStartPreviewSetup(import.meta.env.DEV,wallets.some((w:any)=>hasValidAreaManager(w,accounts,roles)),grant,Date.now())};
+}
 
 
 function checked<T extends { error: any }>(result: T): T {
@@ -71,20 +82,21 @@ export const macBootstrap = createServerFn({method:'POST'})
   const wallet=normalizeWallet(data.wallet),name=data.name.trim();
    if(!/^[A-Z0-9_-]{1,20}$/.test(wallet)||name.length<2||name.length>90||data.appName.trim().length<2||data.appName.trim().length>70||!isValidPin(data.password))throw Error('Preenche os campos obrigatórios; a password deve ter, no mínimo, 4 números.');
   const {supabaseAdmin:admin}=await import('@/integrations/supabase/client.server');
-   const hash=await setupDigest(data.token||'');
-   const grant=checked(await admin.from('mac_setup_grants').select('expires_at,consumed_by').eq('token_hash',hash).maybeSingle()).data;
+   const {hash,grant,allowed}=await setupPermission(admin,data.token||'');
    const exists=checked(await admin.from('mac_wallets').select('id').ilike('name',wallet).limit(1)).data;
-   if(!canStartWalletSetup(grant,Date.now(),!!exists?.length))throw Error('Configuração não autorizada ou carteira já existente.');
+   if(!allowed||!canStartWalletSetup(grant,Date.now(),!!exists?.length))throw Error('Configuração não autorizada ou carteira já existente.');
   const id=crypto.randomUUID();
   await createIdentity(admin,id,name);
-  try{
+   let assigned=false;
+   try{
    await storePin(admin,id,data.password);
    // Auth and application data use separate transactions. Only the new, unassigned
    // identity is compensated if the atomic application transaction fails.
    const completed=await admin.rpc('mac_complete_setup',{t:hash,u:id,wallet_name:wallet,application_name:data.appName.trim(),ga_name:name,ga_username:normalizeUsername(name)});
    if(completed.error)throw Error(friendlyError(completed.error.message));
+   assigned=true;
    return {id,walletId:completed.data as string,session:await issueSession(admin,id)};
-  }catch(error){await removeIdentity(admin,id);throw error;}
+  }catch(error){if(!assigned)await removeIdentity(admin,id);throw error;}
  });
 
 export const macPinLogin = createServerFn({method:'POST'})
