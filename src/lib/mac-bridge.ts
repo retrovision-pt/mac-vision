@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
-import { macBootstrap, macSetupAuthorization, macCreateAccount, macDirectory, macPrivateDirectory, macSaveRegistry, macUpdatePassword, macUpdateWallet } from './mac.functions';
-import { loginAddress, mergeChanges } from './mac-rules';
+import { macBootstrap, macSetupAuthorization, macCreateAccount, macDirectory, macPrivateDirectory, macSaveRegistry, macUpdatePassword, macUpdateWallet, macPinLogin } from './mac.functions';
+import { mergeChanges } from './mac-rules';
+import { friendlyError } from './mac-pin';
 
 export function mountMacBridge(frame: HTMLIFrameElement) {
   const cache = new Map<string,{value:any;revision:number}>();
@@ -15,6 +16,11 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
     const account=await supabase.from('mac_accounts').select('*').eq('id',data.user.id).single();
     if(account.error||!account.data)throw Error('Conta sem carteira.');
     walletId=account.data.wallet_id;return account.data;
+  }
+  async function startSession(tokens:{access_token:string;refresh_token:string}){
+    const r=await supabase.auth.setSession(tokens);
+    if(r.error||!r.data.session)throw Error('Não foi possível iniciar sessão na Cloud. Tenta novamente.');
+    await supabase.realtime.setAuth(r.data.session.access_token);
   }
   async function read(key:string){
     await identity();
@@ -50,15 +56,12 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
     if(name==='bootstrap'){
       const result=await macBootstrap({data:{...p,token:setupToken}});
       setupToken='';window.sessionStorage.removeItem('mac-private-setup');
-      const login=await supabase.auth.signInWithPassword({email:result.email,password:p.password});
-      if(login.error)throw Error(login.error.message);
-      cache.clear();walletId=result.walletId;if(login.data.session)await supabase.realtime.setAuth(login.data.session.access_token);return {id:result.id,name:p.name,role:'gestor',isAreaMaster:true,adminRole:'area',carteira:p.wallet,rcAppName:p.appName};
+      await startSession(result.session);
+      cache.clear();walletId=result.walletId;return {id:result.id,name:p.name,role:'gestor',isAreaMaster:true,adminRole:'area',carteira:p.wallet,rcAppName:p.appName};
     }
     if(name==='login'){
-      const result=await supabase.auth.signInWithPassword({email:loginAddress(p.id),password:p.password});
-      if(result.error)throw Error('Password incorreta.');
-      if(result.data.session)await supabase.realtime.setAuth(result.data.session.access_token);
-      return identity();
+      await startSession(await macPinLogin({data:{id:String(p.id||''),pin:String(p.password||'')}}));
+      cache.clear();return identity();
     }
     if(name==='logout'){await supabase.auth.signOut();walletId='';cache.clear();return true;}
     if(name==='account')return macCreateAccount({data:p});
@@ -138,7 +141,7 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
     const d=event.data;if(d?.kind!=='request'||(!d.macVisionBridge&&!d.macVisionChatBridge))return;
     const marker=d.macVisionChatBridge?{macVisionChatBridge:1}:{macVisionBridge:1};
     try{const result=await action(d.macVisionChatBridge&&d.action==='read'?'read-messages':d.action,d.payload||{});send({...marker,kind:'response',id:d.id,result});}
-    catch(error){send({...marker,kind:'response',id:d.id,error:error instanceof Error?error.message:'Erro Cloud'});}
+    catch(error){send({...marker,kind:'response',id:d.id,error:friendlyError(error instanceof Error?error.message:error)});}
   }
   window.addEventListener('message',listener);
   const channel=supabase.channel(`mac-${crypto.randomUUID()}`).on('postgres_changes',{event:'*',schema:'public',table:'mac_documents'},payload=>{

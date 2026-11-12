@@ -1,5 +1,7 @@
 import { createServerFn } from '@tanstack/react-start';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
+import { createClient } from '@supabase/supabase-js';
+import { hashPin, verifyPin, isValidPin, internalSecret, friendlyError } from './mac-pin';
 import { normalizeUsername, normalizeWallet, loginAddress, authorizeAccountCreation, hasValidAreaManager, canStartWalletSetup } from './mac-rules';
 
 async function setupDigest(token:string) {
@@ -13,9 +15,42 @@ export const macSetupAuthorization=createServerFn({method:'POST'})
   return canStartWalletSetup(grant,Date.now(),false);
  });
 
+
 function checked<T extends { error: any }>(result: T): T {
-  if (result.error) throw new Error(result.error.message);
+  if (result.error) { console.error('MAC Cloud error', result.error.message); throw new Error(friendlyError(result.error.message)); }
   return result;
+}
+function pepper(){
+ const value=process.env['MAC_PIN_PEPPER'];
+ if(!value)throw Error('Configuração de segurança em falta.');
+ return value;
+}
+function publicAuthClient(){
+ const key=process.env['SUPABASE_PUBLISHABLE_KEY']!;
+ return createClient(process.env['SUPABASE_URL']!,key,{auth:{persistSession:false,autoRefreshToken:false,storage:undefined},global:{fetch:(input,init)=>{
+  const h=new Headers(init?.headers);
+  if(key.startsWith('sb_')&&h.get('Authorization')===`Bearer ${key}`)h.delete('Authorization');
+  h.set('apikey',key);return fetch(input,{...init,headers:h});
+ }}});
+}
+async function storePin(admin:any,id:string,pin:string){
+ checked(await admin.from('mac_pin_credentials').upsert({user_id:id,pin_hash:await hashPin(pin,pepper()),updated_at:new Date().toISOString()}));
+}
+// Issues a real Auth session only after the server has verified the PIN; no email is sent.
+async function issueSession(admin:any,id:string){
+ const link=await admin.auth.admin.generateLink({type:'magiclink',email:loginAddress(id)});
+ if(link.error||!link.data?.properties?.hashed_token){console.error('MAC session link failed',link.error?.message);throw Error('Não foi possível iniciar sessão na Cloud. Tenta novamente.');}
+ const verified=await publicAuthClient().auth.verifyOtp({type:'email',token_hash:link.data.properties.hashed_token});
+ if(verified.error||!verified.data.session){console.error('MAC session verify failed',verified.error?.message);throw Error('Não foi possível iniciar sessão na Cloud. Tenta novamente.');}
+ return {access_token:verified.data.session.access_token,refresh_token:verified.data.session.refresh_token};
+}
+async function createIdentity(admin:any,id:string,name:string){
+ const result=await admin.auth.admin.createUser({id,email:loginAddress(id),password:internalSecret(),email_confirm:true,user_metadata:{display_name:name}});
+ if(result.error){console.error('MAC identity creation failed',result.error.message);throw Error('Não foi possível criar o acesso na Cloud. Tenta novamente.');}
+}
+async function removeIdentity(admin:any,id:string){
+ await admin.from('mac_pin_credentials').delete().eq('user_id',id);
+ const cleanup=await admin.auth.admin.deleteUser(id);if(cleanup.error)console.error('New identity cleanup failed');
 }
 export const macDirectory = createServerFn({method:'GET'}).handler(async () => {
   const { supabaseAdmin: admin } = await import('@/integrations/supabase/client.server');
@@ -34,20 +69,46 @@ export const macBootstrap = createServerFn({method:'POST'})
   .inputValidator((input:{name:string;wallet:string;appName:string;password:string;token:string})=>input)
  .handler(async({data})=>{
   const wallet=normalizeWallet(data.wallet),name=data.name.trim();
-   if(!/^[A-Z0-9_-]{1,20}$/.test(wallet)||name.length<2||name.length>90||data.appName.trim().length<2||data.appName.trim().length>70||!/^\d{4,}$/.test(data.password))throw Error('Preenche os campos obrigatórios.');
+   if(!/^[A-Z0-9_-]{1,20}$/.test(wallet)||name.length<2||name.length>90||data.appName.trim().length<2||data.appName.trim().length>70||!isValidPin(data.password))throw Error('Preenche os campos obrigatórios; a password deve ter, no mínimo, 4 números.');
   const {supabaseAdmin:admin}=await import('@/integrations/supabase/client.server');
    const hash=await setupDigest(data.token||'');
    const grant=checked(await admin.from('mac_setup_grants').select('expires_at,consumed_by').eq('token_hash',hash).maybeSingle()).data;
    const exists=checked(await admin.from('mac_wallets').select('id').ilike('name',wallet).limit(1)).data;
    if(!canStartWalletSetup(grant,Date.now(),!!exists?.length))throw Error('Configuração não autorizada ou carteira já existente.');
   const id=crypto.randomUUID();
-  const result=await admin.auth.admin.createUser({id,email:loginAddress(id),password:data.password,email_confirm:true,user_metadata:{display_name:name}});
-  if(result.error)throw Error(result.error.message);
+  await createIdentity(admin,id,name);
+  try{
+   await storePin(admin,id,data.password);
    // Auth and application data use separate transactions. Only the new, unassigned
    // identity is compensated if the atomic application transaction fails.
    const completed=await admin.rpc('mac_complete_setup',{t:hash,u:id,wallet_name:wallet,application_name:data.appName.trim(),ga_name:name,ga_username:normalizeUsername(name)});
-   if(completed.error){const cleanup=await admin.auth.admin.deleteUser(id);if(cleanup.error)console.error('New setup identity cleanup failed');throw Error(completed.error.message);}
-   return {id,walletId:completed.data,email:loginAddress(id)};
+   if(completed.error)throw Error(friendlyError(completed.error.message));
+   return {id,walletId:completed.data as string,session:await issueSession(admin,id)};
+  }catch(error){await removeIdentity(admin,id);throw error;}
+ });
+
+export const macPinLogin = createServerFn({method:'POST'})
+ .inputValidator((input:{id:string;pin:string})=>input)
+ .handler(async({data})=>{
+  const generic='Password incorreta.';
+  if(!/^[0-9a-f-]{36}$/i.test(String(data.id))||!isValidPin(data.pin))throw Error(generic);
+  const {supabaseAdmin:admin}=await import('@/integrations/supabase/client.server');
+  const account=checked(await admin.from('mac_accounts').select('id').eq('id',data.id).maybeSingle()).data;
+  if(!account)throw Error(generic);
+  const locked=checked(await admin.rpc('mac_pin_attempt',{u:data.id})).data as string|null;
+  if(locked){const minutes=Math.max(1,Math.ceil((Date.parse(locked)-Date.now())/60000));throw Error(`Acesso bloqueado temporariamente por excesso de tentativas. Tenta novamente dentro de ${minutes} minuto${minutes===1?'':'s'}.`);}
+  const cred=checked(await admin.from('mac_pin_credentials').select('pin_hash').eq('user_id',data.id).maybeSingle()).data;
+  let ok=false;
+  if(cred)ok=await verifyPin(data.pin,cred.pin_hash,pepper());
+  else{
+   // One-time upgrade of accounts created before PIN credentials existed.
+   const legacy=await publicAuthClient().auth.signInWithPassword({email:loginAddress(data.id),password:data.pin});
+   ok=!legacy.error&&!!legacy.data.session;
+   if(ok){await storePin(admin,data.id,data.pin);checked(await admin.auth.admin.updateUserById(data.id,{password:internalSecret()}));}
+  }
+  if(!ok)throw Error(generic);
+  checked(await admin.rpc('mac_pin_success',{u:data.id}));
+  return issueSession(admin,data.id);
  });
 
 export const macCreateAccount = createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
@@ -55,12 +116,16 @@ export const macCreateAccount = createServerFn({method:'POST'}).middleware([requ
  .handler(async({data,context})=>{
   const actor=checked(await context.supabase.from('mac_accounts').select('*').eq('id',context.userId).single()).data;
   if(!actor||!authorizeAccountCreation(actor.role,data.role))throw Error('Sem permissão para criar este acesso.');
-  if(!/^\d{4,}$/.test(data.password)||data.name.trim().length<2)throw Error('Nome ou password inválidos.');
+  if(data.name.trim().length<2)throw Error('Indica o nome do utilizador.');
+  if(!isValidPin(data.password))throw Error('A password deve ter, no mínimo, 4 números.');
   const {supabaseAdmin:admin}=await import('@/integrations/supabase/client.server');
   const id=crypto.randomUUID();
-  checked(await admin.auth.admin.createUser({id,email:loginAddress(id),password:data.password,email_confirm:true,user_metadata:{display_name:data.name.trim()}}));
-  checked(await admin.from('mac_accounts').insert({id,wallet_id:actor.wallet_id,name:data.name.trim(),username:normalizeUsername(data.name),role:data.role}));
-  checked(await admin.from('user_roles').insert({user_id:id,role:data.role}));
+  await createIdentity(admin,id,data.name.trim());
+  try{
+   await storePin(admin,id,data.password);
+   checked(await admin.from('mac_accounts').insert({id,wallet_id:actor.wallet_id,name:data.name.trim(),username:normalizeUsername(data.name),role:data.role}));
+   checked(await admin.from('user_roles').insert({user_id:id,role:data.role}));
+  }catch(error){await admin.from('mac_accounts').delete().eq('id',id);await removeIdentity(admin,id);throw error;}
   return {id,name:data.name.trim(),role:data.role==='admin'?'gestor':data.role,employee:data.employee||'',isAreaMaster:data.role==='admin',adminRole:data.role==='admin'?'area':undefined};
  });
 
@@ -82,9 +147,11 @@ export const macUpdatePassword = createServerFn({method:'POST'}).middleware([req
   const membership=checked(await context.supabase.from('mac_memberships').select('role').eq('store_id',data.storeId).eq('user_id',context.userId).maybeSingle()).data;
   const targetMember=checked(await context.supabase.from('mac_memberships').select('user_id').eq('store_id',data.storeId).eq('user_id',data.id).maybeSingle()).data;
   if(!actor||!target||actor.wallet_id!==target.wallet_id||!(actor.role==='admin'||(membership?.role==='gestor'&&target.role==='colaborador'&&targetMember)))throw Error('Sem permissão para alterar esta password.');
-  if(!/^\d{4,}$/.test(data.password))throw Error('Password inválida.');
+  if(!isValidPin(data.password))throw Error('A password deve ter, no mínimo, 4 números.');
   const {supabaseAdmin:admin}=await import('@/integrations/supabase/client.server');
-  checked(await admin.auth.admin.updateUserById(target.id,{password:data.password}));
+  await storePin(admin,target.id,data.password);
+  checked(await admin.rpc('mac_pin_success',{u:target.id}));
+  checked(await admin.auth.admin.updateUserById(target.id,{password:internalSecret()}));
   return true;
  });
 
@@ -101,8 +168,8 @@ export const macPrivateDirectory = createServerFn({method:'GET'}).middleware([re
 export const macUpdateWallet = createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
  .inputValidator((input:{appName:string;carteira:string})=>input).handler(async({data,context})=>{
  const actor=checked(await context.supabase.from('mac_accounts').select('*').eq('id',context.userId).single()).data;
- if(!actor||actor.role!=='admin')throw Error('Apenas administrador');
- const name=normalizeWallet(data.carteira);if(!/^[A-Z0-9_-]{1,20}$/.test(name)||data.appName.trim().length<2)throw Error('Nome inválido');
+ if(!actor||actor.role!=='admin')throw Error('Apenas o administrador pode alterar a carteira.');
+ const name=normalizeWallet(data.carteira);if(!/^[A-Z0-9_-]{1,20}$/.test(name)||data.appName.trim().length<2)throw Error('Indica um nome de aplicação e de carteira válidos.');
  const {supabaseAdmin:admin}=await import('@/integrations/supabase/client.server');
  checked(await admin.from('mac_wallets').update({name,app_name:data.appName.trim()}).eq('id',actor.wallet_id));return true;
 });

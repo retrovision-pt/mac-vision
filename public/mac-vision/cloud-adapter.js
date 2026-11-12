@@ -113,8 +113,18 @@ resetUserPassword=async function(id,shopId=viewedAccessShop()?.id){
 };
 
 // A success message is never evidence of persistence until Cloud acknowledges it.
+function macPt(message){
+ const text=String(message??'');
+ if(/weak|easy to guess|pwned|at least \d+ characters/i.test(text))return 'A password não foi aceite. Usa, no mínimo, 4 números.';
+ if(/failed to fetch|network|load failed/i.test(text))return 'Sem ligação à Cloud. Verifica a internet e tenta novamente.';
+ if(/\b(the|is|not|failed|error|invalid|unable|cannot|undefined|null|of|reading|must|should)\b/i.test(text)&&!/[áàâãéêíóôõúçÁÉÍÓÚÇ]/.test(text))return 'Não foi possível concluir a operação. Tenta novamente.';
+ return text;
+}
+const macOriginalAuthError=authError;
+authError=function(message=''){return macOriginalAuthError(message?macPt(message):message);};
 const macOriginalToast=toast;
 toast=function(message,error=false){
+ if(error)message=macPt(message);
  if(!error&&session&&(macStateDirty||saveTimer!==null)&&/registad|atualizad|guardad|eliminad|removid|restaurad|importad|conclu[ií]d|partilhad|retirada/i.test(String(message))){
   void macFlushChangesForExit().then(ok=>{if(ok)macOriginalToast(message,false);else macOriginalToast('Não guardado na Cloud. Alterações pendentes nesta sessão; não feches o navegador.',true);});return;
  }

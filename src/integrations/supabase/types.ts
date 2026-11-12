@@ -126,6 +126,30 @@ export type Database = {
           },
         ]
       }
+      mac_login_attempts: {
+        Row: {
+          failures: number
+          locked_until: string | null
+          lockouts: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          failures?: number
+          locked_until?: string | null
+          lockouts?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          failures?: number
+          locked_until?: string | null
+          lockouts?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       mac_memberships: {
         Row: {
           metadata: Json
@@ -205,6 +229,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      mac_pin_credentials: {
+        Row: {
+          pin_hash: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          pin_hash: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          pin_hash?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       mac_presence: {
         Row: {
@@ -397,6 +439,8 @@ export type Database = {
         Args: { k: string; w: string }
         Returns: undefined
       }
+      mac_pin_attempt: { Args: { u: string }; Returns: string }
+      mac_pin_success: { Args: { u: string }; Returns: undefined }
       mac_put_document: {
         Args: { k: string; r: number; s: string; v: Json; w: string }
         Returns: number

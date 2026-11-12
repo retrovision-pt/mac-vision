@@ -8715,6 +8715,7 @@ function macRenderManagerStores(){
   if(!/^[0-9]{4,}$/.test(pw))return adminAlert('A password precisa de pelo menos quatro números.',true);
   const submit=event.target.querySelector('[type="submit"]');submit.disabled=true;
   try{
+   if(typeof macRPC==='function')await macRPC('password',{id,password:pw,storeId:copies[0].shop.id});
    const salt=randomHex(),hash=await hashPassword(pw,salt);
    for(const {user} of copies){user.salt=salt;user.hash=hash;user.pbkdf2Iterations=MAC_PASSWORD_ITERATIONS;user.credentialVersion=randomHex(8);}
    await saveRegistry();closeAdminModal('macAdminPasswordDialog');
