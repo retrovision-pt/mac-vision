@@ -171,4 +171,19 @@ toast=function(message,error=false){
 setLocalStatus=function(ok){localStatus=ok?'ok':'nok';const led=document.getElementById('localSyncIndicator'),label=document.getElementById('localSyncLabel');if(!led||!label)return;led.classList.toggle('bad',!ok);led.classList.toggle('ok',!!ok);led.title=ok?'Cloud: gravação confirmada':'Cloud: alterações não guardadas';label.textContent=led.title;};
 const macOriginalMarkUnsaved=macMarkUnsaved;
 macMarkUnsaved=function(){macOriginalMarkUnsaved();setLocalStatus(false);};
-window.addEventListener('beforeunload',event=>{if(macStateDirty||saveTimer!==null){event.preventDefault();event.returnValue='';}});
+window.addEventListener('beforeunload',event=>{if(macStateDirty||saveTimer!==null){event.preventDefault();event.returnValue='';}});// Language is a personal preference: saved per user in Cloud profile preferences, never via the admin registry.
+const MAC_LANGUAGE_PREF='macVision.language';
+changeUserLanguage=async function(locale){
+ if(!session||!['pt','en','es','fr','de','ar','tr','br'].includes(locale))return;
+ try{await macRPC('preference',{key:MAC_LANGUAGE_PREF,value:locale});}catch(error){return toast(error.message,true);}
+ macVolatilePrefs.set(MAC_LANGUAGE_PREF,locale);
+ setLanguageForSession(locale);
+ toast(uiString('Língua alterada.'));
+};
+const macLoginWithLanguage=loginToStore;
+loginToStore=async function(){
+ const result=await macLoginWithLanguage.apply(this,arguments);
+ const lang=macVolatilePrefs.get(MAC_LANGUAGE_PREF);
+ if(session&&lang)setLanguageForSession(lang);
+ return result;
+};
