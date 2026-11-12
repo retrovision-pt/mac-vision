@@ -237,6 +237,8 @@ setTimeout(macCloudHealth,1500);
  if(!hook())document.addEventListener('DOMContentLoaded',hook,{once:true});
 })();
 
+// Admin (GA / Gestor MAC Vision) comes from the Cloud directory; the session object has no admin fields. Backend re-checks.
+window.macIsChatAdmin=()=>{if(!session)return false;if(session.isAreaMaster||session.adminRole||session.accessKind==='administrador')return true;const u=(macCloudDirectory?.stores||[]).flatMap(s=>s.users||[]).find(u=>String(u.id)===String(session.id));return !!(u&&(u.isAreaMaster||u.adminRole));};
 // Chat Vision: header, human presence (green/yellow/red), 👥 picker, open-conversation tabs, admin edit/delete of a selected message.
 (function(){
  const $c=id=>document.getElementById(id);
@@ -254,7 +256,7 @@ setTimeout(macCloudHealth,1500);
  const openKey=()=>'mac-chat-open-'+(session?.id||'');
  const getOpen=()=>{try{return JSON.parse(sessionStorage.getItem(openKey())||'[]')}catch{return[]}};
  const setOpen=l=>{try{sessionStorage.setItem(openKey(),JSON.stringify(l))}catch{}};
- const isAdmin=()=>!!(session&&(session.isAreaMaster||session.adminRole));
+ const isAdmin=()=>window.macIsChatAdmin();
  const dd=d=>String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  function stateOf(id){if(id===TODOS)return 'on';const t=presence[id]?new Date(presence[id]).getTime():0,a=Date.now()-t;return !t?'off':a<60000?'on':a<300000?'away':'off';}
@@ -353,7 +355,7 @@ html body #macChatPanel .mac-chat-head>.mac-chat-head-actions .btn:disabled{opac
 html body #macChatPanel .employee-avatar.mcv-todos{background:#FFFFFF!important;color:initial!important;font-size:16px!important;line-height:1!important}`;
  document.head.appendChild(st);
  const fix=()=>{const ed=document.getElementById('mcvEdit'),del=document.getElementById('mcvDel');
-  if(ed&&del){const admin=!!(session&&(session.isAreaMaster||session.adminRole));if(!admin){if(!ed.disabled)ed.disabled=true;if(!del.disabled)del.disabled=true;}}
+  if(ed&&del){const admin=window.macIsChatAdmin();if(!admin){if(!ed.disabled)ed.disabled=true;if(!del.disabled)del.disabled=true;}}
   document.querySelectorAll('#macChatPanel [data-mcv-tab="todos"] .employee-avatar,#macChatPanel [data-mcv="todos"] .employee-avatar').forEach(a=>{if(!a.classList.contains('mcv-todos'))a.classList.add('mcv-todos')});};
  const boot=()=>{const p=document.getElementById('macChatPanel');if(!p)return setTimeout(boot,500);new MutationObserver(fix).observe(p,{childList:true,subtree:true,attributes:true,attributeFilter:['hidden','disabled']});fix();};
  boot();
