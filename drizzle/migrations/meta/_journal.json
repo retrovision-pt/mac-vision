@@ -92,6 +92,13 @@
       "when": 1794485071879,
       "tag": "0012_mac_admin_moderate_message",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794497346289,
+      "tag": "0013_mac_sales_table",
+      "breakpoints": true
     }
   ]
 }

@@ -330,6 +330,57 @@ export type Database = {
           },
         ]
       }
+      mac_sales: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          data: Json
+          deleted_at: string | null
+          employee: string
+          id: string
+          store_id: string
+          updated_at: string
+          wallet_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          data: Json
+          deleted_at?: string | null
+          employee?: string
+          id: string
+          store_id: string
+          updated_at?: string
+          wallet_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          data?: Json
+          deleted_at?: string | null
+          employee?: string
+          id?: string
+          store_id?: string
+          updated_at?: string
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mac_sales_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "mac_stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mac_sales_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "mac_wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mac_setup_grants: {
         Row: {
           consumed_at: string | null
@@ -480,6 +531,10 @@ export type Database = {
       mac_pin_success: { Args: { u: string }; Returns: undefined }
       mac_put_document: {
         Args: { k: string; r: number; s: string; v: Json; w: string }
+        Returns: number
+      }
+      mac_put_sales: {
+        Args: { deletes: string[]; s: string; upserts: Json; w: string }
         Returns: number
       }
       mac_remove_access: {

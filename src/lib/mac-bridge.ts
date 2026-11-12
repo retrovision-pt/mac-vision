@@ -28,20 +28,62 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
     if(r.error||!r.data.session)throw Error('Não foi possível iniciar sessão na Cloud. Tenta novamente.');
     await supabase.realtime.setAuth(r.data.session.access_token);
   }
+  const isStore=(k:string)=>k.startsWith('store:');
+  async function loadSales(storeId:string){
+    const out:any[]=[];for(let o=0;;o+=1000){
+      const r=await supabase.from('mac_sales').select('data').eq('store_id',storeId).is('deleted_at',null).order('created_at').order('id').range(o,o+999);
+      if(r.error)throw Error(r.error.message);out.push(...r.data.map(x=>x.data));if(r.data.length<1000)break;
+    }
+    return out;
+  }
+  async function withSales(key:string,value:any){
+    if(!isStore(key)||!value||typeof value!=='object')return value;
+    return {...value,sales:await loadSales(key.slice(6))};
+  }
   async function read(key:string){
     const hit=realtimeLive&&walletId?readCache.get(key):undefined;
     if(hit){if(!cache.has(key))cache.set(key,structuredClone(hit));return structuredClone(hit.value);}
     await identity();
     const result=await supabase.from('mac_documents').select('value,revision').eq('wallet_id',walletId).eq('key',key).maybeSingle();
     if(result.error)throw Error(result.error.message);
-    if(!cache.has(key))cache.set(key,{value:structuredClone(result.data?.value??null),revision:result.data?.revision??0});
-    readCache.set(key,{value:structuredClone(result.data?.value??null),revision:result.data?.revision??0});
-    return result.data?.value??null;
+    const value=await withSales(key,result.data?.value??null);
+    if(!cache.has(key))cache.set(key,{value:structuredClone(value),revision:result.data?.revision??0});
+    readCache.set(key,{value:structuredClone(value),revision:result.data?.revision??0});
+    return value;
   }
   async function write(key:string,value:any){
     await identity();
     if(!cache.has(key))await read(key);
     const base=cache.get(key)||{value:null,revision:0};
+    if(isStore(key)&&value&&typeof value==='object'){
+      // Sales live in their own Cloud table: send only changed/removed sales, keyed by their id (idempotent on retry).
+      const storeId=key.slice(6);
+      const before=new Map<string,any>((base.value?.sales||[]).map((x:any)=>[String(x.id),x]));
+      const now=(value.sales||[]) as any[];
+      const ids=new Set(now.map(x=>String(x.id)));
+      const upserts=now.filter(x=>JSON.stringify(before.get(String(x.id)))!==JSON.stringify(x));
+      const deletes=[...before.keys()].filter(id=>!ids.has(id));
+      if(upserts.length||deletes.length){
+        const r=await supabase.rpc('mac_put_sales',{w:walletId,s:storeId,upserts,deletes});
+        if(r.error)throw Error(r.error.message);
+      }
+      const {sales:_l,...docLocal}=value;const {sales:_b,...docBase}=base.value||{};
+      let rev=base.revision,next:any=docLocal,saved=false;
+      if(JSON.stringify(docLocal)===JSON.stringify(docBase))saved=true;
+      for(let i=0;!saved&&i<5;i++){
+        const result=await supabase.rpc('mac_put_document',{w:walletId,k:key,s:storeId,v:next,r:rev});
+        if(!result.error){rev=result.data;saved=true;break;}
+        if(!result.error.message.includes('CONFLICT'))throw Error(result.error.message);
+        const remote=await supabase.from('mac_documents').select('value,revision').eq('wallet_id',walletId).eq('key',key).maybeSingle();
+        if(remote.error)throw Error(remote.error.message);
+        const {sales:_r,...docRemote}=(remote.data?.value as any)||{};
+        rev=remote.data?.revision||0;next=mergeChanges(docBase,docLocal,docRemote);
+      }
+      if(!saved)throw Error('Alterações simultâneas: tenta guardar novamente.');
+      // Base keeps only the sales this page knows, so another device's new sale is never mistaken for a deletion.
+      cache.set(key,{value:structuredClone({...next,sales:now}),revision:rev});readCache.delete(key);
+      return true;
+    }
     let next=value,rev=base.revision;
     for(let i=0;i<5;i++){
       const storeId=key.startsWith('store:')?key.slice(6):key.startsWith('status:')?key.slice(7):key.startsWith('attachment:')?value.storeId||'':key.includes('audit-v1:')?key.split('audit-v1:')[1]||'':'';
@@ -193,6 +235,11 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
     const key='key' in payload.new?String(payload.new['key']):'';
     if(key)readCache.delete(key);else readCache.clear();
     if(!key.startsWith('status:')&&!key.includes('audit-v1'))send({macVisionBridge:1,kind:'event',event:'data-changed',key});
+  }).on('postgres_changes',{event:'*',schema:'public',table:'mac_sales'},payload=>{
+    const row:any=(payload.new&&'store_id' in payload.new)?payload.new:payload.old;
+    const key=row?.store_id?'store:'+row.store_id:'';
+    if(key)readCache.delete(key);else readCache.clear();
+    send({macVisionBridge:1,kind:'event',event:'data-changed',key});
   }).on('postgres_changes',{event:'*',schema:'public',table:'mac_messages'},payload=>{
     send({macVisionChatBridge:1,kind:'event',event:'messages-changed'});
     const m=payload.new as any;
