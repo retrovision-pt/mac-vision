@@ -47,7 +47,7 @@ makeUser=async function(name,role,password,employee=''){
   const wallet=document.getElementById('setupCarteira').value.trim().toUpperCase();
   return macRPC('bootstrap',{name,role,password,wallet,appName:document.getElementById('setupAppName').value});
  }
-  if(!pendingSetupManager&&!session)throw Error('Usa a ligação privada de configuração ou o acesso da carteira existente.');
+  if(!pendingSetupManager&&!session)throw Error('A criação do Gestor de Área não está disponível neste endereço.');
  return macRPC('account',{name,role,password,employee});
 };
 const macOriginalSubmitLogin=submitLogin;
@@ -74,16 +74,45 @@ start=async function(){
  const label=document.querySelector('label[for="setupCarteira"]');if(label)label.textContent='Nome da Carteira';
  field?.setAttribute('pattern','[A-Z0-9_\\-]{1,20}');
  field?.addEventListener('input',()=>{field.value=field.value.toUpperCase();});
+ // Browser autofill must never re-enter names or passwords from a previous installation.
+ for(const id of ['setupAppName','setupCarteira','setupManager','setupPassword','setupConfirm','setupShopManagerName'])document.getElementById(id)?.setAttribute('autocomplete',/Password|Confirm/.test(id)?'new-password':'off');
  await macOriginalStart();
 };
-const macOriginalFinish=finishAreaSetup;
+// Initial setup may finish with stores only; GL and collaborators can be added later from the original menus.
+const macOriginalRenderPending=renderPendingAreaSetup;
+renderPendingAreaSetup=function(){
+ const result=macOriginalRenderPending.apply(this,arguments);
+ const finish=document.getElementById('setupFinish'),d=pendingSetupWorkspace;
+ if(finish&&pendingSetupManager)finish.disabled=!d.stores.length||d.managers.some(u=>u.setupPermission==='store'&&!(u.assignedStoreIds||[]).length);
+ return result;
+};
 finishAreaSetup=async function(){
- if(pendingSetupManager){
-  const master={...pendingSetupManager,adminOnly:true,salesEnabled:false};
-  const stores=pendingSetupWorkspace.stores.map(store=>({...store,users:[master,...pendingSetupWorkspace.managers.filter(u=>u.setupPermission!=='store'||u.assignedStoreIds?.includes(store.id))]}));
-  await macRPC('registry-save',{stores});
- }
- return macOriginalFinish();
+ if(!pendingSetupManager)return authError('Cria primeiro o Gestor de Área.');
+ const d=pendingSetupWorkspace;
+ if(!d.stores.length)return authError('Cria pelo menos uma loja.');
+ if(d.managers.some(u=>u.setupPermission==='store'&&!(u.assignedStoreIds||[]).length))return authError('Atribui uma loja a cada Gestor de Loja.');
+ if(shopRegistry.some(st=>(st.users||[]).length))return authError('A configuração inicial já foi concluída.');
+ const master={...pendingSetupManager,adminOnly:true,salesEnabled:false};
+ const stores=d.stores.map(st=>{
+  const users=[{...master}];
+  for(const mgr of d.managers){
+   if(mgr.setupPermission==='store'&&!(mgr.assignedStoreIds||[]).includes(st.id))continue;
+   const {setupPermission,assignedStoreIds,...cleanAccount}=mgr;users.push({...cleanAccount});
+  }
+  return {id:st.id,name:st.name,excelCode:'',users};
+ });
+ // Cloud registers stores and accesses first; store documents are scoped to registered stores.
+ await macRPC('registry-save',{stores});
+ for(const st of stores)await writeKey('store:'+st.id,shape(blankStoreData(st)));
+ macCloudDirectory=await macRPC('directory');shopRegistry=structuredClone(macCloudDirectory.stores);
+ const own=shopRegistry.filter(st=>stores.some(x=>x.id===st.id));
+ if(!own.length)throw Error('As lojas não foram confirmadas pela Cloud. Tenta novamente.');
+ const access=Object.fromEntries(own.map(st=>[st.id,master.id]));
+ await deleteKey(MAC_PENDING_MANAGER_KEY);await deleteKey(MAC_SETUP_WORKSPACE_KEY);
+ pendingSetupManager=null;pendingSetupWorkspace={managers:[],stores:[]};authError('');
+ const first=own[0],firstUser=first.users.find(u=>u.id===master.id)||first.users[0];
+ await loginToStore(first,firstUser,access,'administrador');
+ toast(`Configuração concluída: ${own.length} ${own.length===1?'loja':'lojas'}${d.managers.length?` e ${d.managers.length} ${d.managers.length===1?'gestor':'gestores'}`:''}.`);
 };
 
 const macVolatilePrefs=new Map();

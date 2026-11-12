@@ -81,8 +81,12 @@ export const macDirectory = createServerFn({method:'GET'}).handler(async () => {
   const members = checked(await admin.from('mac_memberships').select('user_id,store_id,role')).data || [];
    const roles=checked(await admin.from('user_roles').select('user_id,role')).data||[];
    const wallets=allWallets.filter(w=>hasValidAreaManager(w,accounts,roles));
-  return {wallets, accounts:accounts.map(a=>({id:a.id,name:a.name,wallet_id:a.wallet_id,role:a.role})), stores:stores.map(s=>({...s, users:members.filter(m=>m.store_id===s.id).flatMap(m=>{
-    const a=accounts.find(a=>a.id===m.user_id); return a?[{id:a.id,name:a.name,role:a.role==='colaborador'?'colaborador':'gestor',employee:a.role==='colaborador'?a.name:'',isAreaMaster:a.role==='admin',adminRole:a.role==='admin'?a.admin_type:undefined}]:[];
+   // Records from wallets without a valid GA are never offered on the login screen.
+   const active=new Set(wallets.map((w:any)=>w.id));
+   const visibleAccounts=accounts.filter(a=>active.has(a.wallet_id));
+   const visibleStores=stores.filter(s=>active.has(s.wallet_id));
+  return {wallets, accounts:visibleAccounts.map(a=>({id:a.id,name:a.name,wallet_id:a.wallet_id,role:a.role})), stores:visibleStores.map(s=>({...s, users:members.filter(m=>m.store_id===s.id).flatMap(m=>{
+    const a=visibleAccounts.find(a=>a.id===m.user_id); return a?[{id:a.id,name:a.name,role:a.role==='colaborador'?'colaborador':'gestor',employee:a.role==='colaborador'?a.name:'',isAreaMaster:a.role==='admin',adminRole:a.role==='admin'?a.admin_type:undefined}]:[];
   })}))};
 });
 
