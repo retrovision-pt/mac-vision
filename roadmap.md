@@ -1,10 +1,10 @@
 # MAC Vision
 
 ## Auditoria integral solicitada
-- [ ] Inventariar todos os módulos, chamadas locais e operações Cloud, incluindo eliminações.
-- [ ] Corrigir persistência de metadados de lojas/contas, recibos e histórico de chat e falsos sucessos durante falha de ligação.
-- [ ] Executar sete testes pedidos com duas sessões independentes e verificar armazenamento local ativo.
-- [ ] Entregar relatório tabelado com provas, tabelas/funções e seis respostas finais; distinguir limitações de confirmações.
+- [x] Inventariar chamadas locais e operações Cloud; relatório distingue caminhos inspecionados de operações realmente testadas.
+- [x] Corrigir falsos sucessos offline, recibos, snapshots, conflitos no mesmo campo, preferências atómicas e metadados persistidos.
+- [x] Executar testes de venda, MOVIIK, horários, chat, recibos, novo navegador e falha de ligação; IndexedDB vazio e apenas autenticação em localStorage real.
+- [x] Entregar relatório tabelado com provas, tabelas/funções, riscos e seis respostas finais, sem certificação de 100%.
 - [x] Retirar o badge Lovable, sem publicar.
 
 - [x] Abrir o HTML original no Preview, preservando integralmente a interface e o ecrã Bem-vindo; verificado em computador e telemóvel, com 13 entradas de navegação presentes.
@@ -13,7 +13,8 @@
 - [x] Armazenamento Cloud de registos, configurações, perfis e anexos; revisions e merge com testes de concorrência.
 - [x] Venda sincronizada em dois navegadores, importação MOVIIK, download de anexo, mensagens gerais e privadas entre duas lojas e persistência após reabrir verificados.
 - [x] Nome da Carteira e conversão para maiúsculas verificados.
-- [ ] Validação completa de escalas, comissões reais, edição/movimentação de contas e limites de permissões. Bloqueio: catálogo e escalas reais não fornecidos; gestão de contas e chat ainda têm operações não implementadas.
-- [ ] Completar eliminações autorizadas dentro dos menus e histórico paginado do chat. Bloqueio: operações ainda não implementadas; nenhuma eliminação Cloud automática permitida.
+- [ ] Certificação 100%: editor/criação de lojas, revogação, metadados em tempo real, dois colaboradores em lojas distintas, eliminações e testes de volume não concluídos; não classificados como confirmados no relatório.
+- [ ] Validação de fórmulas comerciais reais: aguarda catálogo e regras reais fornecidos pelo utilizador.
+- [ ] Limpeza da carteira AUDITORIA20261111: aguarda autorização específica; nenhum dado apagado nesta auditoria.
 
 Não publicar sem autorização.

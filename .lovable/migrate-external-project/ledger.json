@@ -55,7 +55,7 @@
       "source": "Existing same-origin parent message bridge",
       "outcome": "migrate",
       "status": "partially_verified",
-      "next_action": "Original Cloud account creation/login, sale synchronization, MOVIIK import and attachment read, general and cross-store private messaging verified in separate browsers; remaining account lifecycle and full chat history operations require completion."
+      "next_action": "Private receipt and new-browser history verified; paginated reads implemented but >1000 history untested; two collaborators in distinct stores and full moderation outstanding."
     },
     {
       "capability": "External providers",
@@ -90,8 +90,33 @@
       "source": "Requested login, two-browser sales, MOVIIK, schedules, chat and persistence tests",
       "outcome": "verify",
       "status": "partial",
-      "next_action": "Creation, login, sale synchronization, MOVIIK attachment, private cross-store chat and reopening verified. Schedule and real commission workbook checks, full account edits/deletions, paginated chat history and complete permission testing outstanding."
+      "next_action": "Audit performed with independent browsers, offline simulation and fresh storage; partial. See audit summary. No 100% certification."
     }
   ],
-  "mode": "Fresh Cloud installation; user explicitly declined old records"
+  "mode": "Fresh Cloud installation; user explicitly declined old records",
+  "audit": {
+    "started": "2026-11-11",
+    "completed": "2026-11-12",
+    "overall": "partial-not-certified",
+    "verified": [
+      "sale synchronization",
+      "MOVIIK row and attachment read",
+      "schedule cell and hours",
+      "private chat administrator-manager",
+      "read receipt",
+      "new browser persistence",
+      "offline warning and reconnect",
+      "new collaborator visible in existing session"
+    ],
+    "unverified": [
+      "full account lifecycle",
+      "second store creation",
+      "cross-store two-collaborator chat",
+      "all deletions",
+      "large attachments",
+      "real commission workbook",
+      "all preferences and reports"
+    ],
+    "test_data": "AUDITORIA20261111 retained; explicit cleanup approval required"
+  }
 }

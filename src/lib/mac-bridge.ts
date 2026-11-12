@@ -50,6 +50,7 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
     if(name==='login'){
       const result=await supabase.auth.signInWithPassword({email:loginAddress(p.id),password:p.password});
       if(result.error)throw Error('Password incorreta.');
+      if(result.data.session)await supabase.realtime.setAuth(result.data.session.access_token);
       return identity();
     }
     if(name==='logout'){await supabase.auth.signOut();walletId='';cache.clear();return true;}
@@ -60,10 +61,20 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
       const me=await identity();const w=await supabase.from('mac_wallets').select('name,app_name').eq('id',me.wallet_id).single();
       return w.data?{appName:w.data.app_name,carteira:w.data.name}:null;
     }
-    if(name==='read')return read(p.key);
+    if(name==='read'&&['custom-fonts','mac-vision-personalized-error-audio-v1'].includes(p.key)){
+      const me=await identity();const r=await supabase.from('profiles').select('preferences').eq('id',me.id).single();
+      if(r.error)throw Error(r.error.message);return (r.data.preferences as Record<string,any>)[p.key]??null;
+    }
+    if(name==='read'){if(p.accept)cache.delete(p.key);return read(p.key);}
+    if(name==='write'&&['custom-fonts','mac-vision-personalized-error-audio-v1'].includes(p.key)){
+      await identity();const r=await supabase.rpc('mac_set_preference',{k:p.key,v:p.value});if(r.error)throw Error(r.error.message);return true;
+    }
     if(name==='write'&&p.key==='rc-clean-install-20261110-app-global-settings-v1')return macUpdateWallet({data:p.value});
     if(name==='write')return write(p.key,p.value);
     if(name==='delete'){
+      if(['custom-fonts','mac-vision-personalized-error-audio-v1'].includes(p.key)){
+        await identity();const r=await supabase.rpc('mac_set_preference',{k:p.key,v:null});if(r.error)throw Error(r.error.message);return true;
+      }
       await identity();const r=await supabase.rpc('mac_delete_document',{w:walletId,k:p.key});
       if(r.error)throw Error(r.error.message);cache.delete(p.key);return true;
     }
@@ -123,6 +134,9 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
     catch(error){send({...marker,kind:'response',id:d.id,error:error instanceof Error?error.message:'Erro Cloud'});}
   }
   window.addEventListener('message',listener);
-  const channel=supabase.channel(`mac-${crypto.randomUUID()}`).on('postgres_changes',{event:'*',schema:'public',table:'mac_documents'},()=>send({macVisionBridge:1,kind:'event',event:'data-changed'})).on('postgres_changes',{event:'*',schema:'public',table:'mac_messages'},()=>send({macVisionChatBridge:1,kind:'event',event:'messages-changed'})).on('postgres_changes',{event:'*',schema:'public',table:'mac_reads'},()=>send({macVisionChatBridge:1,kind:'event',event:'messages-changed'})).on('postgres_changes',{event:'*',schema:'public',table:'profiles'},()=>send({macVisionBridge:1,kind:'event',event:'preferences-changed'})).on('postgres_changes',{event:'*',schema:'public',table:'mac_accounts'},()=>send({macVisionBridge:1,kind:'event',event:'registry-changed'})).on('postgres_changes',{event:'*',schema:'public',table:'mac_wallets'},()=>send({macVisionBridge:1,kind:'event',event:'registry-changed'})).on('postgres_changes',{event:'*',schema:'public',table:'mac_stores'},()=>send({macVisionBridge:1,kind:'event',event:'registry-changed'})).on('postgres_changes',{event:'*',schema:'public',table:'mac_memberships'},()=>send({macVisionBridge:1,kind:'event',event:'registry-changed'})).on('postgres_changes',{event:'*',schema:'public',table:'mac_chat_settings'},()=>send({macVisionChatBridge:1,kind:'event',event:'messages-changed'})).on('postgres_changes',{event:'*',schema:'public',table:'mac_presence'},()=>send({macVisionChatBridge:1,kind:'event',event:'presence-changed'})).subscribe();
+  const channel=supabase.channel(`mac-${crypto.randomUUID()}`).on('postgres_changes',{event:'*',schema:'public',table:'mac_documents'},payload=>{
+    const key='key' in payload.new?String(payload.new['key']):'';
+    if(!key.startsWith('status:'))send({macVisionBridge:1,kind:'event',event:'data-changed'});
+  }).on('postgres_changes',{event:'*',schema:'public',table:'mac_messages'},()=>send({macVisionChatBridge:1,kind:'event',event:'messages-changed'})).on('postgres_changes',{event:'*',schema:'public',table:'mac_reads'},()=>send({macVisionChatBridge:1,kind:'event',event:'messages-changed'})).on('postgres_changes',{event:'*',schema:'public',table:'profiles'},()=>send({macVisionBridge:1,kind:'event',event:'preferences-changed'})).on('postgres_changes',{event:'*',schema:'public',table:'mac_accounts'},()=>send({macVisionBridge:1,kind:'event',event:'registry-changed'})).on('postgres_changes',{event:'*',schema:'public',table:'mac_wallets'},()=>send({macVisionBridge:1,kind:'event',event:'registry-changed'})).on('postgres_changes',{event:'*',schema:'public',table:'mac_stores'},()=>send({macVisionBridge:1,kind:'event',event:'registry-changed'})).on('postgres_changes',{event:'*',schema:'public',table:'mac_memberships'},()=>send({macVisionBridge:1,kind:'event',event:'registry-changed'})).on('postgres_changes',{event:'*',schema:'public',table:'mac_chat_settings'},()=>send({macVisionChatBridge:1,kind:'event',event:'messages-changed'})).on('postgres_changes',{event:'*',schema:'public',table:'mac_presence'},()=>send({macVisionChatBridge:1,kind:'event',event:'presence-changed'})).subscribe();
   return ()=>{window.removeEventListener('message',listener);void supabase.removeChannel(channel);};
 }

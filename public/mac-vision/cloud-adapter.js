@@ -15,7 +15,7 @@ window.addEventListener('message',event=>{
   if(data.event==='preferences-changed'){const prefs=await macRPC('preferences');macVolatilePrefs.clear();for(const [k,v] of Object.entries(prefs||{}))macVolatilePrefs.set(k,v);return;}
   if(data.event==='registry-changed'){macCloudDirectory=await macRPC('directory');shopRegistry=macCloudDirectory.stores;renderOptions();renderAccess();await window.rcLoadGlobalSettings?.();return;}
   if(macStateDirty||saveTimer!==null)return;
-  const next=await readKey('store:'+currentShopId);if(next){state=shape(next);render();}
+  const next=await macRPC('read',{key:'store:'+currentShopId,accept:true});if(next&&JSON.stringify(next)!==JSON.stringify(state)){state=shape(next);render();}
  })().catch(console.warn);}
 });
 const macSessionDraft=new Map();
@@ -24,7 +24,7 @@ initDB=async function(){db=null;storageKind='cloud';macCloudDirectory=await macR
 readKey=async function(key){
  if(key===REGISTRY_KEY)return macCloudDirectory?.stores||[];
  if(macSessionDraft.has(key))return macSessionDraft.get(key);
- try{return await macRPC('read',{key});}catch(error){if(!session&&!pendingSetupManager)return null;throw error;}
+ try{return await macRPC('read',{key,accept:!macStateDirty&&saveTimer===null});}catch(error){if(!session&&!pendingSetupManager)return null;throw error;}
 };
 writeKey=async function(key,value){
  if(key===REGISTRY_KEY){await macRPC('registry-save',{stores:value});macCloudDirectory=await macRPC('directory');return true;}
@@ -99,7 +99,8 @@ loginToStore=async function(){
 };
 async function macSaveBlob(file,key){
  const bytes=new Uint8Array(await file.arrayBuffer());let text='';for(let i=0;i<bytes.length;i+=8192)text+=String.fromCharCode(...bytes.subarray(i,i+8192));
- return macRPC('write',{key:'attachment:'+key,value:{data:btoa(text),name:file.name||'',type:file.type||'',storeId:currentShopId}});
+ const scoped=shopRegistry.find(s=>String(key).startsWith(s.id+'|'))?.id||currentShopId;
+ return macRPC('write',{key:'attachment:'+key,value:{data:btoa(text),name:file.name||'',type:file.type||'',storeId:scoped}});
 }
 async function macGetBlob(key){const item=await macRPC('read',{key:'attachment:'+key});if(!item)return null;return new File([Uint8Array.from(atob(item.data),c=>c.charCodeAt(0))],item.name,{type:item.type});}
 resetUserPassword=async function(id,shopId=viewedAccessShop()?.id){

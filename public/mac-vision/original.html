@@ -2398,7 +2398,7 @@ function shape(s){if(!s||!Array.isArray(s.employees)||!Array.isArray(s.sales)||!
  // Registos vindos do Excel já contêm a ponderação calculada no ficheiro de origem.
  for(const sale of s.sales){if(sale.kind!=='mark')continue;sale.meta ||= {};const m=sale.meta;const legacy=clean(m.primeira)==='⭐';const starred=clean(m.categoria)==='⭐'||legacy||m.estrela===true;if(legacy){m.categoria='⭐';m.primeira='NÃO'}if(starred){m.estrela=true;if(clean(sale.source)==='Registo manual'&&!m.starMultiplierApplied){const unit=num(sale.qty)>0?num(sale.points)/num(sale.qty):0;m.pontosBase=unit;sale.points=Math.round(num(sale.points)*2*10000)/10000;m.starMultiplierApplied=true}else if(m.pontosBase===undefined){m.pontosBase=num(sale.qty)>0?num(sale.points)/num(sale.qty)/2:0}}}
  return s}
-async function initDB(){if(!('indexedDB' in window))return;try{db=await new Promise((resolve,reject)=>{const req=indexedDB.open('RC-Retalho-Centro-Instalacao-Limpa-20261110-DB',1);req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('storage'))req.result.createObjectStore('storage')};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)});storageKind='indexeddb'}catch(err){console.warn('IndexedDB indisponível:',err);db=null}}
+async function initDB(){throw Error('Armazenamento local desativado; usa a ligação Cloud.');}
 // Armazenamento segregado por loja. Não confundir com sincronização entre computadores.
 let shopRegistry=[],currentShopId=null,session=null,authFailures=0;
 const REGISTRY_KEY='rc-clean-install-20261110-registry-v2';
@@ -2518,22 +2518,9 @@ function refreshSettingsRoleUI(){
 }
 
 function blankStoreData(shop){const d=clone(START_DATA);d.store=shop.name;d.employees=[];d.sales=[];d.tickets=[];d.schedules=[];d.imports=[];d.selectedDate=localTodayIso();return d}
-async function readKey(key){if(db){try{return await new Promise((resolve,reject)=>{const tx=db.transaction('storage','readonly'),req=tx.objectStore('storage').get(key);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}catch(e){console.warn('IndexedDB read',e)}}try{const raw=localStorage.getItem('rc-clean-install-20261110:'+key);return raw?JSON.parse(raw):null}catch{return null}}
-async function writeKey(key,value){
- if(key.startsWith('store:')&&value&&typeof value==='object')value.__macWriteRevision=String(Date.now())+'-'+Math.random().toString(36).slice(2);
- if(db){return new Promise((resolve,reject)=>{
-  const tx=db.transaction('storage','readwrite');
-  tx.objectStore('storage').put(value,key);
-  tx.oncomplete=()=>resolve(true);
-  tx.onerror=()=>reject(tx.error||new Error('Erro de gravação IndexedDB.'));
-  tx.onabort=()=>reject(tx.error||new Error('Gravação IndexedDB interrompida.'));
- })}
- localStorage.setItem('rc-clean-install-20261110:'+key,JSON.stringify(value));
-}
-async function deleteKey(key){
- if(db){await new Promise((resolve,reject)=>{const tx=db.transaction('storage','readwrite');tx.objectStore('storage').delete(key);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)})}
- try{localStorage.removeItem('rc-clean-install-20261110:'+key)}catch(err){console.warn('Não foi possível limpar cópia local',err)}
-}
+async function readKey(key){throw Error('Armazenamento local desativado; usa a ligação Cloud.');}
+async function writeKey(key,value){throw Error('Armazenamento local desativado; usa a ligação Cloud.');}
+async function deleteKey(key){throw Error('Armazenamento local desativado; usa a ligação Cloud.');}
 /* Avisos apenas entre separadores desta mesma origem/navegador; não é cloud sync. */
 const MAC_LOCAL_BUS_KEY='rc-clean-install-20261110-local-update-v1';
 const MAC_LOCAL_INSTANCE_ID=Math.random().toString(36).slice(2)+Date.now().toString(36);
@@ -3521,7 +3508,7 @@ async function updateAccountPhoto(id,file,remove=false,shopId=viewedAccessShop()
  const emp=data.employees.find(e=>norm(e.name)===norm(user.employee||user.name));
  // Foto visível no cartão e na ficha do colaborador, inclusive noutras lojas.
  user.photo=photo;if(emp)emp.photo=photo;
- if(shopId===currentShopId){state=data;await persist();renderSessionPhoto();renderOptions()}
+ if(shopId===currentShopId){state=data;if(!await persist())throw Error('Não guardado na Cloud. Mantém a sessão aberta e tenta novamente.');renderSessionPhoto();renderOptions()}
  else await writeKey('store:'+shopId,data);
  await saveRegistry();renderAccess();toast(remove?'Fotografia removida.':'Fotografia do colaborador atualizada.');
 }
@@ -3856,7 +3843,7 @@ async function eraseStoreData(scope){
    currentStore().users=currentStore().users.filter(u=>u.id===session.id);await saveRegistry();
  }
  if(scope==='users'){currentStore().users=currentStore().users.filter(u=>u.id===session.id);await saveRegistry()}
- await persist();$('saleEditId').value='';render();renderAccess();clearForm();renderLanguageChoicesSafe();
+ if(!await persist())throw Error('Não guardado na Cloud. Mantém a sessão aberta e tenta novamente.');$('saleEditId').value='';render();renderAccess();clearForm();renderLanguageChoicesSafe();
  toast('Dados selecionados eliminados da loja '+shopName+'.');
 }
 function renderLanguageChoicesSafe(){if($('languageChoices'))refreshLanguageChoices()}
@@ -4265,7 +4252,7 @@ async function fileImportRunner(input,callback){
  }}catch(err){console.error(err);toast(err?.message||'Ocorreu um erro ao importar.',true)}finally{input.value='';input.disabled=false}
 }
 function exportBackup(){if(session?.role!=='gestor')return toast('Apenas o gestor pode exportar o backup.',true);downloadFile('PDS_Studio_'+currentShopId+'_Backup_'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify({...state,backupDate:new Date().toISOString()},null,2),'application/json;charset=utf-8');toast('Backup guardado. Conserva o ficheiro num local seguro.')}
-async function restoreBackup(file){if(session?.role!=='gestor')return toast('Apenas o gestor pode restaurar backups.',true);let content=await file.text(),data=shape(JSON.parse(content));if(norm(data.store)!==norm(state.store)){toast('O backup pertence a outra loja ('+data.store+'). Não foi restaurado.',true);return}if(!confirm('Restaurar este backup e substituir os dados de '+currentStore().name+'?'))return;state=data;period='day';$('globalDate').value=state.selectedDate;$('scheduleMonth').value=state.selectedDate.slice(0,7);$('importMonth').value=state.selectedDate.slice(0,7);await persist();render();toast('Backup restaurado com sucesso.')}
+async function restoreBackup(file){if(session?.role!=='gestor')return toast('Apenas o gestor pode restaurar backups.',true);let content=await file.text(),data=shape(JSON.parse(content));if(norm(data.store)!==norm(state.store)){toast('O backup pertence a outra loja ('+data.store+'). Não foi restaurado.',true);return}if(!confirm('Restaurar este backup e substituir os dados de '+currentStore().name+'?'))return;state=data;period='day';$('globalDate').value=state.selectedDate;$('scheduleMonth').value=state.selectedDate.slice(0,7);$('importMonth').value=state.selectedDate.slice(0,7);if(!await persist())throw Error('Não guardado na Cloud. Mantém a sessão aberta e tenta novamente.');render();toast('Backup restaurado com sucesso.')}
 function installHandlers(){
  $('loginRole').addEventListener('change',()=>{$('loginUser').value='';$('loginStore').value='';renderLoginUsers()});
  $('loginUser').addEventListener('change',()=>{$('loginStore').value='';authError('');renderLoginStores()});
@@ -6553,7 +6540,7 @@ async function macCommissionPublish(sourceName){
  if(!session||!currentShopId)throw Error('Seleciona uma loja antes de editar as comissões.');
  state.weights ||= {};
  if(sourceName)state.weights.macCommissionSourceName=sourceName;
- await persist();
+ if(!await persist())throw Error('Não guardado na Cloud. Mantém a sessão aberta e tenta novamente.');
  macCommissionShowStatus();
 }
 function macCommissionShowStatus(){
@@ -9269,10 +9256,10 @@ $('macAreaStaffSave').addEventListener('click',()=>void mutateStaff(false));
 $('macAreaStaffDelete').addEventListener('click',()=>void mutateStaff(true));
 // Preservar os ficheiros MOVIIK importados futuramente num repositório local de anexos.
 const dbName='rc-clean-install-20261110-import-files-v1';
-function openAttachments(){return new Promise((resolve,reject)=>{if(!window.indexedDB)return reject(new Error('Anexos não suportados'));const req=indexedDB.open(dbName,1);req.onupgradeneeded=()=>req.result.createObjectStore('attachments');req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
+function openAttachments(){throw Error('Armazenamento local desativado; usa a ligação Cloud.');}
 async function saveAttachment(file,key){return macSaveBlob(file,key);}
 async function getAttachment(key){return macGetBlob(key);}
-if(typeof addImport==='function'){const before=addImport;addImport=function(file,type,count){const out=before.apply(this,arguments);if(type==='MOVIIK'&&file instanceof Blob&&file.name&&currentShopId){const key=currentShopId+'|'+file.name;void saveAttachment(file,key).catch(()=>{})}return out}}
+
 const importLog=$('importLog');if(importLog){
  function addDownloads(){for(const row of importLog.querySelectorAll('.mac-import-history-entry')){
   const del=row.querySelector('[data-mac-delete-import]');if(!del||row.querySelector('[data-mac-import-download]'))continue;
@@ -11484,10 +11471,7 @@ body.mac-import-multishop #macImportsStoreFilter{display:none!important}
  syncPage();
  // Fontes carregadas: usar IndexedDB para conservar ficheiros binários em vez de localStorage.
  let dbPromise=null,fontsLoaded=false,fontItems=new Map();
- function openDB(){if(!('indexedDB'in window))return Promise.reject(Error('O navegador não suporta armazenamento de fontes.'));
-  if(!dbPromise)dbPromise=new Promise((resolve,reject)=>{const request=indexedDB.open('mac-vision-custom-fonts-v1',1);
-   request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains('fonts'))request.result.createObjectStore('fonts',{keyPath:'id'})};
-   request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error||Error('Falha ao abrir a biblioteca de fontes.'));});return dbPromise;}
+ function openDB(){throw Error('Armazenamento local desativado; usa a ligação Cloud.');}
  async function fontRecords(){const items=await readKey('custom-fonts')||[];return items.map(x=>({...x,data:Uint8Array.from(atob(x.data),c=>c.charCodeAt(0)).buffer}));}
  async function saveFontRecord(item){const items=await readKey('custom-fonts')||[];const bytes=new Uint8Array(item.data);let text='';for(let i=0;i<bytes.length;i+=8192)text+=String.fromCharCode(...bytes.subarray(i,i+8192));await writeKey('custom-fonts',[...items.filter(x=>x.id!==item.id),{...item,data:btoa(text)}]);}
  async function deleteFontRecord(id){const items=await readKey('custom-fonts')||[];await writeKey('custom-fonts',items.filter(x=>x.id!==id));}
@@ -11525,7 +11509,7 @@ body.mac-import-multishop #macImportsStoreFilter{display:none!important}
  $('macAppearanceFonts')?.addEventListener('click',event=>{if(event.target.closest('[data-mac-font]')){savePref({customFont:null});showFonts();}},true);
  function syncPersonal(){const p=getPref();menuSize(p.menuZoom||100);nightSync();if(fontsLoaded)applyCustomFont()}
  const oldLogin=loginToStore;
- loginToStore=async function(){const result=await oldLogin.apply(this,arguments);syncPersonal();return result};
+ loginToStore=async function(){const result=await oldLogin.apply(this,arguments);await loadFonts();syncPersonal();return result};
  const oldLogout=logout;
  logout=async function(){const out=await oldLogout.apply(this,arguments);document.documentElement.classList.remove('mac-night-shift');menuSize(100);return out};
  loadFonts();if(session)syncPersonal();
@@ -11877,7 +11861,7 @@ body.mac-import-multishop #macImportsStoreFilter{display:none!important}
  });
  byId('macErrorSoundTest')?.addEventListener('click',()=>play(true));
  byId('macErrorSoundReset')?.addEventListener('click',async()=>{try{await deleteKey(KEY);customSound='';customName='';updateLabel();toast('Som de erro padrão restaurado.')}catch(error){toast(error.message,true)}});
- loading=loadSaved();
+ loading=loadSaved();const oldAudioLogin=loginToStore;loginToStore=async function(){const out=await oldAudioLogin.apply(this,arguments);loading=loadSaved();await loading;return out;};
 })();
 </script>
 
@@ -12529,7 +12513,7 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
      data.weights.excelCatalogValues={products:{},mobiles:{}};
      data.weights.macCommissionSourceName=file.name;
      data.weights.macCommissionAppliedTo=shops.length;
-     if(shop.id===currentShopId)await persist();
+     if(shop.id===currentShopId)if(!await persist())throw Error('Não guardado na Cloud. Mantém a sessão aberta e tenta novamente.');
      else{await writeKey('store:'+shop.id,data);if(typeof signalMacLocalChange==='function')signalMacLocalChange('store',shop.id);}
     }
     document.dispatchEvent(new Event('mac-catalog-updated'));
@@ -12605,7 +12589,7 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
  }
  // Apresentar o histórico de anexos guardados no navegador, sem inventar ficheiros antigos.
  const ATTACH_DB='rc-clean-install-20261110-import-files-v1';
- function attachments(){return new Promise((resolve,reject)=>{const r=indexedDB.open(ATTACH_DB,1);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('attachments'))r.result.createObjectStore('attachments')};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
+ function attachments(){throw Error('Armazenamento local desativado; usa a ligação Cloud.');}
  async function saveFile(file,key){return macSaveBlob(file,key);}
  async function getFile(key){return macGetBlob(key);}
  if(typeof importTicketsFile==='function'){
@@ -12619,7 +12603,7 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
      for(const st of stores){const data=await dataForStore(st.id),items=(data.imports||[]).filter(row=>row.type==='MOVIIK'&&row.name===file.name&&!row.macAttachmentKey);
       for(const item of items)item.macAttachmentKey=key;
       if(items.length){await saveFile(file,st.id+'|'+file.name);
-       if(st.id===currentShopId)await persist();else await writeKey('store:'+st.id,data);}
+       if(st.id===currentShopId)if(!await persist())throw Error('Não guardado na Cloud. Mantém a sessão aberta e tenta novamente.');else await writeKey('store:'+st.id,data);}
      }
      if(typeof renderImports==='function'&&page==='imports')renderImports();
     }catch(error){console.warn('O original foi importado mas o anexo não ficou guardado:',error);toast('Importação concluída, mas o ficheiro original não ficou disponível para transferência neste navegador.',true);}
