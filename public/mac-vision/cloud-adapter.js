@@ -454,3 +454,5 @@ html body #macChatPanel .mcv-item{align-items:center!important}html body #macCha
   })();
  };
 })();
+// Resumo de vendas: espaço entre a fotografia e o nome do colaborador.
+(()=>{const st=document.createElement('style');st.textContent=`html body #page-sales #recentSales .sale-latest-row>div>strong:first-child{display:inline-flex!important;align-items:center!important;gap:12px!important}html body #page-sales #recentSales .sale-latest-row>div>strong:first-child .employee-avatar{flex-shrink:0!important;margin:0!important}`;document.head.appendChild(st);})();
