@@ -4609,7 +4609,7 @@ async function start(){
   const macExcludedScheduleNames=new Set((state.macScheduleExcludedByMonth?.[chosenMonth]||[]).map(n=>norm(n)));
   const names=[...new Set([...state.employees.map(x=>x.name),...schedules.map(x=>x.employee)])]
    .filter(n=>n && !isScheduleHeadingName(n) && !macExcludedScheduleNames.has(norm(n)))
-   .sort((a,b)=>rankCargo(a)-rankCargo(b)||a.localeCompare(b,'pt'));
+   .sort((a,b)=>(norm(b)===norm('Tiago Almeida'))-(norm(a)===norm('Tiago Almeida'))||rankCargo(a)-rankCargo(b)||a.localeCompare(b,'pt'));
 
   let html=`<div class="calendar mac-schedule-grid" style="grid-template-columns:200px repeat(${days}, 30px); width:max-content; min-width:${200+days*30+days*3}px">`;
   html+=`<div class="cal-head cal-name">Colaborador</div>`;
@@ -9033,7 +9033,7 @@ function macRenderManagerStores(){
       const time=new Date(m.created_at).toLocaleString('pt-PT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
       const actions=mine&&chatEditMode?'<span class="mac-chat-message-actions"><button type="button" data-cloud-edit="'+escChat(m.id)+'">✏️</button><button type="button" data-cloud-delete="'+escChat(m.id)+'">🗑️</button></span>':'';
       const status=mine&&m.recipient_id?(cloudReceipts[m.id]?.includes(m.recipient_id)?' · ✓✓ Lida':' · ✓ Enviada'):'';
-      return '<div class="mac-chat-message '+(mine?'own':'')+'"><div class="mac-chat-message-head"><span class="mac-chat-message-avatar-fallback">'+escChat(name.slice(0,1))+'</span><strong>'+escChat(name)+'</strong>'+actions+'</div><div class="mac-chat-message-body">'+escChat(m.body)+'</div><small>'+time+(m.edited_at?' · editada':'')+status+'</small></div>';
+      return '<div class="mac-chat-message '+(mine?'own':'')+'" data-msg-id="'+escChat(m.id)+'" data-sender-id="'+escChat(m.sender_id)+'"><div class="mac-chat-message-head"><span class="mac-chat-message-avatar-fallback">'+escChat(name.slice(0,1))+'</span><strong>'+escChat(name)+'</strong>'+actions+'</div><div class="mac-chat-message-body">'+escChat(m.body)+'</div><small>'+time+(m.edited_at?' · editada':'')+status+'</small></div>';
     }).join(''):'<div class="smalltext muted">Ainda não existem mensagens nesta conversa.</div>'):'<div class="smalltext muted">Não é possível consultar mensagens sem ligação à cloud.</div>';
     if(chatOpen&&history)history.scrollTop=history.scrollHeight;
     el('macChatTitle').textContent='💬 Chat Vision · '+chatToday();

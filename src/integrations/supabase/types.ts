@@ -472,6 +472,10 @@ export type Database = {
         Args: { k: string; w: string }
         Returns: undefined
       }
+      mac_moderate_message: {
+        Args: { b: string; m: string }
+        Returns: undefined
+      }
       mac_pin_attempt: { Args: { u: string }; Returns: string }
       mac_pin_success: { Args: { u: string }; Returns: undefined }
       mac_put_document: {

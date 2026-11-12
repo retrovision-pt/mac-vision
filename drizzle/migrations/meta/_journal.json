@@ -85,6 +85,13 @@
       "when": 1794446707333,
       "tag": "0011_mac_registry_role_update_order",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794485071879,
+      "tag": "0012_mac_admin_moderate_message",
+      "breakpoints": true
     }
   ]
 }

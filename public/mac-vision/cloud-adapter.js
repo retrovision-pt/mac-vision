@@ -236,3 +236,86 @@ setTimeout(macCloudHealth,1500);
  const hook=()=>{const el=document.getElementById('macChatCloudStatus');if(!el)return false;sync(el);new MutationObserver(()=>sync(el)).observe(el,{attributes:true,attributeFilter:['class']});return true;};
  if(!hook())document.addEventListener('DOMContentLoaded',hook,{once:true});
 })();
+
+// Chat Vision: header, human presence (green/yellow/red), 👥 picker, open-conversation tabs, admin edit/delete of a selected message.
+(function(){
+ const $c=id=>document.getElementById(id);
+ const st=document.createElement('style');
+ st.textContent=`#macChatParticipants{display:none!important}#macChatTitle,#macChatCloudStatus,#macChatEditMode,#macChatDeleteConversation{display:none!important}
+#macChatPanel{position:fixed}.mcv-head{display:flex;flex-direction:column;min-width:0;flex:1 1 auto;gap:2px}.mcv-title{display:flex;align-items:center;gap:6px;font-weight:700;white-space:nowrap}.mcv-date{font-size:11px;font-weight:400;opacity:.75}
+.mcv-dot{display:inline-block;width:9px;height:9px;min-width:9px;border-radius:50%;background:#e5484d}.mcv-dot.on{background:#19c989}.mcv-dot.away{background:#f5c518}
+.mcv-tabs{display:flex;gap:4px;overflow-x:auto;max-width:100%;margin-top:4px;scrollbar-width:thin}.mcv-tab{display:inline-flex;align-items:center;gap:4px;padding:2px 4px 2px 2px;border:1px solid var(--border);border-radius:999px;background:transparent;color:inherit;font-size:11px;white-space:nowrap;flex:0 0 auto;cursor:pointer}.mcv-tab.active{border-color:var(--accent);background:var(--accent-dark)}.mcv-tab .employee-avatar{width:20px!important;height:20px!important;min-width:20px!important;font-size:9px!important}.mcv-x{border:0;background:none;color:inherit;opacity:.7;cursor:pointer;padding:0 2px;font-size:11px}
+.mcv-menu{position:absolute;z-index:30;left:8px;right:8px;top:62px;max-height:60%;display:flex;flex-direction:column;background:var(--surface2);border:1px solid var(--border);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.4);padding:8px;gap:6px}.mcv-menu input{width:100%}.mcv-list{overflow:auto;display:flex;flex-direction:column;gap:2px}
+.mcv-item{display:flex;align-items:center;gap:8px;padding:6px;border:0;border-radius:8px;background:transparent;color:inherit;text-align:left;cursor:pointer}.mcv-item:hover{background:var(--surface)}.mcv-item .employee-avatar{width:30px!important;height:30px!important;min-width:30px!important}.mcv-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}.mcv-time{font-size:11px;opacity:.75}.mcv-count{background:var(--red);color:#fff;border-radius:999px;font-size:10px;padding:0 5px}
+.mac-chat-message.mcv-sel{outline:2px solid var(--accent);outline-offset:1px}`;
+ document.head.appendChild(st);
+ let presence={},selected='',menuOpen=false,query='';
+ const TODOS='todos';
+ const openKey=()=>'mac-chat-open-'+(session?.id||'');
+ const getOpen=()=>{try{return JSON.parse(sessionStorage.getItem(openKey())||'[]')}catch{return[]}};
+ const setOpen=l=>{try{sessionStorage.setItem(openKey(),JSON.stringify(l))}catch{}};
+ const isAdmin=()=>!!(session&&(session.isAreaMaster||session.adminRole));
+ const dd=d=>String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
+ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ function stateOf(id){if(id===TODOS)return 'on';const t=presence[id]?new Date(presence[id]).getTime():0,a=Date.now()-t;return !t?'off':a<120000?'on':a<300000?'away':'off';}
+ const rank={on:0,away:1,off:2};
+ function photoOf(id,name){const u=(macCloudDirectory?.stores||[]).flatMap(s=>s.users||[]).find(u=>u.id===id&&u.photo);try{return u?.photo||employeePhotoIn(state,name)||''}catch{return u?.photo||''}}
+ function startOf(name){try{const today=new Date().toISOString().slice(0,10);const s=state.schedules.find(x=>x.date===today&&norm(x.employee)===norm(name));return s?(s.start||state.codeTimes?.[s.code]?.start||''):''}catch{return''}}
+ function people(){return [...document.querySelectorAll('#macChatParticipants [data-cloud-person]')].map(b=>({id:b.dataset.cloudPerson,name:b.querySelector('.mac-chat-person-label')?.textContent||'',active:b.classList.contains('active'),count:Number(b.querySelector('.mac-chat-person-count')?.textContent||0)}));}
+ function avatar(p){return p.id===TODOS?'<span class="employee-avatar small">👥</span>':avatarFor(p.name,photoOf(p.id,p.name),'small');}
+ function choose(id){const b=document.querySelector('#macChatParticipants [data-cloud-person="'+CSS.escape(id)+'"]');if(!b)return;const l=getOpen();if(!l.includes(id)){l.push(id);setOpen(l);}selected='';b.click();menuOpen=false;paint();}
+ function ensure(){
+  const panel=$c('macChatPanel'),head=panel?.querySelector('.mac-chat-head'),actions=head?.querySelector('.mac-chat-head-actions');if(!head||!actions)return null;
+  if(!$c('mcvHead')){const d=document.createElement('div');d.id='mcvHead';d.className='mcv-head';d.innerHTML='<div class="mcv-title"><span class="mcv-dot" id="mcvSelf" role="status"></span><strong>💬 Chat Vision</strong></div><div class="mcv-date" id="mcvDate"></div><div class="mcv-tabs" id="mcvTabs"></div>';head.insertBefore(d,head.firstChild);
+   const mk=(id,txt,label)=>{const b=document.createElement('button');b.type='button';b.className='btn small mac-chat-action';b.id=id;b.textContent=txt;b.title=label;b.setAttribute('aria-label',label);return b;};
+   const pick=mk('mcvPick','👥','Colaboradores'),ed=mk('mcvEdit','✏️','Editar mensagem'),del=mk('mcvDel','🗑️','Eliminar mensagem');del.classList.add('mac-chat-danger');
+   actions.insertBefore(del,actions.firstChild);actions.insertBefore(ed,actions.firstChild);actions.insertBefore(pick,actions.firstChild);
+   pick.onclick=()=>{menuOpen=!menuOpen;query='';paint();if(menuOpen)setTimeout(()=>$c('mcvSearch')?.focus(),0);};
+   ed.onclick=async()=>{const m=document.querySelector('[data-msg-id="'+CSS.escape(selected)+'"]');if(!m||!isAdmin())return;const body=prompt('Editar mensagem:',m.querySelector('.mac-chat-message-body')?.textContent||'');if(body===null)return;if(!body.trim())return toast('A mensagem não pode ficar vazia.',true);try{await macRPC('admin-moderate',{messageId:selected,body:body.trim().slice(0,1000)});toast('Mensagem editada.');}catch(e){toast(e.message,true);}};
+   del.onclick=async()=>{if(!selected||!isAdmin()||!confirm('Eliminar esta mensagem para todos?'))return;try{await macRPC('admin-moderate',{messageId:selected,body:null});selected='';paint();toast('Mensagem eliminada.');}catch(e){toast(e.message,true);}};
+   $c('macChatMessages')?.addEventListener('click',e=>{if(!isAdmin()||e.target.closest('button'))return;const m=e.target.closest('[data-msg-id]');if(!m)return;selected=selected===m.dataset.msgId?'':m.dataset.msgId;paint();});
+   const menu=document.createElement('div');menu.className='mcv-menu';menu.id='mcvMenu';menu.hidden=true;menu.innerHTML='<input id="mcvSearch" type="search" placeholder="Pesquisar colaborador…" aria-label="Pesquisar colaborador" autocomplete="off"><div class="mcv-list" id="mcvList"></div>';panel.appendChild(menu);
+   $c('mcvSearch').oninput=e=>{query=e.target.value;paintList();};
+   $c('mcvList').onclick=e=>{const b=e.target.closest('[data-mcv]');if(b)choose(b.dataset.mcv);};
+   $c('mcvTabs').onclick=e=>{const x=e.target.closest('[data-mcv-close]');if(x){e.stopPropagation();const id=x.dataset.mcvClose;setOpen(getOpen().filter(i=>i!==id));const cur=people().find(p=>p.active);if(cur?.id===id)document.querySelector('#macChatParticipants [data-cloud-person="todos"]')?.click();paint();return;}const t=e.target.closest('[data-mcv-tab]');if(t)choose(t.dataset.mcvTab);};
+   document.addEventListener('pointerdown',e=>{if(menuOpen&&!e.target.closest('#mcvMenu,#mcvPick')){menuOpen=false;paint();}});
+  }
+  return panel;
+ }
+ function paintList(){
+  const list=$c('mcvList');if(!list)return;const q=norm(query);
+  const ps=people().map(p=>({...p,s:stateOf(p.id),t:p.id===TODOS?'':startOf(p.name)})).filter(p=>!q||norm(p.name).includes(q))
+   .sort((a,b)=>(a.id===TODOS?-1:b.id===TODOS?1:0)||rank[a.s]-rank[b.s]||(!a.t)-(!b.t)||a.t.localeCompare(b.t)||a.name.localeCompare(b.name,'pt-PT'));
+  list.innerHTML=ps.length?ps.map(p=>'<button type="button" class="mcv-item" data-mcv="'+esc(p.id)+'">'+avatar(p)+'<span class="mcv-name">'+esc(p.name)+'</span>'+(p.t?'<span class="mcv-time">'+esc(p.t)+'</span>':'')+(p.count?'<span class="mcv-count">'+p.count+'</span>':'')+'<span class="mcv-dot '+p.s+'"></span></button>').join(''):'<div class="smalltext muted" style="padding:8px">Sem colaboradores.</div>';
+ }
+ let painting=false;
+ function paint(){
+  if(painting||!ensure())return;painting=true;try{
+  $c('mcvDate').textContent=dd(new Date());
+  const self=$c('mcvSelf'),ss=session?stateOf(String(session.id)):'off';self.className='mcv-dot '+ss;self.title=self.ariaLabel={on:'Online',away:'Ausente',off:'Offline'}[ss];
+  const ps=people(),byId=Object.fromEntries(ps.map(p=>[p.id,p]));
+  const active=ps.find(p=>p.active)?.id;
+  let open=getOpen().filter(id=>byId[id]);if(active&&active!==TODOS&&!open.includes(active))open.push(active);setOpen(open);
+  $c('mcvTabs').innerHTML=open.map(id=>{const p=byId[id];return '<span class="mcv-tab '+(p.active?'active':'')+'" data-mcv-tab="'+esc(id)+'" role="button" tabindex="0">'+avatar(p)+'<span>'+esc(p.name.split(/\s+/)[0])+'</span><span class="mcv-dot '+stateOf(id)+'"></span>'+(p.count?'<span class="mcv-count">'+p.count+'</span>':'')+'<button type="button" class="mcv-x" data-mcv-close="'+esc(id)+'" aria-label="Fechar conversa">✕</button></span>';}).join('');
+  const admin=isAdmin();$c('mcvEdit').hidden=$c('mcvDel').hidden=!admin;
+  if(selected&&!document.querySelector('[data-msg-id="'+CSS.escape(selected)+'"]'))selected='';
+  $c('mcvEdit').disabled=$c('mcvDel').disabled=!selected;
+  document.querySelectorAll('.mac-chat-message.mcv-sel').forEach(m=>m.classList.remove('mcv-sel'));
+  if(selected)document.querySelector('[data-msg-id="'+CSS.escape(selected)+'"]')?.classList.add('mcv-sel');
+  $c('mcvMenu').hidden=!menuOpen;if(menuOpen)paintList();
+  }finally{painting=false;}
+ }
+ async function loadPresence(){if(!session)return;try{presence=await macRPC('presence-list')||{};}catch{}paint();}
+ let lastBeat=0;
+ function beat(force){if(!session||document.hidden)return;const at=macLastActivity()||Date.now();if(Date.now()-at>=120000)return;if(!force&&Date.now()-lastBeat<20000)return;lastBeat=Date.now();presence[String(session.id)]=new Date(at).toISOString();void macRPC('human-presence',{at}).catch(()=>{});}
+ ['pointerdown','keydown','touchstart','wheel'].forEach(t=>window.addEventListener(t,e=>{if(e.isTrusted)setTimeout(()=>beat(false),0);},{passive:true,capture:true}));
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden){beat(true);void loadPresence();}});
+ setInterval(()=>{beat(false);void loadPresence();},30000);
+ setInterval(paint,15000);
+ function boot(){const parts=$c('macChatParticipants'),msgs=$c('macChatMessages');if(!parts||!msgs)return setTimeout(boot,500);
+  new MutationObserver(()=>paint()).observe(parts,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
+  new MutationObserver(()=>paint()).observe(msgs,{childList:true});
+  $c('macChatBubble')?.addEventListener('click',()=>{beat(true);void loadPresence();});paint();}
+ boot();
+ const lg=loginToStore;loginToStore=async function(){const r=await lg.apply(this,arguments);if(session){beat(true);void loadPresence();}return r;};
+})();

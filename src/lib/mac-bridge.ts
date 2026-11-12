@@ -72,7 +72,7 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
       await startSession(await macPinLogin({data:{id:String(p.id||''),pin:String(p.password||'')}}));
       cache.clear();return identity();
     }
-    if(name==='logout'){await supabase.auth.signOut();walletId='';cache.clear();return true;}
+    if(name==='logout'){const u=await supabase.auth.getUser();if(u.data.user)await supabase.from('mac_presence').delete().eq('user_id',u.data.user.id);await supabase.auth.signOut();walletId='';cache.clear();return true;}
     if(name==='account')return macCreateAccount({data:p});
     if(name==='password')return macUpdatePassword({data:p});
     if(name==='remove-access')return macRemoveAccess({data:p});
@@ -138,7 +138,12 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
       const result=await supabase.from('mac_reads').upsert((p.ids||[]).map((id:string)=>({message_id:id,user_id:me.id})));
       if(result.error)throw Error(result.error.message);return true;
     }
-    if(name==='presence'){const r=await supabase.from('mac_presence').upsert({user_id:me.id,wallet_id:me.wallet_id,last_seen:new Date().toISOString()});if(r.error)throw Error(r.error.message);return true;}
+    // Background chat timers are not human activity; presence is written only by 'human-presence'.
+    if(name==='presence')return true;
+    if(name==='human-presence'){const at=Math.min(Number(p.at)||Date.now(),Date.now());const r=await supabase.from('mac_presence').upsert({user_id:me.id,wallet_id:me.wallet_id,last_seen:new Date(at).toISOString()});if(r.error)throw Error(r.error.message);return true;}
+    if(name==='presence-list'){const r=await supabase.from('mac_presence').select('user_id,last_seen');if(r.error)throw Error(r.error.message);return Object.fromEntries(r.data.map(u=>[u.user_id,u.last_seen]));}
+    if(name==='admin-moderate'){const r=await supabase.rpc('mac_moderate_message',{m:String(p.messageId),b:p.body===null?null as any:String(p.body)});if(r.error)throw Error(r.error.message);return true;}
+    if(name==='legacy-presence'){const r=await supabase.from('mac_presence').upsert({user_id:me.id,wallet_id:me.wallet_id,last_seen:new Date().toISOString()});if(r.error)throw Error(r.error.message);return true;}
     if(name==='set_store_enabled'){const r=await supabase.from('mac_chat_settings').upsert({store_id:p.storeId,enabled:!!p.enabled});if(r.error)throw Error(r.error.message);return true;}
     if(name==='moderate'){
       const r=await supabase.from('mac_messages').update(p.body===null?{deleted_at:new Date().toISOString()}:{body:String(p.body).slice(0,1000),edited_at:new Date().toISOString()}).eq('id',p.messageId).eq('sender_id',me.id).select('id');
