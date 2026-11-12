@@ -456,3 +456,54 @@ html body #macChatPanel .mcv-item{align-items:center!important}html body #macCha
 })();
 // Resumo de vendas: espaço entre a fotografia e o nome do colaborador.
 (()=>{const st=document.createElement('style');st.textContent=`html body #page-sales #recentSales .sale-latest-row>div>strong:first-child{display:inline-flex!important;align-items:center!important;gap:12px!important}html body #page-sales #recentSales .sale-latest-row>div>strong:first-child .employee-avatar{flex-shrink:0!important;margin:0!important}`;document.head.appendChild(st);})();
+// Ponderação e Comissionamento: botão Editar, versão/autor do ficheiro, original guardado na Cloud e versão anterior preservada.
+(()=>{
+ const $e=id=>document.getElementById(id);let pendingFile=null,previous=null;
+ const who=()=>session?.employee||session?.name||'';
+ window.addEventListener('change',ev=>{if(ev.target?.id!=='weightsWorkbookFile')return;pendingFile=ev.target.files?.[0]||null;previous=state?.weights?.importedCatalog?structuredClone(state.weights.importedCatalog):null;},true);
+ document.addEventListener('mac-catalog-updated',()=>{const file=pendingFile;pendingFile=null;if(!file||!session||!currentShopId)return;void (async()=>{
+  const shopId=currentShopId,key=shopId+'|commission-source';
+  await macSaveBlob(file,key); // o original fica na Cloud antes de registar a versão
+  const w=state.weights||={};
+  if(previous)w.macCommissionPrevious={catalog:previous,name:w.macCommissionPrevName||'',at:w.macCommissionUpdatedAt||''};
+  w.macCommissionPrevName=file.name;w.macCommissionSourceKey=key;w.macCommissionUpdatedAt=new Date().toISOString();w.macCommissionUpdatedBy=who();w.macCommissionVersion=(Number(w.macCommissionVersion)||0)+1;
+  macMarkUnsaved();if(!await persist())throw Error('versão não registada na Cloud');
+ })().catch(e=>toast('Ficheiro de comissionamento: '+e.message,true));});
+ function ensureButton(){const up=$e('weightsUploadBtn');if(!up||$e('macWeightsEditBtn'))return;const b=document.createElement('button');b.type='button';b.id='macWeightsEditBtn';b.className='btn small';b.title='Editar, descarregar e partilhar o ficheiro';b.setAttribute('aria-label','✏️ Editar ponderações');b.textContent='✏️';b.addEventListener('click',openDialog);up.before(b);}
+ new MutationObserver(ensureButton).observe(document.documentElement,{childList:true,subtree:true});ensureButton();
+ const cols=[['produto','Produto'],['familia','Família'],['ponderacao','Ponderação'],['comissao','Comissão'],['valor','Valor']];
+ const mcols=[['pacote','Pacote'],['tarifario','Tarifário'],['escalao','Escalão'],['valor','Valor']];
+ const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+ function table(rows,c,kind,edit){return `<table class="mcw-t"><thead><tr>${c.map(x=>`<th>${x[1]}</th>`).join('')}</tr></thead><tbody>${rows.map((r,i)=>`<tr>${c.map(([k])=>`<td>${edit?`<input data-k="${kind}" data-i="${i}" data-f="${k}" value="${esc(r[k])}">`:esc(r[k])}</td>`).join('')}</tr>`).join('')}</tbody></table>`;}
+ function openDialog(){
+  const w=state?.weights||{},cat=w.importedCatalog||{products:[],mobiles:[]},edit=session?.role==='gestor';
+  const d=document.createElement('dialog');d.className='mac-edit-dialog mcw-d';
+  const users=(macCloudDirectory?.stores||[]).find(s=>s.id===currentShopId)?.users||[];
+  const at=w.macCommissionUpdatedAt?new Date(w.macCommissionUpdatedAt).toLocaleString('pt-PT'):'Sem registo';
+  d.innerHTML=`<h2>✏️ Ficheiro de comissionamento</h2>
+  <p class="smalltext"><strong>Ficheiro:</strong> ${esc(w.macCommissionSourceName||'Nenhum importado')}<br><strong>Última atualização:</strong> ${esc(at)}<br><strong>Atualizado por:</strong> ${esc(w.macCommissionUpdatedBy||'Sem registo')}${w.macCommissionVersion?`<br><strong>Versão:</strong> ${w.macCommissionVersion}`:''}</p>
+  <details open><summary>Produtos (${(cat.products||[]).length})</summary><div class="mcw-s">${table(cat.products||[],cols,'products',edit)}</div></details>
+  <details><summary>Móveis (${(cat.mobiles||[]).length})</summary><div class="mcw-s">${table(cat.mobiles||[],mcols,'mobiles',edit)}</div></details>
+  <details><summary>👥 Partilhado com (acesso a esta loja)</summary><p class="smalltext">${users.map(u=>esc(u.name)).join(', ')||'—'}</p><p class="smalltext muted">Só quem tem acesso autenticado a esta loja consegue ver o ficheiro; só gestores e administradores o podem editar. Não há links públicos.</p></details>
+  <div class="mcw-a"><button type="button" class="btn small" data-a="orig" ${w.macCommissionSourceKey?'':'disabled'}>⬇️ Original</button><button type="button" class="btn small" data-a="json">⬇️ Dados atuais</button>${w.macCommissionPrevious&&edit?'<button type="button" class="btn small" data-a="prev">↩️ Repor versão anterior</button>':''}<span style="flex:1"></span><button type="button" class="btn small ghost" data-a="close">Fechar</button>${edit?'<button type="button" class="btn small primary" data-a="save">Guardar na Cloud</button>':''}</div>`;
+  document.body.appendChild(d);d.addEventListener('close',()=>d.remove());d.showModal();
+  d.addEventListener('click',ev=>{const a=ev.target.closest('[data-a]')?.dataset.a;if(!a)return;
+   if(a==='close')d.close();
+   if(a==='json')downloadFile('comissionamento-'+(w.macCommissionVersion||0)+'.json',JSON.stringify(cat,null,1),'application/json');
+   if(a==='orig')void macRPC('read',{key:'attachment:'+w.macCommissionSourceKey}).then(f=>{if(!f)throw Error('ficheiro não encontrado na Cloud');const b=Uint8Array.from(atob(f.data),c=>c.charCodeAt(0));const u=URL.createObjectURL(new Blob([b],{type:f.type}));const l=document.createElement('a');l.href=u;l.download=f.name||'comissionamento';l.click();setTimeout(()=>URL.revokeObjectURL(u),2000);}).catch(e=>toast('Não foi possível descarregar: '+e.message,true));
+   if(a==='save'||a==='prev')void (async()=>{
+    const btn=ev.target;btn.disabled=true;const old=structuredClone(w);
+    try{const next=a==='prev'?structuredClone(w.macCommissionPrevious.catalog):structuredClone(cat);
+     if(a==='save')d.querySelectorAll('input[data-k]').forEach(i=>{const r=next[i.dataset.k][+i.dataset.i],f=i.dataset.f,v=i.value;r[f]=typeof r[f]==='number'&&v.trim()!==''&&!isNaN(+v.replace(',','.'))?+v.replace(',','.'):v;});
+     if(!next.products?.length)throw Error('Não existem produtos válidos.');
+     w.macCommissionPrevious={catalog:structuredClone(cat),name:w.macCommissionSourceName||'',at:w.macCommissionUpdatedAt||''};
+     w.importedCatalog=next;w.macCommissionUpdatedAt=new Date().toISOString();w.macCommissionUpdatedBy=who();w.macCommissionVersion=(Number(w.macCommissionVersion)||0)+1;
+     macMarkUnsaved();if(!await persist()){state.weights=old;throw Error('Não guardado na Cloud. Tenta novamente.');}
+     document.dispatchEvent(new Event('mac-catalog-updated'));if(typeof renderConfig==='function')renderConfig();
+     toast(a==='prev'?'Versão anterior reposta na Cloud.':'Comissionamento guardado na Cloud.');d.close();
+    }catch(e){toast(e.message,true);btn.disabled=false;}
+   })();
+  });
+ }
+ const st=document.createElement('style');st.textContent=`.mcw-d{width:min(900px,calc(100vw - 24px));max-height:88vh;overflow:auto}.mcw-s{max-height:46vh;overflow:auto}.mcw-t{width:100%;border-collapse:collapse;font-size:13px}.mcw-t th,.mcw-t td{padding:4px;border-bottom:1px solid var(--line,rgba(127,127,127,.25));text-align:left}.mcw-t input{width:100%;min-width:70px;font:inherit;padding:3px 5px}.mcw-a{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}#macWeightsEditBtn{margin-right:0}`;document.head.appendChild(st);
+})();
