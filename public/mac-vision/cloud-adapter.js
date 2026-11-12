@@ -423,3 +423,22 @@ html body #macChatPanel .mcv-item{align-items:center!important}html body #macCha
  z-index:2147483647!important}`;
  document.head.appendChild(st);
 })();
+/* MAC Vision: vendas e senhas atualizadas automaticamente a partir da Cloud.
+   Complementa o aviso em tempo real: relê a loja a cada 15s, ao voltar à página
+   e depois de uma gravação, sem nunca substituir alterações ainda por guardar. */
+(function(){
+ let busy=false;
+ async function macPullStore(){
+  if(busy||!session||!currentShopId||macStateDirty||saveTimer!==null||document.hidden)return;
+  busy=true;const shopId=currentShopId;
+  try{
+   const next=await macRPC('read',{key:'store:'+shopId,accept:true});
+   if(!next||!session||currentShopId!==shopId||macStateDirty||saveTimer!==null)return;
+   if(JSON.stringify(next)!==JSON.stringify(state)){const d=state.selectedDate;state=shape(next);if(d)state.selectedDate=d;render();}
+  }catch(e){console.warn('Atualização Cloud da loja não concluída',e);}finally{busy=false;}
+ }
+ setInterval(macPullStore,15000);
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)macPullStore();});
+ window.addEventListener('focus',macPullStore);
+ const p=persist;persist=async function(){const ok=await p.apply(this,arguments);if(ok)setTimeout(macPullStore,1500);return ok;};
+})();
