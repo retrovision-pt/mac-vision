@@ -7,6 +7,9 @@ function macRPC(action,payload={}){
   macRpcPending.set(id,{resolve,reject,timer});parent.postMessage({macVisionBridge:1,kind:'request',id,action,payload},location.origin);
  });
 }
+// Comparação estável do estado: a ordem das chaves não pode provocar reescritas nem re-renderizações.
+function canonical(v){if(Array.isArray(v))return v.map(canonical);if(v&&typeof v==='object'){const o={};for(const k of Object.keys(v).sort())o[k]=canonical(v[k]);return o;}return v;}
+function sameState(a,b){return JSON.stringify(canonical(a))===JSON.stringify(canonical(b));}
 window.addEventListener('message',event=>{
  if(event.source!==parent||event.origin!==location.origin||event.data?.macVisionBridge!==1)return;
  const data=event.data;
@@ -14,9 +17,12 @@ window.addEventListener('message',event=>{
  if(data.kind==='event'&&session){void (async()=>{
   if(data.event==='preferences-changed'){const prefs=await macRPC('preferences');macVolatilePrefs.clear();for(const [k,v] of Object.entries(prefs||{}))macVolatilePrefs.set(k,v);return;}
   if(data.event==='registry-changed'){return;} // Refresh on explicit load/save; never replace an in-progress account edit.
+  if(String(data.key||'').startsWith('commission:')){if(window.macCommissionRefresh)await window.macCommissionRefresh(true);return;}
   if(data.key&&!String(data.key).startsWith('store:'+currentShopId))return;
   if(macStateDirty||saveTimer!==null){window.macPullAfterSave=true;return;}
-  const next=await macRPC('read',{key:'store:'+currentShopId,accept:true});if(next&&JSON.stringify(next)!==JSON.stringify(state)){state=shape(next);render();}
+  const raw=await macRPC('read',{key:'store:'+currentShopId,accept:true});
+  const next=window.macCommissionHydrate?await window.macCommissionHydrate(currentShopId,raw):raw;
+  if(next&&!sameState(next,state)){state=shape(next);render();}
  })().catch(console.warn);}
 });
 const macSessionDraft=new Map();
@@ -433,9 +439,10 @@ html body #macChatPanel .mcv-item{align-items:center!important}html body #macCha
   if(busy||!session||!currentShopId||macStateDirty||saveTimer!==null||document.hidden)return;
   busy=true;const shopId=currentShopId;
   try{
-   const next=await macRPC('read',{key:'store:'+shopId,accept:true});
+   const raw=await macRPC('read',{key:'store:'+shopId,accept:true});
+   const next=window.macCommissionHydrate?await window.macCommissionHydrate(shopId,raw):raw;
    if(!next||!session||currentShopId!==shopId||macStateDirty||saveTimer!==null)return;
-   if(JSON.stringify(next)!==JSON.stringify(state)){const d=state.selectedDate;state=shape(next);if(d)state.selectedDate=d;render();}
+   if(!sameState(next,state)){const d=state.selectedDate;state=shape(next);if(d)state.selectedDate=d;render();}
   }catch(e){console.warn('Atualização Cloud da loja não concluída',e);}finally{busy=false;}
  }
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)macPullStore();});
@@ -456,54 +463,485 @@ html body #macChatPanel .mcv-item{align-items:center!important}html body #macCha
 })();
 // Resumo de vendas: espaço entre a fotografia e o nome do colaborador.
 (()=>{const st=document.createElement('style');st.textContent=`html body #page-sales #recentSales .sale-latest-row>div>strong:first-child{display:inline-flex!important;align-items:center!important;gap:12px!important}html body #page-sales #recentSales .sale-latest-row>div>strong:first-child .employee-avatar{flex-shrink:0!important;margin:0!important}`;document.head.appendChild(st);})();
-// Ponderação e Comissionamento: botão Editar, versão/autor do ficheiro, original guardado na Cloud e versão anterior preservada.
-(()=>{
- const $e=id=>document.getElementById(id);let pendingFile=null,previous=null;
- const who=()=>session?.employee||session?.name||'';
- window.addEventListener('change',ev=>{if(ev.target?.id!=='weightsWorkbookFile')return;pendingFile=ev.target.files?.[0]||null;previous=state?.weights?.importedCatalog?structuredClone(state.weights.importedCatalog):null;},true);
- document.addEventListener('mac-catalog-updated',()=>{const file=pendingFile;pendingFile=null;if(!file||!session||!currentShopId)return;void (async()=>{
-  const shopId=currentShopId,key=shopId+'|commission-source';
-  await macSaveBlob(file,key); // o original fica na Cloud antes de registar a versão
-  const w=state.weights||={};
-  if(previous)w.macCommissionPrevious={catalog:previous,name:w.macCommissionPrevName||'',at:w.macCommissionUpdatedAt||''};
-  w.macCommissionPrevName=file.name;w.macCommissionSourceKey=key;w.macCommissionUpdatedAt=new Date().toISOString();w.macCommissionUpdatedBy=who();w.macCommissionVersion=(Number(w.macCommissionVersion)||0)+1;
-  macMarkUnsaved();if(!await persist())throw Error('versão não registada na Cloud');
- })().catch(e=>toast('Ficheiro de comissionamento: '+e.message,true));});
- function ensureButton(){const up=$e('weightsUploadBtn');if(!up||$e('macWeightsEditBtn'))return;const b=document.createElement('button');b.type='button';b.id='macWeightsEditBtn';b.className='btn small';b.title='Editar, descarregar e partilhar o ficheiro';b.setAttribute('aria-label','✏️ Editar ponderações');b.textContent='✏️';b.addEventListener('click',openDialog);up.before(b);}
- new MutationObserver(ensureButton).observe(document.documentElement,{childList:true,subtree:true});ensureButton();
- const cols=[['produto','Produto'],['familia','Família'],['ponderacao','Ponderação'],['comissao','Comissão'],['valor','Valor']];
- const mcols=[['pacote','Pacote'],['tarifario','Tarifário'],['escalao','Escalão'],['valor','Valor']];
- const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
- function table(rows,c,kind,edit){return `<table class="mcw-t"><thead><tr>${c.map(x=>`<th>${x[1]}</th>`).join('')}</tr></thead><tbody>${rows.map((r,i)=>`<tr>${c.map(([k])=>`<td>${edit?`<input data-k="${kind}" data-i="${i}" data-f="${k}" value="${esc(r[k])}">`:esc(r[k])}</td>`).join('')}</tr>`).join('')}</tbody></table>`;}
- function openDialog(){
-  const w=state?.weights||{},cat=w.importedCatalog||{products:[],mobiles:[]},edit=session?.role==='gestor';
-  const d=document.createElement('dialog');d.className='mac-edit-dialog mcw-d';
-  const users=(macCloudDirectory?.stores||[]).find(s=>s.id===currentShopId)?.users||[];
-  const at=w.macCommissionUpdatedAt?new Date(w.macCommissionUpdatedAt).toLocaleString('pt-PT'):'Sem registo';
-  d.innerHTML=`<h2>✏️ Ficheiro de comissionamento</h2>
-  <p class="smalltext"><strong>Ficheiro:</strong> ${esc(w.macCommissionSourceName||'Nenhum importado')}<br><strong>Última atualização:</strong> ${esc(at)}<br><strong>Atualizado por:</strong> ${esc(w.macCommissionUpdatedBy||'Sem registo')}${w.macCommissionVersion?`<br><strong>Versão:</strong> ${w.macCommissionVersion}`:''}</p>
-  <details open><summary>Produtos (${(cat.products||[]).length})</summary><div class="mcw-s">${table(cat.products||[],cols,'products',edit)}</div></details>
-  <details><summary>Móveis (${(cat.mobiles||[]).length})</summary><div class="mcw-s">${table(cat.mobiles||[],mcols,'mobiles',edit)}</div></details>
-  <details><summary>👥 Partilhado com (acesso a esta loja)</summary><p class="smalltext">${users.map(u=>esc(u.name)).join(', ')||'—'}</p><p class="smalltext muted">Só quem tem acesso autenticado a esta loja consegue ver o ficheiro; só gestores e administradores o podem editar. Não há links públicos.</p></details>
-  <div class="mcw-a"><button type="button" class="btn small" data-a="orig" ${w.macCommissionSourceKey?'':'disabled'}>⬇️ Original</button><button type="button" class="btn small" data-a="json">⬇️ Dados atuais</button>${w.macCommissionPrevious&&edit?'<button type="button" class="btn small" data-a="prev">↩️ Repor versão anterior</button>':''}<span style="flex:1"></span><button type="button" class="btn small ghost" data-a="close">Fechar</button>${edit?'<button type="button" class="btn small primary" data-a="save">Guardar na Cloud</button>':''}</div>`;
-  document.body.appendChild(d);d.addEventListener('close',()=>d.remove());d.showModal();
-  d.addEventListener('click',ev=>{const a=ev.target.closest('[data-a]')?.dataset.a;if(!a)return;
-   if(a==='close')d.close();
-   if(a==='json')downloadFile('comissionamento-'+(w.macCommissionVersion||0)+'.json',JSON.stringify(cat,null,1),'application/json');
-   if(a==='orig')void macRPC('read',{key:'attachment:'+w.macCommissionSourceKey}).then(f=>{if(!f)throw Error('ficheiro não encontrado na Cloud');const b=Uint8Array.from(atob(f.data),c=>c.charCodeAt(0));const u=URL.createObjectURL(new Blob([b],{type:f.type}));const l=document.createElement('a');l.href=u;l.download=f.name||'comissionamento';l.click();setTimeout(()=>URL.revokeObjectURL(u),2000);}).catch(e=>toast('Não foi possível descarregar: '+e.message,true));
-   if(a==='save'||a==='prev')void (async()=>{
-    const btn=ev.target;btn.disabled=true;const old=structuredClone(w);
-    try{const next=a==='prev'?structuredClone(w.macCommissionPrevious.catalog):structuredClone(cat);
-     if(a==='save')d.querySelectorAll('input[data-k]').forEach(i=>{const r=next[i.dataset.k][+i.dataset.i],f=i.dataset.f,v=i.value;r[f]=typeof r[f]==='number'&&v.trim()!==''&&!isNaN(+v.replace(',','.'))?+v.replace(',','.'):v;});
-     if(!next.products?.length)throw Error('Não existem produtos válidos.');
-     w.macCommissionPrevious={catalog:structuredClone(cat),name:w.macCommissionSourceName||'',at:w.macCommissionUpdatedAt||''};
-     w.importedCatalog=next;w.macCommissionUpdatedAt=new Date().toISOString();w.macCommissionUpdatedBy=who();w.macCommissionVersion=(Number(w.macCommissionVersion)||0)+1;
-     macMarkUnsaved();if(!await persist()){state.weights=old;throw Error('Não guardado na Cloud. Tenta novamente.');}
-     document.dispatchEvent(new Event('mac-catalog-updated'));if(typeof renderConfig==='function')renderConfig();
-     toast(a==='prev'?'Versão anterior reposta na Cloud.':'Comissionamento guardado na Cloud.');d.close();
-    }catch(e){toast(e.message,true);btn.disabled=false;}
-   })();
+// ============ Ponderação e Comissionamento: um único ficheiro partilhado por várias lojas ============
+// A Cloud é a fonte oficial do ficheiro; a cópia local (memória + IndexedDB) só evita reprocessar a mesma versão.
+(() => {
+ const $e = id => document.getElementById(id);
+ const DB_NAME = 'mac-vision-commission', DB_STORE = 'catalogs';
+ const OWNED = /^(importedCatalog|macCommission\w*)$/;
+ const memory = new Map();
+ let filesCache = null, dbPromise = null, loaded = null, lastRefresh = 0;
+
+ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+ const who = () => session?.employee || session?.name || '';
+ const plain = s => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+ const walletOf = () => macCloudDirectory?.stores?.find(s => s.id === currentShopId)?.wallet_id || macCloudDirectory?.wallets?.[0]?.id || '';
+ const newId = () => (crypto.randomUUID ? crypto.randomUUID() : 'f-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+
+ // Regras puras do módulo, expostas para verificação automática.
+ const rules = {
+  cacheKey: (wallet, file, version) => `${wallet}|${file}|${version}`,
+  fileForStore(files, storeId) {
+   return (files || []).filter(f => (f.storeIds || []).includes(storeId))
+    .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))[0] || null;
+  },
+  otherFile(files, file, storeId) {
+   return (files || []).find(f => f.id !== (file && file.id) && (f.storeIds || []).includes(storeId)) || null;
+  },
+  needsConfirmation(files, file, selected) {
+   const out = [];
+   for (const id of selected || []) { const other = rules.otherFile(files, file, id); if (other && !out.some(x => x.id === other.id)) out.push(other); }
+   return out;
+  },
+  canManage: role => role === 'gestor',
+  checksum(text) { let h = 0x811c9dc5; for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16); }
+ };
+ window.macCommissionRules = rules;
+
+ // ---------- cópia local: memória + IndexedDB, identificada por carteira, ficheiro e versão ----------
+ function db() {
+  if (dbPromise) return dbPromise;
+  dbPromise = new Promise((resolve, reject) => {
+   let req;
+   try { req = indexedDB.open(DB_NAME, 1); } catch (e) { return reject(e); }
+   req.onupgradeneeded = () => { try { if (!req.result.objectStoreNames.contains(DB_STORE)) req.result.createObjectStore(DB_STORE); } catch (e) {} };
+   req.onsuccess = () => resolve(req.result);
+   req.onerror = () => reject(req.error || Error('IndexedDB indisponível'));
   });
+  return dbPromise;
  }
- const st=document.createElement('style');st.textContent=`.mcw-d{width:min(900px,calc(100vw - 24px));max-height:88vh;overflow:auto}.mcw-s{max-height:46vh;overflow:auto}.mcw-t{width:100%;border-collapse:collapse;font-size:13px}.mcw-t th,.mcw-t td{padding:4px;border-bottom:1px solid var(--line,rgba(127,127,127,.25));text-align:left}.mcw-t input{width:100%;min-width:70px;font:inherit;padding:3px 5px}.mcw-a{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}#macWeightsEditBtn{margin-right:0}`;document.head.appendChild(st);
+ async function cacheGet(key) {
+  if (memory.has(key)) return memory.get(key);
+  try {
+   const d = await db();
+   return await new Promise((res, rej) => { const rq = d.transaction(DB_STORE, 'readonly').objectStore(DB_STORE).get(key); rq.onsuccess = () => res(rq.result || null); rq.onerror = () => rej(rq.error); });
+  } catch { return null; }
+ }
+ async function cacheSet(key, value) {
+  memory.set(key, value);
+  try {
+   const d = await db();
+   await new Promise((res, rej) => { const t = d.transaction(DB_STORE, 'readwrite'); t.objectStore(DB_STORE).put(value, key); t.oncomplete = () => res(); t.onerror = () => rej(t.error); });
+  } catch {}
+ }
+ async function cachePrune(keep) {
+  const parts = String(keep).split('|');
+  for (const k of [...memory.keys()]) if (k !== keep && k.startsWith(parts[0] + '|' + parts[1] + '|')) memory.delete(k);
+  try {
+   const d = await db();
+   await new Promise((res, rej) => {
+    const t = d.transaction(DB_STORE, 'readwrite'), os = t.objectStore(DB_STORE), rq = os.openCursor();
+    rq.onsuccess = () => { const c = rq.result; if (!c) return res(); const p = String(c.key).split('|'); if (c.key !== keep && p[0] === parts[0] && p[1] === parts[1]) os.delete(c.key); c.continue(); };
+    t.onerror = () => rej(t.error);
+   });
+  } catch {}
+ }
+ async function cacheClear() {
+  memory.clear();
+  try {
+   const d = await db();
+   await new Promise((res, rej) => { const t = d.transaction(DB_STORE, 'readwrite'); t.objectStore(DB_STORE).clear(); t.oncomplete = () => res(); t.onerror = () => rej(t.error); });
+  } catch {}
+ }
+
+ // ---------- metadados leves (nome, versão, lojas associadas) ----------
+ async function loadFiles(force) {
+  if (!session) return filesCache || { files: [], revision: 0 };
+  if (!force && filesCache) return filesCache;
+  try {
+   const r = await macRPC('commission-files');
+   filesCache = { files: (r && r.files) || [], revision: (r && r.revision) || 0 };
+  } catch (e) { if (!filesCache) throw e; }
+  return filesCache;
+ }
+
+ // ---------- catálogo: só se descarrega quando a versão local não coincide ----------
+ async function loadPayload(file) {
+  const key = rules.cacheKey(walletOf(), file.id, file.version);
+  const hit = await cacheGet(key);
+  if (hit && hit.catalog) return hit;
+  const raw = await macRPC('commission-read', { fileId: file.id });
+  if (!raw) throw Error('O ficheiro de comissionamento não está disponível na Cloud.');
+  const catalog = raw.catalog || { products: [], mobiles: [] };
+  if (file.checksum && rules.checksum(JSON.stringify(catalog)) !== String(file.checksum)) throw Error('O ficheiro não passou na verificação de integridade.');
+  const payload = { id: file.id, version: Number(file.version) || 0, catalog, source: raw.source || null, previous: raw.previous && raw.previous.catalog ? raw.previous : null, at: Date.now() };
+  await cacheSet(key, payload);
+  await cachePrune(key);
+  return payload;
+ }
+ async function resolve(storeId, force) {
+  if (!session || !storeId) return null;
+  const file = rules.fileForStore((await loadFiles(force)).files, storeId);
+  if (!file) return null;
+  try { return { file, payload: await loadPayload(file) }; }
+  catch (e) {
+   const cached = await cacheGet(rules.cacheKey(walletOf(), file.id, file.version));
+   if (cached && cached.catalog) return { file, payload: cached };
+   throw e;
+  }
+ }
+ function applyFields(w, file, catalog) {
+  const out = { ...w };
+  out.importedCatalog = catalog;
+  out.macCommissionFileId = file.id;
+  out.macCommissionSourceName = file.name || '';
+  out.macCommissionVersion = Number(file.version) || 0;
+  out.macCommissionUpdatedAt = file.updatedAt || '';
+  out.macCommissionUpdatedBy = file.updatedBy || '';
+  out.macCommissionStoreIds = (file.storeIds || []).slice();
+  out.macCommissionSharedWith = (file.sharedWith || []).slice();
+  out.macCommissionChecksum = file.checksum || '';
+  return out;
+ }
+ // Leitura de uma loja: a cópia partilhada é aplicada em memória, nunca volta a ser gravada na loja.
+ async function hydrate(storeId, value) {
+  if (!value || typeof value !== 'object') return value;
+  let r = null;
+  try { r = await resolve(storeId); } catch { return value; }
+  if (!r) return value;
+  const copy = { ...value };
+  copy.weights = applyFields({ ...(value.weights || {}) }, r.file, r.payload.catalog);
+  if (String(storeId) === String(currentShopId)) loaded = r.payload;
+  return copy;
+ }
+ async function applyToStore(storeId, force) {
+  const r = await resolve(storeId, force);
+  if (!r) return null;
+  state.weights = applyFields({ ...(state.weights || {}) }, r.file, r.payload.catalog);
+  loaded = r.payload;
+  return r;
+ }
+ function covered(storeId) { return !!filesCache && !!rules.fileForStore(filesCache.files, storeId); }
+ function strip(storeId, value) {
+  if (!value || typeof value !== 'object' || !covered(storeId)) return value;
+  const w = value.weights;
+  if (!w || typeof w !== 'object') return value;
+  const rest = {};
+  for (const k of Object.keys(w)) if (!OWNED.test(k)) rest[k] = w[k];
+  return { ...value, weights: rest };
+ }
+ const originalReadKey = readKey, originalWriteKey = writeKey;
+ readKey = async function (key) {
+  const value = await originalReadKey.apply(this, arguments);
+  if (String(key).startsWith('store:')) return hydrate(key.slice(6), value);
+  return value;
+ };
+ writeKey = async function (key, value) {
+  if (String(key).startsWith('store:')) value = strip(key.slice(6), value);
+  return originalWriteKey.apply(this, [key, value]);
+ };
+
+ function currentFile() {
+  const id = state?.weights?.macCommissionFileId;
+  if (!id) return null;
+  return (filesCache && filesCache.files || []).find(f => f.id === id) || null;
+ }
+ window.macCommissionCurrent = currentFile;
+
+ // ---------- gravação: Cloud primeiro, cache só depois da confirmação ----------
+ async function fileToSource(file) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let text = '';
+  for (let i = 0; i < bytes.length; i += 8192) text += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  return { name: file.name || 'comissionamento', type: file.type || '', data: btoa(text) };
+ }
+ async function saveFile(next, storeIds, sharedWith, sourceOverride) {
+  const wallet = walletOf();
+  const { files, revision } = await loadFiles(true);
+  const current = currentFile() || rules.fileForStore(files, currentShopId);
+  const catalogChanged = !current || !loaded || JSON.stringify(next) !== JSON.stringify(loaded.catalog);
+  const version = current ? (catalogChanged ? (Number(current.version) || 0) + 1 : (Number(current.version) || 1)) : 1;
+  const id = (current && current.id) || newId();
+  const meta = {
+   id, name: (current && current.name) || state?.weights?.macCommissionSourceName || 'comissionamento',
+   version, updatedAt: new Date().toISOString(), updatedBy: who(),
+   storeIds: (storeIds || []).slice(), sharedWith: (sharedWith || []).slice(),
+   checksum: rules.checksum(JSON.stringify(next))
+  };
+  let source = sourceOverride === undefined ? ((loaded && loaded.source) || null) : sourceOverride;
+  // Loja que ainda só tinha catálogo próprio: o original guardado até agora é aproveitado, não duplicado.
+  if (!source && !current && state?.weights?.macCommissionSourceKey) {
+   try {
+    const item = await macRPC('read', { key: 'attachment:' + state.weights.macCommissionSourceKey });
+    if (item && item.data) source = { name: item.name || 'comissionamento', type: item.type || '', data: item.data };
+   } catch {}
+  }
+  await macRPC('commission-save', { meta, data: { catalog: next, source }, revision });
+  const previous = loaded ? { catalog: loaded.catalog, source: loaded.source || null } : null;
+  filesCache = { files: files.filter(f => f.id !== id).concat([meta]), revision: revision + 1 };
+  const payload = { id, version: meta.version, catalog: next, source, previous, at: Date.now() };
+  await cacheSet(rules.cacheKey(wallet, id, meta.version), payload);
+  await cachePrune(rules.cacheKey(wallet, id, meta.version));
+  loaded = payload;
+  state.weights = applyFields({ ...(state.weights || {}) }, meta, next);
+  macMarkUnsaved();
+  if (!await persist()) toast('O ficheiro está guardado na Cloud, mas esta loja não foi atualizada. Reabre a loja.', true);
+  document.dispatchEvent(new Event('mac-catalog-updated'));
+  if (typeof renderConfig === 'function') renderConfig();
+  macCommissionShowStatus();
+  return meta;
+ }
+ async function importFile(file) {
+  if (!session || !currentShopId) throw Error('Seleciona uma loja antes de importar.');
+  if (!rules.canManage(session?.role)) throw Error('Apenas o gestor pode importar ponderações.');
+  if (typeof window.macVisionParseWeights !== 'function') throw Error('Leitor de ficheiros não encontrado.');
+  const parsed = await window.macVisionParseWeights(file);
+  const catalog = { products: (parsed && parsed.products) || [], mobiles: (parsed && parsed.mobiles) || [] };
+  if (!catalog.products.length) throw Error('O ficheiro não contém produtos válidos.');
+  const wallet = walletOf();
+  const { files, revision } = await loadFiles(true);
+  const current = rules.fileForStore(files, currentShopId);
+  const id = (current && current.id) || newId();
+  const meta = {
+   id, name: file.name || 'comissionamento', version: (Number(current && current.version) || 0) + 1,
+   updatedAt: new Date().toISOString(), updatedBy: who(),
+   storeIds: current && current.storeIds && current.storeIds.length ? current.storeIds.slice() : [currentShopId],
+   sharedWith: (current && current.sharedWith || []).slice(),
+   checksum: rules.checksum(JSON.stringify(catalog))
+  };
+  const source = await fileToSource(file);
+  await macRPC('commission-save', { meta, data: { catalog, source }, revision });
+  filesCache = { files: files.filter(f => f.id !== id).concat([meta]), revision: revision + 1 };
+  const payload = { id, version: meta.version, catalog, source, previous: loaded && loaded.catalog ? { catalog: loaded.catalog, source: loaded.source || null } : null, at: Date.now() };
+  await cacheSet(rules.cacheKey(wallet, id, meta.version), payload);
+  await cachePrune(rules.cacheKey(wallet, id, meta.version));
+  loaded = payload;
+  state.weights = applyFields({ ...(state.weights || {}) }, meta, catalog);
+  state.weights.excelCatalogValues = { products: {}, mobiles: {} };
+  macMarkUnsaved();
+  if (!await persist()) toast('O ficheiro está guardado na Cloud, mas esta loja não foi atualizada. Reabre a loja.', true);
+  document.dispatchEvent(new Event('mac-catalog-updated'));
+  if (typeof renderConfig === 'function') renderConfig();
+  macCommissionShowStatus();
+  toast('Ficheiro «' + meta.name + '» guardado na Cloud (v' + meta.version + ') · ' + meta.storeIds.length + (meta.storeIds.length === 1 ? ' loja' : ' lojas') + ' associada(s).');
+ }
+ async function restorePrevious(storeIds, sharedWith) {
+  const prev = loaded && loaded.previous && loaded.previous.catalog;
+  if (!prev || !prev.products || !prev.products.length) throw Error('Não existe uma versão anterior registada deste ficheiro.');
+  return saveFile(structuredClone(prev), storeIds, sharedWith, (loaded.previous && loaded.previous.source) || null);
+ }
+ // Retirar uma loja não elimina o ficheiro nem os dados comerciais dessa loja.
+ async function removeStore() {
+  const file = currentFile();
+  if (!file) return;
+  const catalog = structuredClone(state?.weights?.importedCatalog || { products: [], mobiles: [] });
+  const meta = { ...file, storeIds: (file.storeIds || []).filter(id => id !== currentShopId), version: Number(file.version) || 1, updatedAt: new Date().toISOString(), updatedBy: who(), checksum: rules.checksum(JSON.stringify(catalog)) };
+  await macRPC('commission-save', { meta, data: { catalog, source: null }, revision: (filesCache && filesCache.revision) || 0 });
+  filesCache = { files: (filesCache.files || []).filter(f => f.id !== file.id).concat([meta]), revision: (filesCache.revision || 0) + 1 };
+  const w = { ...(state.weights || {}) };
+  for (const k of Object.keys(w)) if (OWNED.test(k)) delete w[k];
+  state.weights = w;
+  loaded = null;
+  macMarkUnsaved();
+  if (!await persist()) toast('A associação foi retirada na Cloud, mas esta loja não foi atualizada.', true);
+  document.dispatchEvent(new Event('mac-catalog-updated'));
+  if (typeof renderConfig === 'function') renderConfig();
+  macCommissionShowStatus();
+  toast('O ficheiro deixou de estar associado a esta loja. O ficheiro e os dados comerciais foram preservados.');
+ }
+
+ // ---------- estado mostrado no menu ----------
+ const originalStatus = typeof macCommissionShowStatus === 'function' ? macCommissionShowStatus : null;
+ macCommissionShowStatus = function () {
+  const el = $e('macSharedCommissionStatus');
+  if (!el) return;
+  const file = currentFile();
+  if (!file) { if (originalStatus) return originalStatus(); return; }
+  const w = state?.weights || {};
+  const products = Array.isArray(w.importedCatalog?.products) ? w.importedCatalog.products.length : 0;
+  const mobiles = Array.isArray(w.importedCatalog?.mobiles) ? w.importedCatalog.mobiles.length : 0;
+  const stores = (w.macCommissionStoreIds || []).length;
+  el.innerHTML = '<strong class="mac-shared-ok">● Ficheiro partilhado</strong> · ' + [
+   esc(w.macCommissionSourceName || 'Comissionamento'), 'v' + (Number(w.macCommissionVersion) || 0),
+   products + ' produtos', mobiles + ' tarifários',
+   stores + (stores === 1 ? ' loja' : ' lojas'), 'atualizado por ' + esc(w.macCommissionUpdatedBy || '—')
+  ].join(' · ');
+ };
+
+ // ---------- atualização imediata quando outra sessão grava uma nova versão ----------
+ async function refresh(force) {
+  if (!session || !currentShopId) return;
+  if (!force && Date.now() - lastRefresh < 20000) return;
+  lastRefresh = Date.now();
+  const before = String(state?.weights?.macCommissionFileId || '') + '|' + String(state?.weights?.macCommissionVersion ?? '');
+  try { await applyToStore(currentShopId, true); } catch { return; }
+  const after = String(state?.weights?.macCommissionFileId || '') + '|' + String(state?.weights?.macCommissionVersion ?? '');
+  if (before === after) return;
+  if (typeof renderConfig === 'function') renderConfig();
+  macCommissionShowStatus();
+  toast('Ficheiro de comissionamento atualizado para a versão ' + (state?.weights?.macCommissionVersion || 0) + '.');
+ }
+ window.macCommissionRefresh = refresh;
+ window.macCommissionHydrate = hydrate;
+ window.macCommissionCacheClear = cacheClear;
+ document.addEventListener('visibilitychange', () => { if (!document.hidden) void refresh(true).catch(() => {}); });
+ window.addEventListener('focus', () => void refresh(false).catch(() => {}));
+
+ // ---------- importação: um ficheiro, uma versão na Cloud, todas as lojas associadas ----------
+ document.addEventListener('change', ev => {
+  if (ev.target?.id !== 'weightsWorkbookFile') return;
+  const file = ev.target.files?.[0];
+  ev.target.value = '';
+  if (!file) return;
+  ev.preventDefault();
+  ev.stopImmediatePropagation();
+  ev.stopPropagation();
+  void importFile(file).catch(e => toast('Não foi possível importar: ' + (e && e.message || e), true));
+ }, true);
+ document.addEventListener('click', ev => {
+  const btn = ev.target?.closest?.('#weightsDeleteBtn');
+  if (!btn || !currentShopId || !currentFile()) return;
+  ev.preventDefault();
+  ev.stopImmediatePropagation();
+  ev.stopPropagation();
+  const file = currentFile();
+  if (!confirm('Retirar «' + (file.name || 'o ficheiro') + '» da loja ' + (currentStore()?.name || 'selecionada') + '? O ficheiro e os dados comerciais desta loja ficam preservados.')) return;
+  void removeStore().catch(e => toast(e && e.message || String(e), true));
+ }, true);
+
+ // ---------- popup ✏️ Ficheiro de comissionamento ----------
+ const cols = [['produto', 'Produto'], ['familia', 'Família'], ['ponderacao', 'Ponderação'], ['comissao', 'Comissão'], ['valor', 'Valor']];
+ const mcols = [['pacote', 'Pacote'], ['tarifario', 'Tarifário'], ['escalao', 'Escalão'], ['valor', 'Valor']];
+ function table(rows, c, kind, edit) {
+  return `<table class="mcw-t"><thead><tr>${c.map(x => `<th>${x[1]}</th>`).join('')}</tr></thead><tbody>${rows.map((r, i) => `<tr>${c.map(([k]) => `<td>${edit ? `<input data-k="${kind}" data-i="${i}" data-f="${k}" value="${esc(r[k])}">` : esc(r[k])}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+ }
+ function storeOptions() {
+  const list = typeof accessibleManagerStores === 'function' ? accessibleManagerStores() : (shopRegistry || []);
+  return (list || []).filter(s => s && s.id && s.name);
+ }
+ function peopleOf(storeIds) {
+  const seen = new Map();
+  for (const s of (macCloudDirectory?.stores || [])) if (storeIds.includes(s.id)) for (const u of s.users || []) if (u && u.id && !seen.has(u.id)) seen.set(u.id, u);
+  return [...seen.values()];
+ }
+ function openDialog() {
+  const w = state?.weights || {};
+  const cat = w.importedCatalog || { products: [], mobiles: [] };
+  const edit = rules.canManage(session?.role);
+  const file = currentFile();
+  const files = (filesCache && filesCache.files) || [];
+  const selected = new Set(file && file.storeIds && file.storeIds.length ? file.storeIds : (currentShopId ? [currentShopId] : []));
+  const shared = new Set((file && file.sharedWith) || []);
+  const at = w.macCommissionUpdatedAt ? new Date(w.macCommissionUpdatedAt).toLocaleString('pt-PT') : 'Sem registo';
+  const d = document.createElement('dialog');
+  d.className = 'mac-edit-dialog mcw-d';
+  d.innerHTML = `<h2>✏️ Ficheiro de comissionamento</h2>
+<p class="smalltext"><strong>Ficheiro:</strong> ${esc(w.macCommissionSourceName || 'Nenhum importado')}<br><strong>Última atualização:</strong> ${esc(at)}<br><strong>Atualizado por:</strong> ${esc(w.macCommissionUpdatedBy || 'Sem registo')}${w.macCommissionVersion ? `<br><strong>Versão:</strong> ${Number(w.macCommissionVersion) || 0}` : ''}</p>
+<fieldset class="mcw-fs"><legend>🏬 Lojas associadas ao ficheiro</legend>
+<div class="mcw-tools"><input id="mcwStoreSearch" type="search" placeholder="Pesquisar loja pelo nome" aria-label="Pesquisar loja pelo nome"><button type="button" class="btn small" id="mcwStoreAll">Selecionar todas</button><button type="button" class="btn small ghost" id="mcwStoreNone">Limpar seleção</button><span id="mcwStoreCount" class="smalltext"></span></div>
+<div id="mcwStores" class="mcw-shops"></div>
+<p class="smalltext muted">O mesmo ficheiro fica associado às lojas escolhidas; cada loja mantém os seus colaboradores, vendas, resultados e objetivos.</p></fieldset>
+<details open><summary>Produtos (${(cat.products || []).length})</summary><div class="mcw-s">${table(cat.products || [], cols, 'products', edit)}</div></details>
+<details><summary>Móveis (${(cat.mobiles || []).length})</summary><div class="mcw-s">${table(cat.mobiles || [], mcols, 'mobiles', edit)}</div></details>
+<fieldset class="mcw-fs"><legend>👥 Partilhar com</legend><div id="mcwPeople" class="mcw-shops"></div><p class="smalltext muted">Sem seleção: todos os utilizadores com acesso a uma das lojas associadas. Não há links públicos e as permissões são validadas na Cloud.</p></fieldset>
+<div class="mcw-a"><button type="button" class="btn small" data-a="orig" ${loaded && loaded.source ? '' : 'disabled'}>⬇️ Original</button><button type="button" class="btn small" data-a="json">⬇️ Dados atuais</button>${loaded && loaded.previous && loaded.previous.catalog && edit ? '<button type="button" class="btn small" data-a="prev">↩️ Repor versão anterior</button>' : ''}<span style="flex:1"></span><button type="button" class="btn small ghost" data-a="close">Cancelar</button>${edit ? '<button type="button" class="btn small primary" data-a="save">Guardar alterações</button>' : ''}</div>`;
+  document.body.appendChild(d);
+  d.addEventListener('close', () => d.remove());
+
+  const count = () => { const el = $e('mcwStoreCount'); if (el) el.textContent = selected.size + (selected.size === 1 ? ' loja selecionada' : ' lojas selecionadas'); };
+  const paintStores = () => {
+   const q = plain($e('mcwStoreSearch').value || '');
+   const rows = storeOptions().filter(s => !q || plain(s.name).includes(q));
+   $e('mcwStores').innerHTML = rows.map(s => {
+    const other = rules.otherFile(files, file, s.id);
+    const mine = !!(file && (file.storeIds || []).includes(s.id));
+    return `<label class="mcw-shop"><input type="checkbox" data-store="${esc(s.id)}" ${selected.has(s.id) ? 'checked' : ''}><span>${esc(s.name)}</span>${mine ? '<small class="mcw-tag">usa este ficheiro</small>' : ''}${other ? `<small class="mcw-tag warn">usa «${esc(other.name || 'outro ficheiro')}»</small>` : ''}</label>`;
+   }).join('') || '<p class="smalltext muted">Sem lojas disponíveis.</p>';
+   count();
+  };
+  const paintPeople = () => {
+   const ids = [...(selected.size ? selected : ((file && file.storeIds) || (currentShopId ? [currentShopId] : [])))];
+   const people = peopleOf(ids);
+   $e('mcwPeople').innerHTML = people.map(u => `<label class="mcw-shop"><input type="checkbox" data-person="${esc(u.id)}" ${shared.has(u.id) ? 'checked' : ''}><span>${esc(u.name)}</span></label>`).join('') || '<p class="smalltext muted">Sem utilizadores nas lojas selecionadas.</p>';
+  };
+  d.addEventListener('change', ev => {
+   const store = ev.target.closest?.('[data-store]');
+   if (store) { store.checked ? selected.add(store.dataset.store) : selected.delete(store.dataset.store); count(); return; }
+   const person = ev.target.closest?.('[data-person]');
+   if (person) person.checked ? shared.add(person.dataset.person) : shared.delete(person.dataset.person);
+  });
+  d.addEventListener('click', ev => {
+   const a = ev.target.closest('[data-a]')?.dataset.a;
+   if (!a) return;
+   if (a === 'close') { d.close(); return; }
+   if (a === 'json') { downloadFile('comissionamento-' + (Number(w.macCommissionVersion) || 0) + '.json', JSON.stringify(cat, null, 1), 'application/json'); return; }
+   if (a === 'orig') {
+    if (!loaded || !loaded.source) return toast('O ficheiro original não está guardado na Cloud.', true);
+    try {
+     const bytes = Uint8Array.from(atob(loaded.source.data), c => c.charCodeAt(0));
+     const url = URL.createObjectURL(new Blob([bytes], { type: loaded.source.type || 'application/octet-stream' }));
+     const link = document.createElement('a');
+     link.href = url; link.download = loaded.source.name || 'comissionamento'; link.click();
+     setTimeout(() => URL.revokeObjectURL(url), 2000);
+    } catch (e) { toast('Não foi possível descarregar: ' + (e && e.message || e), true); }
+    return;
+   }
+   if (a === 'all') { storeOptions().forEach(s => selected.add(s.id)); paintStores(); return; }
+   if (a === 'save' || a === 'prev') void run(a, ev.target);
+  });
+  $e('mcwStoreSearch').addEventListener('input', paintStores);
+  $e('mcwStoreAll').addEventListener('click', () => { storeOptions().forEach(s => selected.add(s.id)); paintStores(); });
+  $e('mcwStoreNone').addEventListener('click', () => { selected.clear(); paintStores(); });
+  const run = async (kind, button) => {
+   const btn = button;
+   btn.disabled = true;
+   try {
+    const next = structuredClone(cat);
+    if (kind === 'save') d.querySelectorAll('input[data-k]').forEach(i => {
+     const row = next[i.dataset.k] && next[i.dataset.k][+i.dataset.i];
+     if (!row) return;
+     const f = i.dataset.f, v = i.value;
+     row[f] = typeof row[f] === 'number' && v.trim() !== '' && !isNaN(+v.replace(',', '.')) ? +v.replace(',', '.') : v;
+    });
+    if (!next.products || !next.products.length) throw Error('Não existem produtos válidos.');
+    const storeIds = [...selected];
+    if (!storeIds.length) throw Error('Escolhe pelo menos uma loja.');
+    const clash = rules.needsConfirmation(files, file, storeIds);
+    if (clash.length && !confirm('As lojas ' + clash.map(c => '«' + (c.name || c.id) + '»').join(', ') + ' usam outro ficheiro de comissionamento. Queres substituir essa associação?')) { btn.disabled = false; return; }
+    const meta = kind === 'prev' ? await restorePrevious(storeIds, [...shared]) : await saveFile(next, storeIds, [...shared]);
+    toast('Ficheiro «' + meta.name + '» guardado na Cloud (v' + meta.version + ') · ' + meta.storeIds.length + (meta.storeIds.length === 1 ? ' loja' : ' lojas') + ' associada(s).');
+    d.close();
+   } catch (e) { toast(e && e.message || String(e), true); btn.disabled = false; }
+  };
+  paintStores();
+  paintPeople();
+  d.showModal();
+ }
+ function ensureButton() {
+  const up = $e('weightsUploadBtn');
+  if (!up || $e('macWeightsEditBtn')) return;
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.id = 'macWeightsEditBtn';
+  b.className = 'btn small';
+  b.title = 'Editar, associar lojas, descarregar e partilhar o ficheiro';
+  b.setAttribute('aria-label', '✏️ Editar ficheiro de comissionamento');
+  b.textContent = '✏️';
+  b.addEventListener('click', openDialog);
+  up.before(b);
+ }
+ new MutationObserver(ensureButton).observe(document.documentElement, { childList: true, subtree: true });
+ ensureButton();
+ void loadFiles(true).catch(() => {});
+
+ const style = document.createElement('style');
+ style.textContent = `.mcw-d{width:min(900px,calc(100vw - 24px));max-height:88vh;overflow:auto}
+.mcw-s{max-height:46vh;overflow:auto}
+.mcw-t{width:100%;border-collapse:collapse;font-size:13px}
+.mcw-t th,.mcw-t td{padding:4px;border-bottom:1px solid var(--line,rgba(127,127,127,.25));text-align:left}
+.mcw-t input{width:100%;min-width:70px;font:inherit;padding:3px 5px}
+.mcw-a{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+#macWeightsEditBtn{margin-right:0}
+.mcw-fs{border:1px solid var(--border);border-radius:12px;padding:11px 12px;margin:14px 0}
+.mcw-fs legend{font-size:12px;font-weight:850;padding:0 5px}
+.mcw-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:9px}
+.mcw-tools input{flex:1 1 180px;min-width:0;min-height:38px;padding:7px 10px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font:inherit}
+.mcw-shops{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:7px;max-height:230px;overflow:auto;padding:2px}
+.mcw-shop{display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:13px;background:var(--surface);min-width:0}
+.mcw-shop span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.mcw-shop input{flex:0 0 auto}
+.mcw-tag{font-size:10px;font-weight:800;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:2px 5px;white-space:nowrap}
+.mcw-tag.warn{color:#b45309;border-color:#f0c274}
+@media(max-width:600px){.mcw-shops{grid-template-columns:minmax(0,1fr)}.mcw-tools input{flex:1 1 100%}}`;
+ document.head.appendChild(style);
 })();

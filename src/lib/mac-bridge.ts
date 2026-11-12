@@ -173,6 +173,28 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
       const result=await supabase.rpc('mac_set_preference',{k:p.key,v:p.value});
       if(result.error)throw Error(result.error.message);return true;
     }
+    // Ponderação e Comissionamento: um único ficheiro partilhado por várias lojas.
+    // Metadados leves (nome, versão, lojas associadas) + catálogo pesado lido só quando a versão muda.
+    if(name==='commission-files'){
+      const result=await supabase.from('mac_documents').select('value,revision').eq('wallet_id',walletId).eq('key','commission:files').maybeSingle();
+      if(result.error)throw Error(result.error.message);
+      const files=Array.isArray((result.data?.value as any)?.files)?(result.data!.value as any).files:[];
+      return {files,revision:result.data?.revision??0};
+    }
+    if(name==='commission-read'){
+      const result=await supabase.rpc('mac_get_commission',{w:walletId,f:String(p.fileId||'')});
+      if(result.error)throw Error(result.error.message);
+      return (result.data as any)??null;
+    }
+    if(name==='commission-save'){
+      const fileId=String((p.meta as any)?.id||'');
+      const result=await supabase.rpc('mac_put_commission',{w:walletId,meta:p.meta,data:p.data,r:Number(p.revision)||0});
+      if(result.error)throw Error(result.error.message.includes('CONFLICT')
+        ?'O ficheiro de comissionamento foi alterado noutra sessão. Reabre o popup e tenta novamente.'
+        :result.error.message);
+      for(const key of ['commission:files','commission:data:'+fileId]){cache.delete(key);readCache.delete(key);}
+      return true;
+    }
     if(name==='hello'){
       const members=await supabase.from('mac_memberships').select('*');
       const accounts=await supabase.from('mac_accounts').select('id,name');
