@@ -409,3 +409,16 @@ html body #macChatPanel .mcv-tab .mcv-x{display:inline-flex;align-items:center;j
 html body #macChatPanel .mcv-item{align-items:center!important}html body #macChatPanel .mcv-name{white-space:nowrap}`;
  document.head.appendChild(st);
 })();
+// Notificações verde/vermelha: canto superior direito da página.
+(function(){
+ const st=document.createElement('style');
+ st.id='macv-toast-top-right-20261112';
+ st.textContent=`html body .toast[popover],html body .toast[popover].show:popover-open,html body .toast[popover].bad:popover-open{
+ position:fixed!important;inset:auto 0 0 auto!important;
+ top:calc(env(safe-area-inset-top,0px) + 16px)!important;
+ right:max(18px,env(safe-area-inset-right,0px))!important;
+ left:auto!important;bottom:auto!important;transform:none!important;
+ width:max-content!important;max-width:min(480px,calc(100vw - 32px))!important;
+ z-index:2147483647!important}`;
+ document.head.appendChild(st);
+})();
