@@ -11619,6 +11619,7 @@ body.mac-import-multishop #macImportsStoreFilter{display:none!important}
  window.macGetMoviikPending=readPending;
  importTicketsFile=async function(file){
   if(!session||!['gestor','colaborador'].includes(session.role))throw Error('Inicia sessão para importar senhas.');
+  if(typeof macCan==='function'&&!macCan('imports.moviik'))throw Error('Não tens permissão para importar senhas MOVIIK nesta loja. Pede ao Administrador ou ao Gestor de Loja para ativar «Importações MOVIIK».');
   const sheets=await loadSheets(file),grid=pickGrid(sheets,'MOVIIK')||Object.values(sheets).find(rows=>rows.slice(0,12).some(hasMoviikHeader));
   if(!grid)throw Error('O ficheiro não contém uma folha MOVIIK com cabeçalhos reconhecidos.');
   const rows=parseMoviik(grid);if(!rows.length)throw Error('Não existem senhas MOVIIK com data válida.');

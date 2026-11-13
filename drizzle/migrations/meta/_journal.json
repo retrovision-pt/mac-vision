@@ -127,6 +127,13 @@
       "when": 1794578184621,
       "tag": "0017_mac_delegated_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794578893729,
+      "tag": "0018_moviik_delegated_import",
+      "breakpoints": true
     }
   ]
 }

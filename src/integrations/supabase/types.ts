@@ -564,6 +564,7 @@ export type Database = {
         Args: { b: string; m: string }
         Returns: undefined
       }
+      mac_moviik_importer: { Args: { w: string }; Returns: boolean }
       mac_pin_attempt: { Args: { u: string }; Returns: string }
       mac_pin_success: { Args: { u: string }; Returns: undefined }
       mac_put_commission: {
