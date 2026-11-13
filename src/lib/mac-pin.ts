@@ -50,6 +50,8 @@ const TECHNICAL: [RegExp, string][] = [
 export function friendlyError(message: unknown) {
   const text = String(message ?? '').trim();
   if (!text) return 'Não foi possível concluir a operação. Tenta novamente.';
+  if (/MAC_SHIFT_CLOSED/.test(text)) return 'O período de acesso de hoje terminou. Contacta o gestor de loja.';
+  if (/^MAC_SHIFT:/.test(text)) return text;
   if (/CONFLICT/.test(text)) return text.replace(/^.*CONFLICT:\s*/, '') || 'Alterações simultâneas: recarrega e tenta novamente.';
   for (const [pattern, pt] of TECHNICAL) if (pattern.test(text)) return pt;
   const english = /\b(the|is|not|failed|error|invalid|unable|cannot|undefined|null|of|to|with|must|should)\b/i.test(text) && !/[áàâãéêíóôõúçÁÉÍÓÚÇ]/.test(text);

@@ -74,10 +74,10 @@ makeUser=async function(name,role,password,employee=''){
 const macOriginalSubmitLogin=submitLogin;
 submitLogin=async function(event){
  event.preventDefault();const {shop,user}=selectedLoginAccount();if(!shop||!user)return authError('Escolhe acesso, utilizador e loja.');
- try{await macRPC('login',{id:user.id,password:document.getElementById('loginPassword').value});macCloudDirectory=await macRPC('directory');shopRegistry=macCloudDirectory.stores;const privateShop=shopRegistry.find(s=>s.id===shop.id),privateUser=privateShop?.users.find(u=>u.id===user.id);if(!privateShop||!privateUser)throw Error('Acesso à loja não autorizado.');const access=Object.fromEntries(shopRegistry.filter(s=>s.users.some(u=>u.id===user.id)).map(s=>[s.id,user.id]));await loginToStore(privateShop,privateUser,access,document.getElementById('loginRole').value);authError('');}catch(error){authError(error.message);}
+ try{document.getElementById('macNoPermissionPopup')?.setAttribute('hidden','');await macRPC('login',{id:user.id,password:document.getElementById('loginPassword').value,storeId:shop.id,accessKind:document.getElementById('loginRole').value});window.macShiftCache={userId:user.id,storeId:shop.id,at:Date.now(),result:{allowed:true}};macCloudDirectory=await macRPC('directory');shopRegistry=macCloudDirectory.stores;const privateShop=shopRegistry.find(s=>s.id===shop.id),privateUser=privateShop?.users.find(u=>u.id===user.id);if(!privateShop||!privateUser)throw Error('Acesso à loja não autorizado.');const access=Object.fromEntries(shopRegistry.filter(s=>s.users.some(u=>u.id===user.id)).map(s=>[s.id,user.id]));await loginToStore(privateShop,privateUser,access,document.getElementById('loginRole').value);authError('');}catch(error){const m=String(error?.message||'');if(m.startsWith('MAC_SHIFT:')){authError('');document.getElementById('loginPassword').value='';macShowShiftPopup(m.slice(10));}else authError(m);}
 };
 const macOriginalLogout=logout;
-logout=async function(){const result=await macOriginalLogout.apply(this,arguments);if(!session)await macRPC('logout');return result;};
+logout=async function(){const result=await macOriginalLogout.apply(this,arguments);if(!session){window.macShiftCache=null;try{await macRPC('logout');}catch(_){}await macReloadLoginDirectory();}return result;};
 const macOriginalLoadRegistry=loadRegistry;
 loadRegistry=async function(){shopRegistry=structuredClone(macCloudDirectory?.stores||[]);};
 const macRestorePending=restorePendingFirstManager;
@@ -1085,3 +1085,58 @@ async function mdpClick(e){const b=e.target.closest('[data-mdp-act]');if(!b)retu
 }
 document.addEventListener('DOMContentLoaded',()=>{const panel=document.getElementById('configPanelVision');if(!panel)return;
  new MutationObserver(()=>{if(!panel.hidden)mdpRender();}).observe(panel,{attributes:true,attributeFilter:['hidden']});});
+
+// ---- Bem-vindo após logout e segurança de acesso pela escala (validada na Cloud) ----
+function macShowShiftPopup(text){
+ const pop=document.getElementById('macNoPermissionPopup');
+ const p=pop?.querySelector('.mac-no-access-text');if(p)p.textContent=text||'CONTACTA O GESTOR DE LOJA';
+ if(pop){pop.hidden=false;document.getElementById('macNoAccessClose')?.focus();}
+}
+async function macReloadLoginDirectory(){
+ // Lista pública de todas as contas ativas; nunca filtrada pela escala nem pela sessão anterior.
+ const box=document.getElementById('authError');
+ try{
+  const dir=await macRPC('public-directory');
+  macCloudDirectory=dir;shopRegistry=structuredClone(dir.stores||[]);
+  authError('');renderLogin();
+ }catch(err){
+  console.warn('Bem-vindo: falha ao ligar à Cloud',err);
+  if(box){box.innerHTML='Não foi possível ligar à Cloud. <button type="button" id="macDirRetry" class="mac-no-access-close" style="margin-left:6px;padding:4px 10px">Tentar novamente</button>';
+   document.getElementById('macDirRetry')?.addEventListener('click',()=>{box.textContent='A ligar…';void macReloadLoginDirectory();});}
+ }
+}
+window.macReloadLoginDirectory=macReloadLoginDirectory;
+document.addEventListener('DOMContentLoaded',()=>{
+ const clientRule=window.macShiftAccessStatus;
+ // A Cloud decide; a regra local só serve enquanto a resposta da Cloud não chega (restauro).
+ window.macShiftAccessStatus=function(storeState,user,when){
+  const c=window.macShiftCache;
+  if(user?.role==='colaborador'&&c&&(c.userId===user.id||c.userId===session?.id)&&c.storeId===(currentShopId||c.storeId)&&Date.now()-c.at<120000&&!when)return c.result;
+  return clientRule(storeState,user,when);
+ };
+ let warned=false,checking=false;
+ async function check(){
+  if(checking||typeof session==='undefined'||!session||session.role!=='colaborador'||!currentShopId)return;
+  checking=true;const s=session,shop=currentShopId;
+  try{
+   const r=await macRPC('shift-check',{storeId:shop});
+   if(session!==s||currentShopId!==shop)return;
+   window.macShiftCache={userId:s.id,storeId:shop,at:Date.now(),result:r};
+   if(r.allowed){
+    const left=r.until?Date.parse(r.until)-Date.now():Infinity;
+    if(left<5*60000&&!warned){warned=true;toast('O teu período de acesso termina dentro de 5 minutos. Guarda o que estás a fazer.',true);}
+    if(left>5*60000)warned=false;
+    return;
+   }
+   await logout();
+   if(!session)macShowShiftPopup(r.message);
+  }catch(err){console.warn('Escala: verificação na Cloud indisponível',err);}
+  finally{checking=false;}
+ }
+ setInterval(()=>{if(!document.hidden)void check();},30000);
+ window.addEventListener('focus',()=>void check());
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)void check();});
+ window.addEventListener('mac-shift-recheck',()=>void check());
+ const prevLogin=loginToStore;
+ loginToStore=async function(){const out=await prevLogin.apply(this,arguments);setTimeout(()=>void check(),500);return out;};
+});

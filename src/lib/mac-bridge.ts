@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { macBootstrap, macSetupAuthorization, macCreateAccount, macDirectory, macPrivateDirectory, macSaveRegistry, macUpdatePassword, macUpdateWallet, macPinLogin, macRemoveAccess, macLoginPhoto } from './mac.functions';
+import { macBootstrap, macSetupAuthorization, macCreateAccount, macDirectory, macPrivateDirectory, macSaveRegistry, macUpdatePassword, macUpdateWallet, macPinLogin, macRemoveAccess, macLoginPhoto, macShiftCheck } from './mac.functions';
 import { mergeChanges, registryChanges } from './mac-rules';
 import { friendlyError } from './mac-pin';
 import { applyRegistryPhotos, applyEmployeePhotos, splitEmployeePhotos, registryPhotoChanges } from './mac-photo-rules';
@@ -182,6 +182,8 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
       registryBase=structuredClone(directory.stores);
       return {...directory,setupAuthorized:false};
     }
+    if(name==='shift-check')return macShiftCheck({data:{storeId:String(p.storeId||'')}});
+    if(name==='public-directory'){const d=await macDirectory();return {...d,setupAuthorized:false};}
     if(name==='login-photo'){
       const id=String(p.id||'');if(photos[id])return photos[id];
       return await macLoginPhoto({data:{id}});
@@ -193,7 +195,7 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
       cache.clear();readCache.clear();walletId=result.walletId;return {id:result.id,name:p.name,role:'gestor',isAreaMaster:true,adminRole:'area',carteira:p.wallet,rcAppName:p.appName};
     }
     if(name==='login'){
-      await startSession(await macPinLogin({data:{id:String(p.id||''),pin:String(p.password||'')}}));
+      await startSession(await macPinLogin({data:{id:String(p.id||''),pin:String(p.password||''),storeId:String(p.storeId||''),accessKind:String(p.accessKind||'')}}));
       cache.clear();readCache.clear();return identity();
     }
     if(name==='logout'){if(photoChannel){void supabase.removeChannel(photoChannel);photoChannel=null;}const u=await supabase.auth.getUser();if(u.data.user)await supabase.from('mac_presence').delete().eq('user_id',u.data.user.id);await supabase.auth.signOut();window.localStorage.removeItem(META_KEY);walletId='';cache.clear();readCache.clear();return true;}

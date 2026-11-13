@@ -565,6 +565,8 @@ export type Database = {
         Returns: undefined
       }
       mac_moviik_importer: { Args: { w: string }; Returns: boolean }
+      mac_my_shift_status: { Args: { s: string }; Returns: Json }
+      mac_norm_name: { Args: { t: string }; Returns: string }
       mac_pin_attempt: { Args: { u: string }; Returns: string }
       mac_pin_success: { Args: { u: string }; Returns: undefined }
       mac_put_commission: {
@@ -598,6 +600,10 @@ export type Database = {
       }
       mac_set_photo: { Args: { p: string; u: string }; Returns: undefined }
       mac_set_preference: { Args: { k: string; v: Json }; Returns: undefined }
+      mac_shift_status: {
+        Args: { at?: string; s: string; u: string }
+        Returns: Json
+      }
       mac_store_access: { Args: { s: string }; Returns: boolean }
       mac_wallet_access: { Args: { w: string }; Returns: boolean }
       mac_wallet_admin: { Args: { w: string }; Returns: boolean }

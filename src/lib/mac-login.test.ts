@@ -21,4 +21,15 @@ describe('Login never changes credentials',()=>{
   expect(mocks.update).not.toHaveBeenCalled();expect(mocks.upsert).not.toHaveBeenCalled();
   expect(mocks.rpc).toHaveBeenCalledWith('mac_pin_success',{u:'c84cdb63-5fee-477d-a7c0-603499a1adfd'});
  });
+ it('rejects a collaborator outside the schedule window after the password is checked',async()=>{
+  mocks.from.mockImplementation((table:string)=>({select:()=>({eq:()=>({maybeSingle:async()=>({error:null,data:table==='mac_accounts'?{id:'c84cdb63-5fee-477d-a7c0-603499a1adfd'}:{pin_hash:'existing'}})})})}));
+  mocks.rpc.mockImplementation(async(name:string)=>name==='mac_shift_status'?{error:null,data:{allowed:false,reason:'before'}}:{error:null,data:null});
+  await expect(login({data:{id:'c84cdb63-5fee-477d-a7c0-603499a1adfd',pin:'1234',storeId:'loja-x'}} as any)).rejects.toThrow('MAC_SHIFT:O teu acesso estará disponível 15 minutos antes do início do turno.');
+  expect(mocks.generate).not.toHaveBeenCalled();
+ });
+ it('reports a Cloud failure as a connection problem, not a permission problem',async()=>{
+  mocks.from.mockImplementation((table:string)=>({select:()=>({eq:()=>({maybeSingle:async()=>({error:null,data:table==='mac_accounts'?{id:'c84cdb63-5fee-477d-a7c0-603499a1adfd'}:{pin_hash:'existing'}})})})}));
+  mocks.rpc.mockImplementation(async(name:string)=>name==='mac_shift_status'?{error:{message:'timeout'},data:null}:{error:null,data:null});
+  await expect(login({data:{id:'c84cdb63-5fee-477d-a7c0-603499a1adfd',pin:'1234',storeId:'loja-x'}} as any)).rejects.toThrow('Não foi possível verificar o horário na Cloud. Tenta novamente.');
+ });
 });

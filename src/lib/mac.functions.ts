@@ -132,8 +132,23 @@ export const macBootstrap = createServerFn({method:'POST'})
   }catch(error){if(!assigned)await removeIdentity(admin,id);throw error;}
  });
 
+export const SHIFT_MESSAGES={
+ before:'O teu acesso estará disponível 15 minutos antes do início do turno.',
+ after:'O período de acesso de hoje terminou. Contacta o gestor de loja.',
+ none:'Não tens um turno de trabalho válido nesta loja para hoje. Contacta o gestor de loja.',
+ store:'Acesso à loja não autorizado. Contacta o gestor de loja.',
+ cloud:'Não foi possível verificar o horário na Cloud. Tenta novamente.',
+};
+export function shiftMessage(st:{reason?:string}|null){return 'MAC_SHIFT:'+((SHIFT_MESSAGES as any)[st?.reason||'none']||SHIFT_MESSAGES.none);}
+export const macShiftCheck=createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
+ .inputValidator((input:{storeId:string})=>input).handler(async({data,context})=>{
+  const r=await context.supabase.rpc('mac_my_shift_status' as any,{s:String(data.storeId||'')});
+  if(r.error){console.error('MAC shift check failed',r.error.message);throw Error(SHIFT_MESSAGES.cloud);}
+  const st=r.data as any;return {allowed:!!st?.allowed,reason:String(st?.reason||''),message:st?.allowed?'':(SHIFT_MESSAGES as any)[st?.reason]||SHIFT_MESSAGES.none,until:st?.until||null};
+ });
+
 export const macPinLogin = createServerFn({method:'POST'})
- .inputValidator((input:{id:string;pin:string})=>input)
+ .inputValidator((input:{id:string;pin:string;storeId?:string;accessKind?:string})=>input)
  .handler(async({data})=>{
   const generic='Password incorreta.';
   if(!/^[0-9a-f-]{36}$/i.test(String(data.id))||!isValidPin(data.pin))throw Error(generic);
@@ -152,6 +167,13 @@ export const macPinLogin = createServerFn({method:'POST'})
   }
   if(!ok)throw Error(generic);
   checked(await admin.rpc('mac_pin_success',{u:data.id}));
+  // Escala validada só depois da identidade e da password (nada é revelado antes).
+  if(data.storeId){
+   const shift=await admin.rpc('mac_shift_status',{u:data.id,s:String(data.storeId)});
+   if(shift.error){console.error('MAC shift check failed',shift.error.message);throw Error(SHIFT_MESSAGES.cloud);}
+   const st=shift.data as any;
+   if(!st?.allowed)throw Error(shiftMessage(st));
+  }
   return issueSession(admin,data.id);
  });
 
