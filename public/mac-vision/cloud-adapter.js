@@ -373,6 +373,21 @@ window.macIsChatAdmin=()=>{if(!session)return false;if(session.isAreaMaster||ses
   new MutationObserver(()=>paint()).observe(parts,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
   new MutationObserver(()=>paint()).observe(msgs,{childList:true});
   $c('macChatBubble')?.addEventListener('click',()=>{beat(true);void loadPresence();});paint();}
+ // Mensagens: fotografia Cloud em vez da inicial, sempre que existe.
+ function paintMessagePhotos(){
+  document.querySelectorAll('#macChatMessages .mac-chat-message[data-sender-id]').forEach(m=>{
+   const span=m.querySelector('.mac-chat-message-avatar-fallback');if(!span)return;
+   const name=m.querySelector('.mac-chat-message-head strong')?.textContent||'';
+   const photo=photoOf(m.dataset.senderId,name);if(!photo)return;
+   const img=document.createElement('img');img.className='mac-chat-message-avatar';img.alt='';img.src=photo;
+   span.replaceWith(img);
+  });
+ }
+ // renderChatCloud não é global: observar as mensagens e trocar a inicial pela fotografia.
+ let paintingMsgs=false;
+ const paintMsgs=()=>{if(paintingMsgs)return;paintingMsgs=true;try{paintMessagePhotos();}catch(_){ }finally{paintingMsgs=false;}};
+ new MutationObserver(paintMsgs).observe(document.documentElement,{subtree:true,childList:true});
+ window.addEventListener('mac-photos-updated',paintMsgs);
  window.mcvChoose=choose;
  boot();
  const lg=loginToStore;loginToStore=async function(){const r=await lg.apply(this,arguments);if(session){beat(true);void loadPresence();}return r;};
