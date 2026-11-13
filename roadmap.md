@@ -69,3 +69,13 @@ Não publicar sem autorização.
 - [ ] Validar pausa no ecrã com sessão real de AL (precisa de PIN)
 - [ ] Vendas importadas: original na Cloud; IDs estáveis contra duplicados
 - [ ] Sincronização em tempo real leve por revisão em todos os módulos
+
+## Implementação completa (pedido de 13/11)
+- [x] MOVIIK: turno numa loja não bloqueia importação autorizada noutra loja
+- [ ] Etapa 3 Escalas: original na Cloud
+- [ ] Etapa 4 Comissões: histórico de versões no ecrã
+- [ ] Etapa 5 Vendas: anti-duplicação e originais
+- [ ] Etapa 6 Cache por loja/versão
+- [ ] Etapa 7 Tempo real em todos os menus
+- [ ] Etapa 11 Histórico centralizado de importações
+- [ ] Testes T01–T28 com contas de teste
