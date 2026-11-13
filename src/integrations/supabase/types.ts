@@ -163,8 +163,10 @@ export type Database = {
           id: string
           imported_by: string
           imported_by_name: string
+          kind: string
           mime: string
           path: string | null
+          period: string | null
           size: number
           status: string
           store_id: string
@@ -179,8 +181,10 @@ export type Database = {
           id: string
           imported_by: string
           imported_by_name?: string
+          kind?: string
           mime?: string
           path?: string | null
+          period?: string | null
           size?: number
           status?: string
           store_id: string
@@ -195,8 +199,10 @@ export type Database = {
           id?: string
           imported_by?: string
           imported_by_name?: string
+          kind?: string
           mime?: string
           path?: string | null
+          period?: string | null
           size?: number
           status?: string
           store_id?: string
@@ -654,6 +660,20 @@ export type Database = {
           c: number
           i: string
           m: string
+          n: string
+          p: string
+          s: string
+          st: string
+          sz: number
+        }
+        Returns: undefined
+      }
+      mac_record_schedule_file: {
+        Args: {
+          c: number
+          i: string
+          m: string
+          mo: string
           n: string
           p: string
           s: string

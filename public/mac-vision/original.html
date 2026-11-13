@@ -12627,6 +12627,22 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
    return result;
   };
  }
+ // Escalas: o Excel original fica no Storage privado da Cloud, associado à loja e ao mês; o histórico guarda «cloud:ID».
+ if(typeof importSchedules==='function'){
+  const oldS=importSchedules;importSchedules=async function(file){
+   const before=(state.imports||[]).length;const shopId=currentShopId;
+   const result=await oldS.apply(this,arguments);
+   const item=(state.imports||[]).slice(before).reverse().find(x=>x.type==='Escala'&&x.name===file?.name&&!x.macAttachmentKey);
+   if(!item||!(file instanceof Blob)||!shopId)return result;
+   const id=newId(),month=$('scheduleMonth')?.value||'';item.macAttachmentKey='cloud:'+id;item.macFileStatus='pending_file';item.month=month;
+   try{await saveStoreDoc(shopId,state);
+    await macRPC('import-file-save',{id,storeId:shopId,file,name:file.name,count:Number(item.count)||0,kind:'schedule',month});
+    item.macFileStatus='stored';await saveStoreDoc(shopId,state);toast('Escala importada e ficheiro original guardado na Cloud.');}
+   catch(error){console.warn('Escala importada; original por guardar:',error);toast('Escala importada, mas o ficheiro original ficou por guardar: '+(error.message||error)+' Usa ▼ no Histórico de Importações para enviar apenas o ficheiro.',true);}
+   if(typeof renderImports==='function'&&page==='imports')renderImports();
+   return result;
+  };
+ }
  // Reenvio apenas do ficheiro original (sem reimportar senhas), mantendo o ID de importação quando existe.
  function pickFile(){return new Promise(ok=>{const i=document.createElement('input');i.type='file';i.accept='.xlsx,.xls,.csv';i.onchange=()=>ok(i.files?.[0]||null);i.click();});}
  async function attachOriginal(shopId,entry,data){
@@ -12634,7 +12650,7 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
   if(file.name!==entry.name&&!confirm('O ficheiro escolhido ('+file.name+') tem um nome diferente do importado ('+entry.name+'). Anexar mesmo assim?'))return;
   const pendingCloud=String(entry.macAttachmentKey||'').startsWith('cloud:');
   const id=pendingCloud?entry.macAttachmentKey.slice(6):newId();
-  await macRPC('import-file-save',{id,storeId:shopId,file,name:entry.name||file.name,count:Number(entry.count)||0,recover:pendingCloud});
+  await macRPC('import-file-save',{id,storeId:shopId,file,name:entry.name||file.name,count:Number(entry.count)||0,recover:pendingCloud,kind:entry.type==='Escala'?'schedule':undefined,month:entry.month||''});
   entry.macAttachmentKey='cloud:'+id;entry.macFileStatus='stored';await saveStoreDoc(shopId,data);
   if(typeof renderImports==='function'&&page==='imports')renderImports();
   toast('Ficheiro original guardado na Cloud, sem reimportar senhas.');
@@ -12666,8 +12682,8 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
     else{for(const key of [ref,shopId+'|'+entry.name,'name|'+entry.name].filter(Boolean)){try{file=await getFile(key);}catch{file=null}if(file)break;}}
     if(!(file instanceof Blob)){
      const label=status==='pending_file'?'Ficheiro original por guardar':'Ficheiro original indisponível';
-     const canSend=session?.role!=='colaborador'||(typeof macCan==='function'&&macCan('imports.moviik',shopId));
-     if(canSend&&confirm(label+' para «'+entry.name+'». Queres anexar agora o ficheiro original? As senhas não serão importadas novamente.'))return await attachOriginal(shopId,entry,data);
+     const canSend=session?.role!=='colaborador'||(typeof macCan==='function'&&macCan(entry.type==='Escala'?'schedule.edit':'imports.moviik',shopId));
+     if(canSend&&confirm(label+' para «'+entry.name+'». Queres anexar agora o ficheiro original? Os dados não serão importados novamente.'))return await attachOriginal(shopId,entry,data);
      throw Error(label+'. Pede a quem importou, ou a um gestor, para anexar o original.');
     }
     const link=document.createElement('a'),url=URL.createObjectURL(file);

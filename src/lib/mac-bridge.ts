@@ -215,7 +215,7 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
       if(!(file instanceof Blob))throw Error('Ficheiro original em falta.');
       const fname=String(p.name||(file as any).name||'MOVIIK.xlsx'),safe=fname.replace(/[^A-Za-z0-9._-]/g,'_').slice(0,120)||'MOVIIK.xlsx';
       const path=storeId+'/'+id+'/'+safe;const count=Number(p.count)||0;
-      const rec=async(pth:string|null,st:string)=>{const r=await supabase.rpc('mac_record_import',{i:id,s:storeId,n:fname,p:pth as any,m:file.type||'',sz:file.size,c:count,st});if(r.error)throw Error(friendlyError(r.error.message));};
+      const rec=async(pth:string|null,st:string)=>{const r=p.kind==='schedule'?await (supabase.rpc as any)('mac_record_schedule_file',{i:id,s:storeId,n:fname,p:pth,m:file.type||'',sz:file.size,c:count,st,mo:p.month||null}):await supabase.rpc('mac_record_import',{i:id,s:storeId,n:fname,p:pth as any,m:file.type||'',sz:file.size,c:count,st});if(r.error)throw Error(friendlyError(r.error.message));};
       if(!p.recover)await rec(null,'pending_file');
       const up=await supabase.storage.from('mac-imports').upload(path,file,{contentType:file.type||'application/octet-stream',upsert:false});
       if(up.error&&!/exists|duplicate/i.test(up.error.message))throw Object.assign(Error('O ficheiro original não foi guardado na Cloud: '+friendlyError(up.error.message)),{importId:id});

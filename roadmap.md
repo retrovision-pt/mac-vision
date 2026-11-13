@@ -72,8 +72,8 @@ Não publicar sem autorização.
 
 ## Implementação completa (pedido de 13/11)
 - [x] MOVIIK: turno numa loja não bloqueia importação autorizada noutra loja
-- [ ] Etapa 3 Escalas: original na Cloud
-- [ ] Etapa 4 Comissões: histórico de versões no ecrã
+- [x] Etapa 3 Escalas: Excel original guardado na Cloud por loja e mês, reenvio e download (falta: teste com ficheiro real no ecrã)
+- [ ] Etapa 4 Comissões: já guarda original + versão anterior; falta histórico de todas as versões
 - [ ] Etapa 5 Vendas: anti-duplicação e originais
 - [ ] Etapa 6 Cache por loja/versão
 - [ ] Etapa 7 Tempo real em todos os menus
