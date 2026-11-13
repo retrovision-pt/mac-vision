@@ -176,6 +176,13 @@
       "when": 1794588519470,
       "tag": "0024_schedule_import_files",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794589918871,
+      "tag": "0025_moviik_default_for_collaborators",
+      "breakpoints": true
     }
   ]
 }

@@ -294,10 +294,17 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
       const r=await supabase.from('mac_permissions').select('store_id,perm').eq('user_id',uid);
       if(r.error)throw Error(r.error.message);
       const out:Record<string,string[]>={};for(const row of r.data||[])(out[row.store_id]??=[]).push(row.perm);
+      // «Importações MOVIIK» is on by default for collaborators in their stores, unless explicitly denied.
+      const acc=await supabase.from('mac_accounts').select('role').eq('id',uid).maybeSingle();
+      if(acc.data?.role==='colaborador'){
+        const ms=await supabase.from('mac_memberships').select('store_id').eq('user_id',uid);
+        for(const m of ms.data||[]){const l=out[m.store_id]??=[];if(!l.includes('deny:imports.moviik')&&!l.includes('imports.moviik'))l.push('imports.moviik');}
+      }
+      for(const k of Object.keys(out))out[k]=out[k].filter(x=>!x.startsWith('deny:'));
       return out;
     }
     if(name==='permissions-save'){
-      const r=await supabase.rpc('mac_set_permissions',{u:String(p.userId||''),stores:(p.stores||[]).map(String),perms:(p.perms||[]).map(String)});
+      const r=await supabase.rpc('mac_set_permissions',{u:String(p.userId||''),stores:(p.stores||[]).map(String),perms:((list:string[])=>list.includes('all')||list.includes('imports.moviik')?list.filter(x=>x!=='imports.moviik'||list.includes('all')):[...list,'deny:imports.moviik'])((p.perms||[]).map(String))});
       if(r.error)throw Error(r.error.message);
       return true;
     }

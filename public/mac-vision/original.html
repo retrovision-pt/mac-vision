@@ -12069,9 +12069,10 @@ html[data-theme="uni"].mac-dark #configPanelWeights #weightsUploadBtn {
     log.innerHTML=entries.length?entries.slice(0,90).map(({entry,index,shop})=>
      '<div class="import-row mac-import-history-entry mac-v3-import">'+
      '<div class="mac-import-history-owner"><span class="mac-import-history-ticket" aria-hidden="true">🎫</span><span>'+escapeText(entry.importedBy||'Utilizador não identificado')+'</span></div>'+
-     '<div class="mac-import-history-filename">'+escapeText(entry.name||'Ficheiro sem nome')+'</div>'+
+     '<div class="mac-import-history-filename">'+escapeText(entry.label||entry.name||'Ficheiro sem nome')+(entry.label&&entry.name&&entry.label!==entry.name?' <span class="muted smalltext">('+escapeText(entry.name)+')</span>':'')+'</div>'+
      '<div class="mac-import-history-date">'+escapeText(shop.name)+' · '+escapeText(entry.when||'Data não disponível')+'</div>'+
      '<span class="tag mac-import-history-count">'+Number(entry.count||0)+' senhas</span>'+
+     '<button type="button" class="mac-import-delete-v3" data-mac-import-edit="1" data-mac-import-shop="'+escapeText(shop.id)+'" data-mac-import-index="'+index+'" title="Editar a descrição deste registo" aria-label="Editar o registo de '+escapeText(entry.name)+'">✏️</button>'+
      '<button type="button" class="mac-import-delete-v3" data-mac-import-shop="'+escapeText(shop.id)+'" data-mac-import-index="'+index+'" title="Eliminar apenas este registo do histórico (senhas mantidas)" aria-label="Eliminar o histórico de '+escapeText(entry.name)+'">🗑️</button></div>').join('')
     :'<div class="empty">Nenhum ficheiro MOVIIK importado para a loja selecionada.</div>';
    })().catch(err=>console.warn('Histórico de importações:',err));
@@ -12080,18 +12081,26 @@ html[data-theme="uni"].mac-dark #configPanelWeights #weightsUploadBtn {
  el('importLog')?.addEventListener('click',async event=>{
   const btn=event.target.closest('[data-mac-import-shop][data-mac-import-index]');if(!btn)return;
   event.preventDefault();event.stopImmediatePropagation();
-  if(!macCan('imports.moviik'))return toast('Só gestores autorizados podem eliminar registos de importações.',true);
   const shopId=btn.dataset.macImportShop,index=Number(btn.dataset.macImportIndex);
+  if(!macCan('imports.moviik',shopId))return toast('Não tens permissão «Importações MOVIIK» nesta loja.',true);
   if(!Number.isInteger(index)||index<0||!accessible().some(st=>st.id===shopId))return toast('Sem permissão para esta loja.',true);
   const data=await dataForStore(shopId),entry=data.imports?.[index];if(!entry||entry.type!=='MOVIIK')return toast('Este registo já não está disponível.',true);
-  if(!confirm('Eliminar do histórico o ficheiro «'+entry.name+'»?\nAs senhas importadas são mantidas.'))return;
-  data.imports.splice(index,1);
+  const editing=btn.dataset.macImportEdit==='1';
+  if(editing){
+   const next=prompt('Descrição do registo de importação:',entry.label||entry.name||'');if(next===null)return;
+   const label=next.trim().slice(0,120);entry.label=label&&label!==entry.name?label:undefined;
+   entry.editedBy=session?.name||'';entry.editedAt=new Date().toLocaleString('pt-PT');
+  }else{
+   if(!confirm('Eliminar do histórico o ficheiro «'+entry.name+'»?\nAs senhas importadas e o ficheiro original são mantidos.'))return;
+   (data.macImportsRemoved||(data.macImportsRemoved=[])).push({...entry,removedBy:session?.name||'',removedById:session?.id||'',removedAt:new Date().toISOString()});
+   data.imports.splice(index,1);
+  }
   try{
    await writeKey('store:'+shopId,data);if(shopId===currentShopId)state=data;
    if(typeof signalMacLocalChange==='function')signalMacLocalChange('store',shopId);
    renderImports();if(typeof renderDailyImports==='function'&&shopId===currentShopId)renderDailyImports();
-   toast('Registo eliminado do histórico. As senhas foram mantidas.');
-  }catch(err){toast('Não foi possível eliminar o registo: '+err.message,true)}
+   toast(editing?'Registo atualizado na Cloud.':'Registo eliminado do histórico. As senhas foram mantidas.');
+  }catch(err){toast((editing?'Não foi possível atualizar o registo: ':'Não foi possível eliminar o registo: ')+err.message,true)}
  });
  // Tráfego: atualizar após troca da loja configurada, sem misturar as senhas de outras lojas.
  // A vista «Todas as lojas» continua a fazer a consolidação já existente.
