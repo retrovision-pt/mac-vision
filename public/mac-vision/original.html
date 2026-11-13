@@ -11525,11 +11525,13 @@ body.mac-import-multishop #macImportsStoreFilter{display:none!important}
 (function(){
  'use strict';
  const $=id=>document.getElementById(id);
- const allowedShops=()=>{
+ // Lojas onde a sessão pode importar MOVIIK: gestão = lojas acessíveis; AL = loja atual + lojas com «Importações MOVIIK» delegada.
+ window.macMoviikStores=function(perm='imports.moviik'){
   if(!session)return [];
   if(session.role==='gestor'&&typeof accessibleManagerStores==='function')return accessibleManagerStores().filter(Boolean);
-  const one=shopRegistry.find(x=>x.id===currentShopId);return one?[one]:[];
+  return shopRegistry.filter(x=>x&&(x.id===currentShopId||(typeof macCan==='function'&&(macCan(perm,x.id)||(perm!=='imports.moviik'&&macCan('imports.moviik',x.id))))));
  };
+ const allowedShops=()=>window.macMoviikStores();
  function canon(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9]/g,'').toUpperCase()}
  function pickStore(raw,shops){const name=canon(raw);if(!name)return null;
   // Apenas referências exatas — sem associações ambíguas por proximidade de nomes.
@@ -12598,7 +12600,7 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
  async function saveFile(file,key){return macSaveBlob(file,key);}
  async function getFile(key){return macGetBlob(key);}
  // Originais MOVIIK: guardados no Storage privado da Cloud por loja; o histórico guarda só a referência «cloud:ID».
- const storesForFiles=()=>typeof accessibleManagerStores==='function'&&session?.role==='gestor'?accessibleManagerStores():[currentStore()].filter(Boolean);
+ const storesForFiles=()=>window.macMoviikStores?window.macMoviikStores():[currentStore()].filter(Boolean);
  async function saveStoreDoc(id,data){if(id===currentShopId){if(!await persist())throw Error('Histórico não guardado na Cloud. Mantém a sessão aberta e tenta novamente.');}else await writeKey('store:'+id,data);}
  const newId=()=>crypto.randomUUID();
  if(typeof importTicketsFile==='function'){
@@ -12655,7 +12657,7 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
    event.preventDefault();event.stopImmediatePropagation();
    try{
     const shopId=btn.dataset.rcDownloadShop,index=Number(btn.dataset.rcDownloadIndex);
-    const allowed=typeof accessibleManagerStores==='function'&&session?.role==='gestor'?accessibleManagerStores():[currentStore()].filter(Boolean);
+    const allowed=window.macMoviikStores?window.macMoviikStores('imports.view'):[currentStore()].filter(Boolean);
     if(!allowed.some(st=>st.id===shopId))throw Error('Não tens autorização para transferir ficheiros desta loja.');
     const data=await dataForStore(shopId),entry=data.imports?.[index];
     if(!entry||entry.type!=='MOVIIK')throw Error('A importação já não está disponível.');

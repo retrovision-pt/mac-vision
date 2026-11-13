@@ -60,10 +60,12 @@
 Não publicar sem autorização.
 ## Otimização Cloud → Local (pedido 13/11)
 - [x] Acesso contínuo durante a pausa (verificado na Cloud) e minuto final +15 incluído
-- [ ] Seleção global de loja em todos os menus (+ guardar última loja na conta)
+- [x] Seleção global de loja: mudanças em série, última loja guardada na conta (falta teste com sessão real)
 - [ ] Cache local por conta/loja/versão em IndexedDB, limpa no logout, aviso «Dados em cache — sem ligação à Cloud»
 - [ ] Escala: Excel original na Cloud + histórico, atualizar só dias alterados
 - [ ] Comissões: original na Cloud + histórico de versões
-- [ ] MOVIIK: separar senhas por loja do ficheiro, sem duplicados, contagem criadas/atualizadas
+- [x] MOVIIK: AL distribui pela coluna D para todas as lojas onde tem «Importações MOVIIK» (falta teste com sessão real)
+- [ ] Publicar após validação (mensagem antiga «neste navegador» vem da versão publicada)
+- [ ] Validar pausa no ecrã com sessão real de AL (precisa de PIN)
 - [ ] Vendas importadas: original na Cloud; IDs estáveis contra duplicados
 - [ ] Sincronização em tempo real leve por revisão em todos os módulos

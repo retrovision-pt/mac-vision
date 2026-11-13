@@ -1140,3 +1140,34 @@ document.addEventListener('DOMContentLoaded',()=>{
  const prevLogin=loginToStore;
  loginToStore=async function(){const out=await prevLogin.apply(this,arguments);setTimeout(()=>void check(),500);return out;};
 });
+
+/* Seleção global de loja: uma única loja ativa para todos os menus, mudanças em série (a última escolha ganha,
+   respostas antigas nunca substituem a nova loja) e última loja guardada nas preferências da conta na Cloud. */
+window.addEventListener('load',()=>{
+ const LAST_STORE_PREF='mac-last-store';
+ if(typeof switchManagerStore!=='function'||typeof loginToStore!=='function')return;
+ const baseSwitch=switchManagerStore;let chain=Promise.resolve(),wanted=null;
+ switchManagerStore=function(storeId){
+  wanted=storeId;
+  const run=chain.catch(()=>{}).then(async()=>{
+   if(wanted!==storeId)return; // uma escolha mais recente substitui esta
+   await baseSwitch(storeId);
+   if(wanted!==storeId||currentShopId!==storeId)return;
+   try{macQueuePreference(LAST_STORE_PREF,storeId);}catch(_){}
+   try{const w=document.getElementById('macWeightsStoreSelect');if(w&&w.value!==storeId&&[...w.options].some(o=>o.value===storeId))w.value=storeId;}catch(_){}
+   window.dispatchEvent(new CustomEvent('mac-store-changed',{detail:{storeId}}));
+  });
+  chain=run;return run;
+ };
+ const baseLogin=loginToStore;
+ loginToStore=async function(){
+  const out=await baseLogin.apply(this,arguments);
+  try{
+   if(session?.role==='gestor'){
+    const last=macVolatilePrefs.get(LAST_STORE_PREF);
+    if(last&&last!==currentShopId&&accessibleManagerStores().some(s=>s.id===last))await switchManagerStore(last);
+   }
+  }catch(error){console.warn('Última loja não reposta',error);}
+  return out;
+ };
+});
