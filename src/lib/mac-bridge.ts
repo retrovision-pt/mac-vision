@@ -300,7 +300,7 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
         const ms=await supabase.from('mac_memberships').select('store_id').eq('user_id',uid);
         for(const m of ms.data||[]){const l=out[m.store_id]??=[];if(!l.includes('deny:imports.moviik')&&!l.includes('imports.moviik'))l.push('imports.moviik');}
       }
-      for(const k of Object.keys(out))out[k]=out[k].filter(x=>!x.startsWith('deny:'));
+      for(const k of Object.keys(out))out[k]=(out[k]||[]).filter(x=>!x.startsWith('deny:'));
       return out;
     }
     if(name==='permissions-save'){
