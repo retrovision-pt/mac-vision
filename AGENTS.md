@@ -31,6 +31,8 @@ use the editor.
 
 ## Original application boundary
 
+- Keep reachability, pending/failed writes, authentication and Realtime health independent; only read-only Cloud probes may confirm Offline, and mount-owned SDK channels recover gaps without replacing dirty store state.
+
 - Serve the uploaded standalone document in a full-viewport same-origin iframe; the host must not reconstruct or restyle its UI because the document owns the existing application behavior and design.
 - Keep Cloud profile fields separate from protected role assignments; user-editable profile data must never grant access.
 - Track capability verification in the migration ledger; fresh installations never import browser records, and disposable verification data is removed only with explicit authorization.

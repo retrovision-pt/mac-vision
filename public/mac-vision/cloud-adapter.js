@@ -3,7 +3,8 @@ let macRpcId=0;
 const macRpcPending=new Map();
 function macRPC(action,payload={}){
  return new Promise((resolve,reject)=>{
-  const id='mac-'+(++macRpcId);const timer=setTimeout(()=>{macRpcPending.delete(id);reject(Error('A ligação Cloud não respondeu.'));},30000);
+  const id='mac-'+(++macRpcId);const timer=setTimeout(()=>{macRpcPending.delete(id);const error=Error('A ligação Cloud não respondeu.');macSyncFailure(action,'network');reject(error);},30000);
+  macSyncBegin(action);
   macRpcPending.set(id,{resolve,reject,timer});parent.postMessage({macVisionBridge:1,kind:'request',id,action,payload},location.origin);
  });
 }
@@ -13,17 +14,19 @@ function sameState(a,b){return JSON.stringify(canonical(a))===JSON.stringify(can
 window.addEventListener('message',event=>{
  if(event.source!==parent||event.origin!==location.origin||event.data?.macVisionBridge!==1)return;
  const data=event.data;
- if(data.kind==='response'){const job=macRpcPending.get(data.id);if(!job)return;clearTimeout(job.timer);macRpcPending.delete(data.id);data.error?job.reject(Error(data.error)):job.resolve(data.result);}
+ if(data.kind==='response'){const job=macRpcPending.get(data.id);if(!job)return;clearTimeout(job.timer);macRpcPending.delete(data.id);if(data.error){macSyncFailure(data.action||'',data.errorKind||'operation');job.reject(Object.assign(Error(data.error),{kind:data.errorKind}));}else{macSyncComplete(data.action||'');job.resolve(data.result);}}
+ if(data.kind==='event'&&data.event==='sync-channel'){macSyncState.reconnecting=!data.live;macPaintHealth();return;}
  if(data.kind==='event'&&session){void (async()=>{
   if(data.event==='preferences-changed'){const prefs=await macRPC('preferences');macVolatilePrefs.clear();for(const [k,v] of Object.entries(prefs||{}))macVolatilePrefs.set(k,v);return;}
   if(data.event==='photos-changed'){macApplyPhotos(data.photos||{});return;}
   if(data.event==='registry-changed'){return;} // Refresh on explicit load/save; never replace an in-progress account edit.
   if(String(data.key||'').startsWith('commission:')){if(window.macCommissionRefresh)await window.macCommissionRefresh(true);return;}
-  if(data.key&&!String(data.key).startsWith('store:'+currentShopId))return;
+  if(data.key&&String(data.key)!=='store:'+currentShopId)return;
   if(macStateDirty||saveTimer!==null){window.macPullAfterSave=true;return;}
-  const raw=await macRPC('read',{key:'store:'+currentShopId,accept:true});
-  let next;try{next=window.macCommissionHydrate?await window.macCommissionHydrate(currentShopId,raw):raw;}catch(e){return;}
-  if(next&&!sameState(next,state)){state=shape(next);render();}
+  const shopId=currentShopId;const raw=await macRPC('read',{key:'store:'+shopId,accept:true});
+  let next;try{next=window.macCommissionHydrate?await window.macCommissionHydrate(shopId,raw):raw;}catch(e){return;}
+  if(!session||currentShopId!==shopId||macStateDirty||saveTimer!==null)return;
+  if(next&&!sameState(next,state)){const d=state.selectedDate;state=shape(next);state.selectedDate=d;render();}
  })().catch(console.warn);}
 });
 // Fotografias únicas por ID Cloud: aplicadas ao registo, aos colaboradores ligados e ao Chat Vision sem recarregar.
@@ -187,9 +190,9 @@ toast=function(message,error=false){
  }
  return macOriginalToast(message,error);
 };
-setLocalStatus=function(ok){localStatus=ok?'ok':'nok';const led=document.getElementById('localSyncIndicator'),label=document.getElementById('localSyncLabel');if(!led||!label)return;led.classList.toggle('bad',!ok);led.classList.toggle('ok',!!ok);led.title=ok?'Cloud: gravação confirmada':'Cloud: alterações não guardadas';label.textContent=led.title;};
+setLocalStatus=function(ok){localStatus=ok?'ok':'nok';if(ok&&!macStateDirty)macSyncState.writeError='';macPaintHealth();};
 const macOriginalMarkUnsaved=macMarkUnsaved;
-macMarkUnsaved=function(){macOriginalMarkUnsaved();setLocalStatus(false);};
+macMarkUnsaved=function(){macOriginalMarkUnsaved();macSyncState.writeError='';macPaintHealth();};
 window.addEventListener('beforeunload',event=>{if(macStateDirty||saveTimer!==null){event.preventDefault();event.returnValue='';}});// Language is a personal preference: saved per user in Cloud profile preferences, never via the admin registry.
 const MAC_LANGUAGE_PREF='macVision.language';
 changeUserLanguage=async function(locale){
@@ -234,18 +237,50 @@ loginToStore=async function(){macTouch(true);const r=await macLoginWithIdle.appl
 const macLogoutWithBroadcast=logout;
 logout=async function(){const was=!!session;const r=await macLogoutWithBroadcast.apply(this,arguments);if(was&&!session&&!macIdleClosing){try{localStorage.setItem(MAC_LOGOUT_KEY,String(Date.now()));}catch{}}return r;};
 
-let macCloudOk=true,macHealthBusy=false,macHealthDelay=30000,macHealthTimer=null;
-function macPaintHealth(){const led=document.getElementById('localSyncIndicator'),label=document.getElementById('localSyncLabel');if(!led||!label)return;const ok=macCloudOk&&localStatus!=='nok';led.classList.toggle('bad',!ok);led.classList.toggle('ok',ok);led.title=!macCloudOk?'Cloud: sem ligação':ok?'Cloud: ligada e verificada':'Cloud: alterações não guardadas';label.textContent=led.title;}
+// One state owner: dirty data, failed operations and Realtime gaps never mean Offline.
+const macSyncState={connected:null,pending:0,writeError:'',sessionExpired:false,reconnecting:false,lastSync:0,failures:0};
+const macMutationActions=new Set(['write','delete','registry-save','preference','commission-save','import-file-save','permissions-save','account','password','remove-access']);
+let macHealthBusy=false,macHealthDelay=30000,macHealthTimer=null;
+function macSyncBegin(action){if(macMutationActions.has(action)){macSyncState.pending++;macSyncState.writeError='';macPaintHealth();}}
+function macSyncComplete(action){
+ if(action==='ping')return;
+ macSyncState.connected=true;macSyncState.failures=0;
+ if(action==='login'||action==='bootstrap')macSyncState.sessionExpired=false;
+ if(macMutationActions.has(action)){macSyncState.pending=Math.max(0,macSyncState.pending-1);macSyncState.lastSync=Date.now();}
+ macPaintHealth();
+}
+function macSyncFailure(action,kind){
+ if(macMutationActions.has(action)){macSyncState.pending=Math.max(0,macSyncState.pending-1);macSyncState.writeError=kind;}
+ if(kind==='session'&&action!=='login')macSyncState.sessionExpired=true;
+ if(kind==='permission'||kind==='limit'||kind==='session')macSyncState.connected=true;
+ if(kind==='network'||kind==='service')void macCloudHealth();
+ macPaintHealth();
+}
+function macPaintHealth(){
+ const led=document.getElementById('localSyncIndicator'),label=document.getElementById('localSyncLabel');if(!led||!label)return;
+ const s=macSyncState;let text='Online',tone='ok';
+ if(s.connected===false){text='OFFLINE — Dados em cache — sem ligação à Cloud'+(s.lastSync?' · Última sincronização: '+new Date(s.lastSync).toLocaleString('pt-PT'):'');tone='bad';}
+ else if(s.sessionExpired){text='SESSÃO EXPIRADA — Inicia sessão novamente';tone='pending';}
+ else if(s.writeError){text='ERRO DE GRAVAÇÃO — '+(s.writeError==='permission'?'Sem permissão':s.writeError==='limit'?'Aguarda antes de tentar novamente':'Alterações não confirmadas');tone='pending';}
+ else if(s.pending||macStateDirty||saveTimer!==null){text='A sincronizar';tone='pending';}
+ else if(s.reconnecting){text='A reconectar sincronização';tone='pending';}
+ else if(s.connected===null){text='A verificar ligação à Cloud';tone='pending';}
+ else if(s.lastSync){text='Sincronizado';}
+ led.classList.toggle('bad',tone==='bad');led.classList.toggle('ok',tone==='ok');led.dataset.cloudTone=tone;led.title=text;label.textContent=text;led.setAttribute('aria-label',text);
+}
 async function macCloudHealth(){
  if(macHealthBusy)return;macHealthBusy=true;clearTimeout(macHealthTimer);
- try{await macRPC('ping');macCloudOk=true;macHealthDelay=30000;}catch{macCloudOk=false;macHealthDelay=Math.min(macHealthDelay===30000?5000:macHealthDelay*2,60000);}
+ try{const wasOffline=macSyncState.connected===false;const health=await macRPC('ping');macSyncState.connected=true;macSyncState.failures=0;macSyncState.sessionExpired=!!health?.sessionExpired;macHealthDelay=30000;if(wasOffline&&session){await macRPC('sync-recover');window.macPullAfterSave=true;window.dispatchEvent(new Event('mac-cloud-recovered'));}}
+ catch{macSyncState.failures++;if(macSyncState.failures>=2)macSyncState.connected=false;macHealthDelay=Math.min(5000*Math.pow(2,macSyncState.failures-1),60000);}
  finally{macHealthBusy=false;macPaintHealth();macHealthTimer=setTimeout(macCloudHealth,macHealthDelay);}
 }
-const macSetLocalStatusHealth=setLocalStatus;
-setLocalStatus=function(ok){macSetLocalStatusHealth(ok);macPaintHealth();};
+// The original local probe wrote status documents, compared stamps and rendered data.
+// It is not a connectivity test and could fail on permission/conflict/render errors.
+updateLocalHealth=async function(){updateLocalClock();await macCloudHealth();};
 window.addEventListener('online',()=>void macCloudHealth());
-window.addEventListener('offline',()=>{macCloudOk=false;macPaintHealth();});
+window.addEventListener('offline',()=>void macCloudHealth());
 setTimeout(macCloudHealth,1500);
+(function(){const st=document.createElement('style');st.textContent=`:root{--mac-sync-online:#25c87d;--mac-sync-wait:#e0a94c;--mac-sync-offline:#eb5971}html body #mainApp .sidebar #localSyncIndicator[data-cloud-tone]{background:var(--mac-sync-wait)!important;box-shadow:none!important}html body #mainApp .sidebar #localSyncIndicator[data-cloud-tone="ok"]{background:var(--mac-sync-online)!important}html body #mainApp .sidebar #localSyncIndicator[data-cloud-tone="bad"]{background:var(--mac-sync-offline)!important}`;document.head.appendChild(st);})();
 
 (function(){
  const st=document.createElement('style');
@@ -460,6 +495,7 @@ html body #macChatPanel .mcv-item{align-items:center!important}html body #macCha
  }
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)macPullStore();});
  window.addEventListener('focus',macPullStore);
+ window.addEventListener('mac-cloud-recovered',()=>{if(macStateDirty||saveTimer!==null){window.macPullAfterSave=true;return;}window.macPullAfterSave=false;void macPullStore();if(window.macCommissionRefresh)void window.macCommissionRefresh(true).catch(console.warn);});
  const p=persist;persist=async function(){const ok=await p.apply(this,arguments);if(ok&&window.macPullAfterSave){window.macPullAfterSave=false;setTimeout(macPullStore,0);}return ok;};
 })();
 /* Venda: a notificação de sucesso só aparece depois de a Cloud confirmar a gravação. */

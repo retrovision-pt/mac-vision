@@ -79,3 +79,9 @@ Não publicar sem autorização.
 - [ ] Etapa 7 Tempo real em todos os menus
 - [ ] Etapa 11 Histórico centralizado de importações
 - [ ] Testes T01–T28 com contas de teste
+
+## Falso Offline ao atualizar (13/11)
+- [x] Separar ligação, gravação e Realtime; substituir a sondagem local que escreve status por verificação Cloud só de leitura.
+- [x] Preservar sessão em falhas temporárias; recuperar leituras afetadas após reconexão sem substituir alterações pendentes.
+- [x] Sintaxe, 31 verificações essenciais e estados do indicador no navegador: pendente/403/Realtime sem vermelho, falha de rede confirmada e recuperação; sem dados criados, gravações reais ou publicação.
+- [ ] Gravação real e propagação entre utilizadores autenticados: não exercitadas nesta correção para não alterar os dados reais.
