@@ -209,6 +209,32 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
       if(changes.length)await macSaveRegistry({data:{stores:changes}});
       registryBase=structuredClone(p.stores);return true;
     }
+    // Originais MOVIIK: Storage privado por loja/importação; metadados e autorização validados na Cloud.
+    if(name==='import-file-save'){
+      const id=String(p.id||crypto.randomUUID()),storeId=String(p.storeId||''),file=p.file as File;
+      if(!(file instanceof Blob))throw Error('Ficheiro original em falta.');
+      const fname=String(p.name||(file as any).name||'MOVIIK.xlsx'),safe=fname.replace(/[^A-Za-z0-9._-]/g,'_').slice(0,120)||'MOVIIK.xlsx';
+      const path=storeId+'/'+id+'/'+safe;const count=Number(p.count)||0;
+      const rec=async(pth:string|null,st:string)=>{const r=await supabase.rpc('mac_record_import',{i:id,s:storeId,n:fname,p:pth as any,m:file.type||'',sz:file.size,c:count,st});if(r.error)throw Error(friendlyError(r.error.message));};
+      if(!p.recover)await rec(null,'pending_file');
+      const up=await supabase.storage.from('mac-imports').upload(path,file,{contentType:file.type||'application/octet-stream',upsert:false});
+      if(up.error&&!/exists|duplicate/i.test(up.error.message))throw Object.assign(Error('O ficheiro original não foi guardado na Cloud: '+friendlyError(up.error.message)),{importId:id});
+      await rec(path,'stored');return {id,status:'stored',path};
+    }
+    if(name==='import-file-get'){
+      const r=await supabase.from('mac_import_files').select('*').eq('id',String(p.id||'')).maybeSingle();
+      if(r.error)throw Error(friendlyError(r.error.message));
+      if(!r.data)throw Error('Não tens autorização para este ficheiro ou a importação não existe.');
+      if(r.data.status!=='stored'||!r.data.path)return {status:r.data.status,name:r.data.file_name};
+      const u=await supabase.storage.from('mac-imports').createSignedUrl(r.data.path,120);
+      if(u.error||!u.data)throw Error('Não foi possível autorizar a transferência: '+friendlyError(u.error?.message||''));
+      const res=await fetch(u.data.signedUrl);if(!res.ok)throw Error('Ficheiro original indisponível na Cloud.');
+      return {status:'stored',file:new File([await res.blob()],r.data.file_name,{type:r.data.mime||'application/octet-stream'})};
+    }
+    if(name==='import-files-list'){
+      const r=await supabase.from('mac_import_files').select('id,store_id,file_name,status,ticket_count,imported_by_name,created_at').eq('store_id',String(p.storeId||'')).order('created_at',{ascending:false});
+      if(r.error)throw Error(friendlyError(r.error.message));return r.data;
+    }
     if(name==='read'&&p.key==='rc-clean-install-20261110-app-global-settings-v1'){
       const me=await identity();const w=await supabase.from('mac_wallets').select('name,app_name').eq('id',me.wallet_id).single();
       return w.data?{appName:w.data.app_name,carteira:w.data.name}:null;

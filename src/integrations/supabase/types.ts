@@ -156,6 +156,72 @@ export type Database = {
           },
         ]
       }
+      mac_import_files: {
+        Row: {
+          created_at: string
+          file_name: string
+          id: string
+          imported_by: string
+          imported_by_name: string
+          mime: string
+          path: string | null
+          size: number
+          status: string
+          store_id: string
+          store_name: string
+          ticket_count: number
+          updated_at: string
+          wallet_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          id: string
+          imported_by: string
+          imported_by_name?: string
+          mime?: string
+          path?: string | null
+          size?: number
+          status?: string
+          store_id: string
+          store_name?: string
+          ticket_count?: number
+          updated_at?: string
+          wallet_id: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          id?: string
+          imported_by?: string
+          imported_by_name?: string
+          mime?: string
+          path?: string | null
+          size?: number
+          status?: string
+          store_id?: string
+          store_name?: string
+          ticket_count?: number
+          updated_at?: string
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mac_import_files_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "mac_stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mac_import_files_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "mac_wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mac_login_attempts: {
         Row: {
           failures: number
@@ -560,6 +626,8 @@ export type Database = {
         Returns: undefined
       }
       mac_get_commission: { Args: { f: string; w: string }; Returns: Json }
+      mac_import_reader: { Args: { s: string }; Returns: boolean }
+      mac_import_writer: { Args: { s: string }; Returns: boolean }
       mac_moderate_message: {
         Args: { b: string; m: string }
         Returns: undefined
@@ -580,6 +648,19 @@ export type Database = {
       mac_put_sales: {
         Args: { deletes: string[]; s: string; upserts: Json; w: string }
         Returns: number
+      }
+      mac_record_import: {
+        Args: {
+          c: number
+          i: string
+          m: string
+          n: string
+          p: string
+          s: string
+          st: string
+          sz: number
+        }
+        Returns: undefined
       }
       mac_remove_access: {
         Args: { a: string; s: string; u: string }
