@@ -6047,7 +6047,7 @@ start().catch(err=>{console.error(err);toast('Erro ao iniciar: '+err.message,tru
   [...list.querySelectorAll('.import-row')].forEach((row,i)=>{
    const data=rows[i]; if(!data)return;
    const strong=row.querySelector('strong'); if(strong)strong.innerHTML=`<span class="mac-import-owner">🎫 ${h(data.importedBy||'Sem colaborador')}</span><span class="mac-import-file">${h(data.name||'')}</span>`;
-   const meta=row.querySelector('.smalltext'); if(meta)meta.textContent=`MOVIIK · ${data.when||''}`;
+   const meta=row.querySelector('.smalltext'); if(meta)meta.textContent=['MOVIIK',data.importedRole,data.storeName,data.when,data.added!=null?`${data.added} novas · ${data.updated||0} atualizadas`:''].filter(Boolean).join(' · ');
    const tag=row.querySelector('.tag'); if(tag){tag.textContent=`${data.count||0} senhas`; tag.classList.add('mac-import-count');}
   });
  }
@@ -11605,7 +11605,7 @@ body.mac-import-multishop #macImportsStoreFilter{display:none!important}
    const total=saveRowsInto(data,assigned);added+=total.added;updated+=total.updated;
    data.imports=Array.isArray(data.imports)?data.imports:[];
    const fileGroups=new Map();for(const row of rows){const file=row.macOriginalFile||'MOVIIK pendente';fileGroups.set(file,(fileGroups.get(file)||0)+1)}
-   for(const [file,count] of fileGroups){const source=rows.find(x=>x.macOriginalFile===file);data.imports.push({type:'MOVIIK',name:file,count,when:new Date().toLocaleString('pt-PT'),importedBy:source?.macImportedBy||pending.files.findLast(x=>x.name===file)?.importedBy||'Utilizador não identificado',moviikStores:pending.files.flatMap(x=>x.stores.map(y=>y.name)),moviikColumn:'D',targetShop:id,importedFromPending:true});}
+   for(const [file,count] of fileGroups){const source=rows.find(x=>x.macOriginalFile===file);data.imports.push({type:'MOVIIK',name:file,count,when:new Date().toLocaleString('pt-PT'),importedBy:source?.macImportedBy||pending.files.findLast(x=>x.name===file)?.importedBy||'Utilizador não identificado',moviikStores:pending.files.flatMap(x=>x.stores.map(y=>y.name)),moviikColumn:'D',targetShop:id,importedFromPending:true,storeName:shop.name,added:fileGroups.size===1?total.added:undefined,updated:fileGroups.size===1?total.updated:undefined,importedRole:session?.role==='admin'?'Administrador':session?.role==='gestor'?'Gestor':'Colaborador'});}
    data.moviikStoreCandidates=[...new Set([...(data.moviikStoreCandidates||[]),...pending.files.flatMap(x=>x.stores.map(y=>y.name))])];
    await writeKey('store:'+id,data);
    if(id===currentShopId)state=data;
