@@ -120,6 +120,13 @@
       "when": 1794506099200,
       "tag": "0016_mac_shared_photos",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794578184621,
+      "tag": "0017_mac_delegated_permissions",
+      "breakpoints": true
     }
   ]
 }

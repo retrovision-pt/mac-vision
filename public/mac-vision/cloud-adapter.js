@@ -1005,3 +1005,83 @@ window.addEventListener('load',()=>{
  window.addEventListener('mac-photos-updated',()=>{cachePhoto.clear();try{renderLoginPhoto();}catch(_){}});
  const st=document.createElement('style');st.textContent='#loginUserPhoto .mac-login-names{display:flex;flex-direction:column;text-align:left}#loginUserPhoto .mac-login-names small{font-size:12px;font-weight:400;opacity:.75}';document.head.appendChild(st);
 });
+
+// ===== Permissões individuais delegadas (Configurações do MAC Vision) =====
+// Fonte única: tabela Cloud de permissões por colaborador e loja; a Cloud valida cada gravação com as mesmas regras.
+// Nada é guardado no navegador: a lista vem da Cloud ao entrar, ao voltar ao separador e a cada 20 segundos.
+let macDelegated={};let macDelegatedUser='';
+window.macCan=function(perm,storeId){
+ if(typeof session==='undefined'||!session)return false;
+ if(session.role==='gestor')return true;
+ const list=macDelegated[String(storeId||currentShopId)]||[];
+ return list.includes('all')||list.includes(perm);
+};
+async function macRefreshDelegated(force){
+ if(typeof session==='undefined'||!session){macDelegated={};macDelegatedUser='';return;}
+ if(session.role==='gestor'){macDelegated={};macDelegatedUser=session.id;return;}
+ let next;try{next=await macRPC('permissions-get',{})||{};}catch(e){return;}
+ const changed=JSON.stringify(canonical(next))!==JSON.stringify(canonical(macDelegated))||macDelegatedUser!==session.id;
+ macDelegated=next;macDelegatedUser=session.id;
+ const cfg=document.getElementById('page-config');
+ if(cfg){cfg.classList.toggle('mac-delegated-weights',macCan('weights.manage'));cfg.classList.toggle('mac-delegated-data',macCan('data.export'));}
+ if(changed||force){try{refreshNavigation();}catch(_){}try{if(typeof render==='function')render();}catch(_){}}
+}
+setInterval(()=>{if(typeof session!=='undefined'&&session&&macDelegatedUser!==session.id)void macRefreshDelegated(true);},1500);
+setInterval(()=>{if(typeof session!=='undefined'&&session&&!document.hidden)void macRefreshDelegated(false);},20000);
+window.addEventListener('focus',()=>void macRefreshDelegated(false));
+(()=>{const st=document.createElement('style');st.textContent=`#page-config.mac-role-collaborator.mac-delegated-weights #configHome .mac-settings-home-grid>.config-menu-tile[data-config-target="weights"],#page-config.mac-role-collaborator.mac-delegated-data #configHome .mac-settings-home-grid>.config-menu-tile[data-config-target="data"]{display:flex!important}
+#macDelegatedPermissions{margin-top:18px;display:grid;gap:11px}#macDelegatedPermissions .mdp-head{display:flex;flex-wrap:wrap;gap:10px;align-items:center}#macDelegatedPermissions select{min-width:220px;max-width:100%}
+#macDelegatedPermissions .mdp-stores{display:flex;flex-wrap:wrap;gap:8px 16px}#macDelegatedPermissions .mdp-stores label{display:flex;gap:6px;align-items:center;font-size:13px}
+#macDelegatedPermissions .mdp-group{font-weight:850;font-size:13px;margin:6px 0 -2px;color:var(--muted)}#macDelegatedPermissions .mdp-actions{display:flex;flex-wrap:wrap;gap:8px}#macDelegatedPermissions .mdp-summary{font-size:12px;color:var(--muted);line-height:1.6}`;document.head.appendChild(st);})();
+const MAC_DELEGABLE=[
+ ['Visualizar',[['dashboard.view','◈ Painel / Visão Geral e indicadores'],['history.view','≡ Histórico de Vendas'],['tickets.view','☷ Tráfego e Produtividade / MOVIIK'],['ios.view','▤ Quadro IOS'],['imports.view','⇪ Importações (consultar)']]],
+ ['Vendas',[['sales.edit','✏️ Editar e corrigir vendas de toda a equipa'],['sales.delete','🗑️ Eliminar vendas de toda a equipa']]],
+ ['Importações',[['imports.moviik','⇪ Importar ficheiros MOVIIK / PDS e gerir importações']]],
+ ['Escala Mensal',[['schedule.edit','▦ Criar, alterar, importar e guardar escalas']]],
+ ['Equipa e objetivos',[['employees.manage','👥 Gerir colaboradores e objetivos comerciais']]],
+ ['Ponderação e Comissionamento',[['weights.manage','⚖️ Gerir ponderações por produto e comissões']]],
+ ['Gestão de Dados',[['data.export','🗂️ Exportar cópias de segurança']]],
+];
+const MAC_DELEGABLE_KEYS=MAC_DELEGABLE.flatMap(g=>g[1].map(x=>x[0]));
+const macPermLabel=k=>k==='all'?'Acesso total às funcionalidades delegáveis':(MAC_DELEGABLE.flatMap(g=>g[1]).find(x=>x[0]===k)?.[1]||k);
+let mdp={user:'',stores:[],saved:{},draft:new Set(),status:''};
+function mdpManageable(){try{return (typeof accessibleManagerStores==='function'?accessibleManagerStores():[]).filter(s=>typeof macCanAdministerStore!=='function'||macCanAdministerStore(s.id));}catch(_){return [];}}
+function mdpCollaborators(){const map=new Map();for(const s of mdpManageable())for(const u of s.users||[])if(u.role==='colaborador'&&!u.isAreaMaster&&u.id!==session?.id){const e=map.get(u.id)||{id:u.id,name:u.name,stores:[]};e.stores.push(s);map.set(u.id,e);}return [...map.values()].sort((a,b)=>String(a.name).localeCompare(String(b.name),'pt'));}
+async function mdpLoad(uid){mdp.user=uid;mdp.saved={};mdp.status='A carregar da Cloud…';mdpRender();
+ try{mdp.saved=await macRPC('permissions-get',{userId:uid})||{};mdp.status='';}catch(e){mdp.status='⚠️ '+e.message;}
+ const first=mdp.stores[0];mdp.draft=new Set(first?(mdp.saved[first]||[]):[]);mdpRender();}
+function mdpRender(){
+ const panel=document.getElementById('configPanelVision');if(!panel||typeof session==='undefined'||!session||session.role!=='gestor')return;
+ let root=document.getElementById('macDelegatedPermissions');
+ if(!root){root=document.createElement('div');root.id='macDelegatedPermissions';const anchor=document.getElementById('macVisionPermissions');(anchor?.parentNode||panel).insertBefore(root,anchor?anchor.nextSibling:null);
+  root.addEventListener('change',mdpChange);root.addEventListener('click',mdpClick);}
+ const people=mdpCollaborators();if(mdp.user&&!people.some(p=>p.id===mdp.user)){mdp.user='';mdp.stores=[];}
+ const person=people.find(p=>p.id===mdp.user);
+ if(person&&!mdp.stores.length)mdp.stores=person.stores.map(s=>s.id);
+ const sets=mdp.stores.map(s=>JSON.stringify((mdp.saved[s]||[]).slice().sort()));const differ=new Set(sets).size>1;
+ const all=mdp.draft.has('all');const T=(k,label,dis)=>`<div class="mac-permission-row"><div><div class="mac-permission-title">${h(label)}</div></div><label class="mac-permission-toggle"><input type="checkbox" data-mac-permission="delegated" data-mdp-perm="${k}" ${mdp.draft.has(k)||(all&&k!=='all')?'checked':''} ${dis?'disabled':''}><span class="mac-toggle-track" aria-hidden="true"></span><span>${all&&k!=='all'?'Incluído':'Ativo'}</span></label><span></span></div>`;
+ const pending=person&&mdp.stores.some(s=>JSON.stringify((mdp.saved[s]||[]).slice().sort())!==JSON.stringify([...mdp.draft].sort()));
+ root.innerHTML=`<div class="mac-permission-row" style="display:block"><div class="mac-permission-title">🔑 Permissões individuais por colaborador</div><div class="mac-permission-note">Uma permissão concedida aqui prevalece sobre os bloqueios do perfil Colaborador e é validada na Cloud em cada operação, apenas nas lojas escolhidas. Criar administradores, alterar credenciais, permissões ou regras de segurança continua reservado aos Administradores.</div>
+ <div class="mdp-head" style="margin-top:12px"><label class="smalltext" for="mdpUser"><strong>Utilizador</strong></label><select id="mdpUser" data-mac-permission="delegated"><option value="">Escolher colaborador</option>${people.map(p=>`<option value="${h(p.id)}" ${p.id===mdp.user?'selected':''}>${h(p.name)}</option>`).join('')}</select></div>
+ ${person?`<div class="mdp-group">Lojas (âmbito)</div><div class="mdp-stores">${person.stores.map(s=>`<label><input type="checkbox" data-mac-permission="delegated" data-mdp-store="${h(s.id)}" ${mdp.stores.includes(s.id)?'checked':''}> ${h(s.name)}</label>`).join('')}</div>${differ?'<p class="smalltext muted">⚠️ As lojas escolhidas têm permissões diferentes; ao guardar, todas ficam com a seleção abaixo.</p>':''}`:'<p class="smalltext muted" style="margin-top:8px">'+(people.length?'Escolhe um colaborador para ver e alterar as permissões.':'Ainda não existem colaboradores nas lojas que administras.')+'</p>'}
+ </div>${person?`${T('all','☑ ACESSO TOTAL ÀS FUNCIONALIDADES DELEGÁVEIS',!mdp.stores.length)}${MAC_DELEGABLE.map(([g,items])=>`<div class="mdp-group">${h(g)}</div>${items.map(([k,l])=>T(k,l,all||!mdp.stores.length)).join('')}`).join('')}
+ <div class="mdp-actions"><button type="button" class="btn small" data-mdp-act="select">Selecionar todas as permissões delegáveis</button><button type="button" class="btn small" data-mdp-act="clear">Remover todas as permissões delegadas</button><button type="button" class="btn primary" data-mdp-act="save" ${mdp.stores.length?'':'disabled'}>☁️ Guardar na Cloud</button></div>
+ <p class="smalltext" aria-live="polite">${h(mdp.status||(pending?'● Alterações por guardar':'✓ Estado igual ao guardado na Cloud'))}</p>
+ <div class="mdp-summary"><strong>Acessos efetivos guardados:</strong><br>${person.stores.map(s=>{const l=mdp.saved[s.id]||[];return `${h(s.name)}: ${l.length?h(l.includes('all')?macPermLabel('all'):l.map(macPermLabel).join(' · ')):'apenas o perfil base de Colaborador'}`;}).join('<br>')}</div>`:''}`;
+}
+function mdpChange(e){const t=e.target;
+ if(t.id==='mdpUser'){mdp.stores=[];if(t.value)void mdpLoad(t.value);else{mdp.user='';mdpRender();}return;}
+ if(t.dataset.mdpStore){const id=t.dataset.mdpStore;mdp.stores=t.checked?[...new Set([...mdp.stores,id])]:mdp.stores.filter(x=>x!==id);mdp.status='';mdpRender();return;}
+ if(t.dataset.mdpPerm){const k=t.dataset.mdpPerm;if(t.checked)mdp.draft.add(k);else mdp.draft.delete(k);if(k==='all'&&t.checked)for(const x of MAC_DELEGABLE_KEYS)mdp.draft.delete(x);mdp.status='';mdpRender();}
+}
+async function mdpClick(e){const b=e.target.closest('[data-mdp-act]');if(!b)return;const act=b.dataset.mdpAct;
+ if(act==='select'){mdp.draft=new Set(['all']);mdp.status='';return mdpRender();}
+ if(act==='clear'){mdp.draft=new Set();mdp.status='';return mdpRender();}
+ if(act==='save'){b.disabled=true;mdp.status='A guardar na Cloud…';mdpRender();
+  try{await macRPC('permissions-save',{userId:mdp.user,stores:mdp.stores,perms:[...mdp.draft]});mdp.saved=await macRPC('permissions-get',{userId:mdp.user})||{};
+   mdp.status='✓ Guardado na Cloud às '+new Date().toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'});toast('Permissões guardadas na Cloud.');}
+  catch(err){mdp.status='⚠️ '+err.message;toast(err.message,true);}
+  mdpRender();}
+}
+document.addEventListener('DOMContentLoaded',()=>{const panel=document.getElementById('configPanelVision');if(!panel)return;
+ new MutationObserver(()=>{if(!panel.hidden)mdpRender();}).observe(panel,{attributes:true,attributeFilter:['hidden']});});

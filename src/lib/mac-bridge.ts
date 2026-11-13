@@ -259,6 +259,20 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
       for(const key of ['commission:files','commission:data:'+fileId]){cache.delete(key);readCache.delete(key);}
       return true;
     }
+    // Permissões individuais delegadas (por colaborador e loja), guardadas e validadas na Cloud.
+    if(name==='permissions-get'){
+      let uid=String(p.userId||'');if(!uid){const u=await supabase.auth.getUser();uid=u.data.user?.id||'';}
+      if(!uid)return {};
+      const r=await supabase.from('mac_permissions').select('store_id,perm').eq('user_id',uid);
+      if(r.error)throw Error(r.error.message);
+      const out:Record<string,string[]>={};for(const row of r.data||[])(out[row.store_id]??=[]).push(row.perm);
+      return out;
+    }
+    if(name==='permissions-save'){
+      const r=await supabase.rpc('mac_set_permissions',{u:String(p.userId||''),stores:(p.stores||[]).map(String),perms:(p.perms||[]).map(String)});
+      if(r.error)throw Error(r.error.message);
+      return true;
+    }
     if(name==='hello'){
       const members=await supabase.from('mac_memberships').select('*');
       const accounts=await supabase.from('mac_accounts').select('id,name');

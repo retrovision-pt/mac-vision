@@ -3754,11 +3754,11 @@ function syncUnit(){let kind=$('saleKind').value,k=$('saleLabel').value;let v=cu
 function rguOfferFactor(){return 1}
 function calcSale(){const multiplier=starMultiplier(),rgu=rguOfferFactor();$('salePreview').textContent=nf(num($('saleUnitPoints').value)*num($('saleQuantity').value)*multiplier*rgu);$('salePreviewFormula').textContent=''}
 function clearForm(){const selected=$('saleEmployee').value,chosenDate=$('saleDate').value;$('saleForm').reset();$('saleEditId').value='';$('saleDate').value=validDateISO(chosenDate)?chosenDate:(isCollaborator()?localTodayIso():state.selectedDate);$('saleEmployee').value=selected||session?.employee||'';$('saleFormHeading').textContent='Registar nova venda';$('saveSale').textContent='Guardar venda';syncSaleFields();applySalesRoleUI()}
-function saveSale(ev){ev.preventDefault();if(!session||!['gestor','colaborador'].includes(session.role))return;const isCollab=isCollaborator(),editingRow=state.sales.find(s=>s.id===$('saleEditId').value);if(isCollab&&editingRow&&norm(editingRow.employee)!==norm(session.employee)){toast('Só podes editar as tuas próprias vendas.',true);return}if(!isCollab&&session.role!=='gestor'&&norm($('saleEmployee').value)!==norm(session.employee)){toast('Só podes registar vendas no teu utilizador.',true);return}let date=$('saleDate').value,employee=$('saleEmployee').value,kind=$('saleKind').value,label=$('saleLabel').value,qty=num($('saleQuantity').value),unit=isCollab?num(currentLabels()[label]??0):num($('saleUnitPoints').value);if(isCollab&&norm(employee)!==norm(session.employee)&&!window.macSaleMonthEmployee(employee,date)){toast('Só podes registar vendas de colaboradores da escala do mês escolhido nesta loja.',true);return;}if(!saleAssignable(employee)){toast('Seleciona um colaborador ou gestor habilitado para vendas.',true);return}if(!employee||!date||!label||qty<=0){toast(isCollab?'Preenche o produto e a quantidade.':'Preenche a data, colaborador, produto e quantidade.',true);return}
+function saveSale(ev){ev.preventDefault();if(!session||!['gestor','colaborador'].includes(session.role))return;const isCollab=isCollaborator(),editingRow=state.sales.find(s=>s.id===$('saleEditId').value);if(isCollab&&editingRow&&norm(editingRow.employee)!==norm(session.employee)&&!macCan('sales.edit')){toast('Só podes editar as tuas próprias vendas.',true);return}if(!isCollab&&session.role!=='gestor'&&norm($('saleEmployee').value)!==norm(session.employee)){toast('Só podes registar vendas no teu utilizador.',true);return}let date=$('saleDate').value,employee=$('saleEmployee').value,kind=$('saleKind').value,label=$('saleLabel').value,qty=num($('saleQuantity').value),unit=isCollab?num(currentLabels()[label]??0):num($('saleUnitPoints').value);if(isCollab&&norm(employee)!==norm(session.employee)&&!window.macSaleMonthEmployee(employee,date)){toast('Só podes registar vendas de colaboradores da escala do mês escolhido nesta loja.',true);return;}if(!saleAssignable(employee)){toast('Seleciona um colaborador ou gestor habilitado para vendas.',true);return}if(!employee||!date||!label||qty<=0){toast(isCollab?'Preenche o produto e a quantidade.':'Preenche a data, colaborador, produto e quantidade.',true);return}
  const id=$('saleEditId').value||'manual-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);
  let star=kind==='mark'&&$('saleMarkCategory').value==='⭐';let i=state.sales.findIndex(s=>s.id===id);const original=i>=0?state.sales[i]:null;let record={id,date,employee,kind,label,qty,points:Math.round(qty*unit*(star?2:1)*rguOfferFactor()*10000)/10000,meta:kind==='mark'?{categoria:$('saleMarkCategory').value,primeira:currentMarkType()==='primeira'?'SIM':currentMarkType()==='segunda'?'NÃO':'RETENÇÃO',tipoMarcacao:currentMarkType(),estrela:star,pontosBase:unit,starMultiplierApplied:star}:(['fixed','mobile'].includes(kind)?{ofertaRGU:$('saleRGUOffer').value,pontosBase:unit}:{}),note:$('saleNote').value,source:'Registo manual',createdAt:original?.createdAt||(original?undefined:new Date().toISOString())};if(i>=0)state.sales[i]=record;else state.sales.push(record);state.selectedDate=date;$('globalDate').value=date;changed();$('saleEditId').value='';$('saleNote').value='';$('saleFormHeading').textContent='Registar nova venda';$('saveSale').textContent='Guardar venda';syncPromoHint();renderSaleSummary();if(i<0){macPlaySaleNotification();window.macSaleBroadcast?.(record);}toast(i>=0?'Venda atualizada.':'Venda registada com sucesso.')}
 function renderHistory(){
- const collab=isCollaborator();let sales=collab?state.sales.filter(x=>norm(x.employee)===norm(session.employee)):state.sales.slice();
+ const collab=isCollaborator()&&!macCan('sales.edit');let sales=collab?state.sales.filter(x=>norm(x.employee)===norm(session.employee)):state.sales.slice();
  if(!collab&&$('historyEmployee').value)sales=sales.filter(x=>norm(x.employee)===norm($('historyEmployee').value));
  const kind=$('historyKind').value;if(kind)sales=sales.filter(x=>x.kind===kind);
  const dateFilter=$('historyDate')?.value;if(dateFilter)sales=sales.filter(x=>x.date===dateFilter);
@@ -3772,7 +3772,7 @@ function renderHistory(){
  }).join('')+'</tbody></table>'+(!collab&&sales.length>350?'<p class="smalltext muted">A mostrar os 350 registos mais recentes.</p>':''):'<div class="empty">Ainda não há vendas para apresentar.</div>';
 }
 
-function beginEdit(id){let s=state.sales.find(x=>x.id===id);if(!s)return;if(isCollaborator()&&norm(s.employee)!==norm(session.employee)){toast('Só podes editar as tuas próprias vendas.',true);return;}go('sales');$('saleEditId').value=s.id;$('saleDate').value=s.date;$('saleEmployee').value=isCollaborator()?(session.employee||s.employee):s.employee;$('saleKind').value=s.kind;$('saleRGUOffer').value=s.meta?.ofertaRGU==='retencao'?'retencao':'base';$('saleMarkFirst').value=['primeira','segunda','retencao'].includes(s.meta?.tipoMarcacao)?s.meta.tipoMarcacao:(s.meta?.primeira==='SIM'?'primeira':s.meta?.primeira==='RETENÇÃO'?'retencao':'segunda');syncSaleFields();if(![...$('saleLabel').options].some(o=>o.value===s.label))$('saleLabel').add(new Option(s.label,s.label));$('saleLabel').value=s.label;$('saleQuantity').value=s.qty;$('saleUnitPoints').value=s.meta?.pontosBase!==undefined?num(s.meta.pontosBase):(s.qty?num(s.points)/num(s.qty)/(isStarMark(s)?2:1):0);$('saleNote').value=s.note||'';$('saleMarkCategory').value=isStarMark(s)?'⭐':(s.meta?.categoria||'TV');$('saleFormHeading').textContent='Editar venda';$('saveSale').textContent='Guardar alterações';applySalesRoleUI();calcSale();window.scrollTo({top:0,behavior:'smooth'})}
+function beginEdit(id){let s=state.sales.find(x=>x.id===id);if(!s)return;if(isCollaborator()&&norm(s.employee)!==norm(session.employee)&&!macCan('sales.edit')){toast('Só podes editar as tuas próprias vendas.',true);return;}go('sales');$('saleEditId').value=s.id;$('saleDate').value=s.date;$('saleEmployee').value=isCollaborator()?(session.employee||s.employee):s.employee;$('saleKind').value=s.kind;$('saleRGUOffer').value=s.meta?.ofertaRGU==='retencao'?'retencao':'base';$('saleMarkFirst').value=['primeira','segunda','retencao'].includes(s.meta?.tipoMarcacao)?s.meta.tipoMarcacao:(s.meta?.primeira==='SIM'?'primeira':s.meta?.primeira==='RETENÇÃO'?'retencao':'segunda');syncSaleFields();if(![...$('saleLabel').options].some(o=>o.value===s.label))$('saleLabel').add(new Option(s.label,s.label));$('saleLabel').value=s.label;$('saleQuantity').value=s.qty;$('saleUnitPoints').value=s.meta?.pontosBase!==undefined?num(s.meta.pontosBase):(s.qty?num(s.points)/num(s.qty)/(isStarMark(s)?2:1):0);$('saleNote').value=s.note||'';$('saleMarkCategory').value=isStarMark(s)?'⭐':(s.meta?.categoria||'TV');$('saleFormHeading').textContent='Editar venda';$('saveSale').textContent='Guardar alterações';applySalesRoleUI();calcSale();window.scrollTo({top:0,behavior:'smooth'})}
 function renderTicketMetrics(){let s=stats(),has=s.terminated.length>0;let a=[['Entrados',s.tickets.length,'blue','🎫','Senhas entradas'],['Atendidos',s.terminated.length,'green','✓','Senhas terminadas'],['TME',has?secTime(s.tme):'—',has?(s.tme<=300?'traffic-good':'traffic-bad'):'traffic-none','⌛','Até 5 minutos'],['TMA',has?secTime(s.tma):'—',has?(s.tma>=600&&s.tma<=900?'traffic-good':'traffic-bad'):'traffic-none','◷','Entre 10 e 15 minutos']];$('ticketMetrics').innerHTML=a.map(x=>`<div class="surface metric"><div class="ico"><span>${h(x[0])}</span><span class="symbol">${x[3]}</span></div><div class="value ${x[2]}">${h(x[1])}</div><div class="detail">${h(x[4])}</div></div>`).join('')}
 
 function renderTickets(){let s=stats(),by={};for(let t of s.tickets){let name=employeeName(t.employee)||'Sem atribuição',item=by[name]??={name,atd:0,cancel:0,total:0};item.total++;if(isTerminated(t))item.atd++;if(isCancelled(t))item.cancel++}let rows=Object.values(by).sort((a,b)=>b.atd-a.atd);
@@ -3964,7 +3964,7 @@ if(window.MutationObserver){
 }
 
 const SETTINGS_VIEWS={vision:['⚙️ Configurações do MAC Vision','configPanelVision'],appearance:['🎨 Aparência e Temas','configPanelAppearance'],access:['Lojas e Utilizadores','configPanelAccess'],employees:['Colaboradores e Mapeamento MOVIIK','configPanelEmployees'],weights:['⚖️ Ponderação e Comissionamento','configPanelWeights'],data:['Gestão de Dados','configPanelData'],language:['🌐 Língua e Região','configPanelLanguage']};
-function showConfigView(view='home'){if(!session)return;if(isCollaborator()&&!['home','appearance','language'].includes(view))return;configView=Object.hasOwn(SETTINGS_VIEWS,view)?view:'home';if(configView==='data')showDataSubmenu('home');if(configView==='access')showAccessSubmenu('home');if(configView==='language')refreshLanguageChoices();$('configHome').hidden=configView!=='home';for(const [key,info] of Object.entries(SETTINGS_VIEWS))$(info[1]).hidden=key!==configView;$('page-title').textContent=configView==='home'?'Definições':SETTINGS_VIEWS[configView][0];$('page-description').textContent=configView==='home'?'Seleciona o menu que pretendes configurar.':'Definições · '+SETTINGS_VIEWS[configView][0];window.scrollTo({top:0,behavior:'instant'});}
+function showConfigView(view='home'){if(!session)return;if(isCollaborator()&&!['home','appearance','language'].includes(view)&&!(view==='weights'&&macCan('weights.manage'))&&!(view==='data'&&macCan('data.export'))&&!(view==='employees'&&macCan('employees.manage')))return;configView=Object.hasOwn(SETTINGS_VIEWS,view)?view:'home';if(configView==='data')showDataSubmenu('home');if(configView==='access')showAccessSubmenu('home');if(configView==='language')refreshLanguageChoices();$('configHome').hidden=configView!=='home';for(const [key,info] of Object.entries(SETTINGS_VIEWS))$(info[1]).hidden=key!==configView;$('page-title').textContent=configView==='home'?'Definições':SETTINGS_VIEWS[configView][0];$('page-description').textContent=configView==='home'?'Seleciona o menu que pretendes configurar.':'Definições · '+SETTINGS_VIEWS[configView][0];window.scrollTo({top:0,behavior:'instant'});}
 
 function syncPromoHint(){
  const eligible=$('saleKind').value==='fixed'&&['NC','NCPME','NOVOCLIENTE','NOVOCLIENTEPME'].includes(norm($('saleLabel').value));
@@ -4228,8 +4228,8 @@ function parseSchedule(grid,month){if(!grid?.length)return[];const result=[],key
 function importShiftHours(grid){for(let r of grid){let code=clean(r[3]).toUpperCase();if(!/^[A-I]$/.test(code))continue;let start=clockFromCell(r[6]),end=clockFromCell(r[9]),breakStart=clockFromCell(r[13]),breakEnd=clockFromCell(r[15]);if(start&&end)state.codeTimes[code]={start,end,breakStart,breakEnd}}}
 function clockFromCell(v){if(typeof v==='number'&&v>=0&&v<=1){let n=Math.round(v*1440);return String(Math.floor(n/60)%24).padStart(2,'0')+':'+String(n%60).padStart(2,'0')}let m=clean(v).match(/\b\d\d?:\d\d\b/);return m?m[0]:''}
 function addImport(file,type,count){state.imports.push({type,name:file.name,count,when:new Date().toLocaleString('pt-PT')})}
-async function importPds(file){if(session?.role!=='gestor')throw Error('Importação reservada ao gestor.');let sheets=await loadSheets(file),v=pickGrid(sheets,'VENDAS'),m=pickGrid(sheets,'MOVIIK'),cfg=pickGrid(sheets,'DEFINIÇÕES'),esc=pickGrid(sheets,'ESCALA');if(!v&&!m&&!cfg&&!esc)throw Error('O ficheiro não contém as folhas esperadas do PDS (VENDAS, MOVIIK, DEFINIÇÕES, ESCALA).');if(cfg){let fileStore=clean(cfg[28]?.[3]);if(fileStore&&currentStore().excelCode&&norm(fileStore)!==norm(currentStore().excelCode))throw Error('Este PDS pertence a outra loja ('+fileStore+'). A loja selecionada é '+currentStore().name+'.');if(fileStore&&!currentStore().excelCode){if(!confirm('Este Excel indica a loja '+fileStore+'. Confirmas que pertence a '+currentStore().name+'?'))return;currentStore().excelCode=fileStore;await saveRegistry()}parseEmployees(cfg)}if(v)parsePdsWeights(v);let date=extractPdsDate(sheets),sr=v?upsert(parsePdsSales(v,date),'sales'):{added:0,updated:0},tr=m?upsert(parseMoviik(m),'tickets'):{added:0,updated:0};let count=sr.added+sr.updated+tr.added+tr.updated,old='';if(esc){importShiftHours(esc);let mth=scheduleHeaderMonth(esc);if(mth){let sc=upsert(parseSchedule(esc,mth),'schedules');count+=sc.added+sc.updated;old=mth}else old='indeterminado (não importada)'}if(v)state.selectedDate=date;addImport(file,'PDS completo',count);changed();$('globalDate').value=state.selectedDate;toast(`PDS importado: ${sr.added} vendas novas, ${tr.added} senhas novas. ${old?'Escala: '+old+'.':''}`)}
-async function importSchedules(file){if(session?.role!=='gestor')throw Error('Importação reservada ao gestor.');const sheets=await loadSheets(file);let grid=pickGrid(sheets,'ESCALA')||Object.values(sheets)[0],headerMonth=scheduleHeaderMonth(grid),target=$('importMonth').value||state.selectedDate.slice(0,7);if(headerMonth&&target!==headerMonth){if(!confirm(`A escala diz ${headerMonth}, mas escolheste ${target}. Aplicar a escala a ${target}? Clica Cancelar para corrigir o mês.`))return}
+async function importPds(file){if(!macCan('imports.moviik'))throw Error('Importação reservada ao gestor.');let sheets=await loadSheets(file),v=pickGrid(sheets,'VENDAS'),m=pickGrid(sheets,'MOVIIK'),cfg=pickGrid(sheets,'DEFINIÇÕES'),esc=pickGrid(sheets,'ESCALA');if(!v&&!m&&!cfg&&!esc)throw Error('O ficheiro não contém as folhas esperadas do PDS (VENDAS, MOVIIK, DEFINIÇÕES, ESCALA).');if(cfg){let fileStore=clean(cfg[28]?.[3]);if(fileStore&&currentStore().excelCode&&norm(fileStore)!==norm(currentStore().excelCode))throw Error('Este PDS pertence a outra loja ('+fileStore+'). A loja selecionada é '+currentStore().name+'.');if(fileStore&&!currentStore().excelCode){if(!confirm('Este Excel indica a loja '+fileStore+'. Confirmas que pertence a '+currentStore().name+'?'))return;currentStore().excelCode=fileStore;await saveRegistry()}parseEmployees(cfg)}if(v)parsePdsWeights(v);let date=extractPdsDate(sheets),sr=v?upsert(parsePdsSales(v,date),'sales'):{added:0,updated:0},tr=m?upsert(parseMoviik(m),'tickets'):{added:0,updated:0};let count=sr.added+sr.updated+tr.added+tr.updated,old='';if(esc){importShiftHours(esc);let mth=scheduleHeaderMonth(esc);if(mth){let sc=upsert(parseSchedule(esc,mth),'schedules');count+=sc.added+sc.updated;old=mth}else old='indeterminado (não importada)'}if(v)state.selectedDate=date;addImport(file,'PDS completo',count);changed();$('globalDate').value=state.selectedDate;toast(`PDS importado: ${sr.added} vendas novas, ${tr.added} senhas novas. ${old?'Escala: '+old+'.':''}`)}
+async function importSchedules(file){if(!macCan('schedule.edit'))throw Error('Importação reservada ao gestor.');const sheets=await loadSheets(file);let grid=pickGrid(sheets,'ESCALA')||Object.values(sheets)[0],headerMonth=scheduleHeaderMonth(grid),target=$('importMonth').value||state.selectedDate.slice(0,7);if(headerMonth&&target!==headerMonth){if(!confirm(`A escala diz ${headerMonth}, mas escolheste ${target}. Aplicar a escala a ${target}? Clica Cancelar para corrigir o mês.`))return}
  importShiftHours(grid);let parsed=parseSchedule(grid,target);if(!parsed.length)throw Error('Não encontrei códigos de horário na grelha. Verifica o mês, a coluna dos nomes e os dias.');let s=upsert(parsed,'schedules');addImport(file,'Escala',s.added+s.updated);$('scheduleMonth').value=target;changed();toast(`Escala ${target} carregada: ${s.added} turnos novos, ${s.updated} atualizados.`)}
 async function importTicketsFile(file){if(!session||!['gestor','colaborador'].includes(session.role))throw Error('Inicia sessão para carregar senhas.');let sheets=await loadSheets(file),grid=pickGrid(sheets,'MOVIIK')||Object.values(sheets).find(rows=>rows.slice(0,12).some(hasMoviikHeader));if(!grid)throw Error('Não encontrei a tabela MOVIIK. Usa o export original ou CSV com cabeçalhos.');let rows=parseMoviik(grid);if(!rows.length)throw Error('A tabela MOVIIK não contém senhas com data válida.');
  const storesInColumnC=macMoviikStoresFromColumnC(grid);
@@ -4251,7 +4251,7 @@ async function fileImportRunner(input,callback){
   await callback(files[i]);
  }}catch(err){console.error(err);toast(err?.message||'Ocorreu um erro ao importar.',true)}finally{input.value='';input.disabled=false}
 }
-function exportBackup(){if(session?.role!=='gestor')return toast('Apenas o gestor pode exportar o backup.',true);downloadFile('PDS_Studio_'+currentShopId+'_Backup_'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify({...state,backupDate:new Date().toISOString()},null,2),'application/json;charset=utf-8');toast('Backup guardado. Conserva o ficheiro num local seguro.')}
+function exportBackup(){if(!macCan('data.export'))return toast('Apenas o gestor pode exportar o backup.',true);downloadFile('PDS_Studio_'+currentShopId+'_Backup_'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify({...state,backupDate:new Date().toISOString()},null,2),'application/json;charset=utf-8');toast('Backup guardado. Conserva o ficheiro num local seguro.')}
 async function restoreBackup(file){if(session?.role!=='gestor')return toast('Apenas o gestor pode restaurar backups.',true);let content=await file.text(),data=shape(JSON.parse(content));if(norm(data.store)!==norm(state.store)){toast('O backup pertence a outra loja ('+data.store+'). Não foi restaurado.',true);return}if(!confirm('Restaurar este backup e substituir os dados de '+currentStore().name+'?'))return;state=data;period='day';$('globalDate').value=state.selectedDate;$('scheduleMonth').value=state.selectedDate.slice(0,7);$('importMonth').value=state.selectedDate.slice(0,7);if(!await persist())throw Error('Não guardado na Cloud. Mantém a sessão aberta e tenta novamente.');render();toast('Backup restaurado com sucesso.')}
 function installHandlers(){
  $('loginRole').addEventListener('change',()=>{$('loginUser').value='';$('loginStore').value='';renderLoginUsers()});
@@ -4367,12 +4367,12 @@ function installHandlers(){
    if(!session||!['gestor','colaborador'].includes(session.role))return;
    const id=edit?.dataset.editSale||del?.dataset.deleteSale,entry=state.sales.find(x=>x.id===id);
    if(!entry)return;
-   const allowed=session.role==='gestor'||(session.role==='colaborador'&&norm(entry.employee)===norm(session.employee));
+   const allowed=session.role==='gestor'||macCan(del?'sales.delete':'sales.edit')||(session.role==='colaborador'&&norm(entry.employee)===norm(session.employee));
    if(!allowed){toast('Só podes gerir as tuas próprias vendas.',true);return;}
    if(edit){beginEdit(id);return;}
    if(del&&await macConfirmDeleteSale(entry)){
      const latest=state.sales.find(x=>x.id===id);
-     if(!latest||!(session.role==='gestor'||norm(latest.employee)===norm(session.employee)))return;
+     if(!latest||!(session.role==='gestor'||macCan('sales.delete')||norm(latest.employee)===norm(session.employee)))return;
      state.sales=state.sales.filter(x=>x.id!==id);
      if($('saleEditId').value===id)clearForm();
      changed();toast('Venda eliminada com sucesso.');
@@ -4384,7 +4384,7 @@ function installHandlers(){
  $('employeeTable').addEventListener('change',e=>{let el=e.target;if(!el.classList.contains('staff-alias')&&!el.classList.contains('staff-target'))return;let id=Number(el.dataset.staffId),staff=state.employees[id];if(!staff)return;if(el.classList.contains('staff-alias'))staff.alias=clean(el.value);if(el.classList.contains('staff-target'))staff.target=num(el.value);changed(false);toast('Definições do colaborador guardadas.')});
  $('employeeTable').addEventListener('click',e=>{const clear=e.target.closest('[data-clear-photo]');if(clear){const staff=state.employees[Number(clear.dataset.clearPhoto)];if(!staff)return;staff.photo='';changed();renderAccess();toast('Fotografia retirada de '+staff.name+'.');return}const btn=e.target.closest('[data-remove-staff]');if(!btn)return;let idx=Number(btn.dataset.removeStaff),staff=state.employees[idx];if(staff&&confirm('Remover '+staff.name+' da lista de colaboradores? As vendas e senhas existentes não serão apagadas.')){state.employees.splice(idx,1);changed();renderAccess()}});
  $('employeeTable').addEventListener('change',async e=>{const input=e.target.closest('.staff-photo-input');if(!input||!input.files?.[0])return;const staff=state.employees[Number(input.dataset.staffId)];if(!staff)return;try{staff.photo=await compressPhoto(input.files[0]);changed();renderAccess();toast('Fotografia atualizada para '+staff.name+'.')}catch(err){toast(err.message,true)}});
- $('employeeForm').addEventListener('submit',async e=>{e.preventDefault();if(session?.role!=='gestor')return;const name=clean($('newEmployeeName').value),alias=clean($('newEmployeeAlias').value),target=num($('newEmployeeTarget').value),shopId=$('newEmployeeStore').value,shop=shopRegistry.find(s=>s.id===shopId);if(!name||!shop)return toast('Preenche o nome e seleciona a loja.',true);const submit=e.target.querySelector('button[type=submit]');submit.disabled=true;try{const targetState=await dataForStore(shopId);if(targetState.employees.some(x=>norm(x.name)===norm(name)))throw Error(name+' já está registado em '+shop.name+'.');if(shop.users.some(u=>u.role==='gestor'&&norm(u.name)===norm(name)))throw Error('Este nome pertence a um gestor de '+shop.name+'.');const photoFile=$('newEmployeePhoto').files?.[0],photo=photoFile?await compressPhoto(photoFile):'';targetState.employees.push({name,alias,target,targets:{},photo});await writeKey('store:'+shopId,targetState);if(shopId===currentShopId)state=targetState;e.target.reset();$('newEmployeeStore').value=shopId;await previewPhoto('newEmployeePhoto','employeePhotoPreview','Novo colaborador');renderConfig();renderAccess();if(shopId===currentShopId)render();toast(name+' adicionado a '+shop.name+(photo?' com fotografia.':'.')+' Já podes criar-lhe um acesso.')}catch(err){toast(err.message,true)}finally{submit.disabled=false}});
+ $('employeeForm').addEventListener('submit',async e=>{e.preventDefault();if(!macCan('employees.manage'))return;const name=clean($('newEmployeeName').value),alias=clean($('newEmployeeAlias').value),target=num($('newEmployeeTarget').value),shopId=$('newEmployeeStore').value,shop=shopRegistry.find(s=>s.id===shopId);if(!name||!shop)return toast('Preenche o nome e seleciona a loja.',true);const submit=e.target.querySelector('button[type=submit]');submit.disabled=true;try{const targetState=await dataForStore(shopId);if(targetState.employees.some(x=>norm(x.name)===norm(name)))throw Error(name+' já está registado em '+shop.name+'.');if(shop.users.some(u=>u.role==='gestor'&&norm(u.name)===norm(name)))throw Error('Este nome pertence a um gestor de '+shop.name+'.');const photoFile=$('newEmployeePhoto').files?.[0],photo=photoFile?await compressPhoto(photoFile):'';targetState.employees.push({name,alias,target,targets:{},photo});await writeKey('store:'+shopId,targetState);if(shopId===currentShopId)state=targetState;e.target.reset();$('newEmployeeStore').value=shopId;await previewPhoto('newEmployeePhoto','employeePhotoPreview','Novo colaborador');renderConfig();renderAccess();if(shopId===currentShopId)render();toast(name+' adicionado a '+shop.name+(photo?' com fotografia.':'.')+' Já podes criar-lhe um acesso.')}catch(err){toast(err.message,true)}finally{submit.disabled=false}});
  $('weightsGrid').addEventListener('change',e=>{let el=e.target;if(!el.classList.contains('weight-input'))return;let {weightType,weightName}=el.dataset;if(weightType.startsWith('markOffer:')){const type=weightType.slice('markOffer:'.length);if(!state.weights.markOffers?.[type])return;state.weights.markOffers[type][weightName]=Math.max(0,num(el.value));}else{if(!state.weights[weightType])return;state.weights[weightType][weightName]=Math.max(0,num(el.value))}changed(false);if($('saleKind').value==='mark')syncUnit();toast('Ponderação atualizada para as próximas vendas.');});
 
 }
@@ -4599,7 +4599,7 @@ async function start(){
  const roleKey=s=>clean(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s*\+\s*/g,' +').replace(/\s+/g,' ').trim();
  function rankCargo(name){const r=roleKey(currentCargo(name)),idx=roles.findIndex(x=>roleKey(x)===r);return idx<0?99:idx}
  renderSchedule=function(){
-  const upload=document.querySelector('#page-schedule label[for="fileSchedule"]');if(upload)upload.hidden=isCollaborator();
+  const upload=document.querySelector('#page-schedule label[for="fileSchedule"]');if(upload)upload.hidden=isCollaborator()&&!macCan('schedule.edit');
   const chosenMonth=$id('scheduleMonth').value||state.selectedDate.slice(0,7);
   $id('scheduleMonth').value=chosenMonth;
   $id('importMonth').value=chosenMonth;
@@ -4932,7 +4932,7 @@ function macProductName(type,key){return state?.weights?.productNames?.[type+':'
 // Nomes editáveis de ponderações, guardados por loja.
 let macEditingName=null;
 function macOpenNameEditor(options){
- if(session?.role!=='gestor')return toast('Esta configuração é reservada aos gestores.',true);
+ if(!macCan('weights.manage'))return toast('Esta configuração é reservada aos gestores.',true);
  macEditingName=options;
  const dialog=$('macNameEditDialog');$('macEditVisibleName').value=options.name||'';
  $('macNameEditHeading').textContent='Editar produto';
@@ -5180,7 +5180,7 @@ renderSchedule=function(){macOrigSchedule();const input=$('scheduleMonth');const
  const title=$('macScheduleTitle');if(title&&/^\d{4}-\d{2}$/.test(value)){const date=new Date(value+'-01T12:00:00');const month=date.toLocaleDateString('pt-PT',{month:'long',year:'numeric'}).replace(/ de /g,' ');title.textContent='Escala Mensal '+month.charAt(0).toUpperCase()+month.slice(1);}
  const legend=$('shiftLegend');if(legend&&legend.children.length&&![...legend.children].some(e=>e.classList.contains('mac-legend-line'))){const items=[...legend.children];legend.replaceChildren();for(const batch of [items.slice(0,5),items.slice(5,8),items.slice(8,14),items.slice(14)]){const row=document.createElement('div');row.className='mac-legend-line';row.append(...batch);legend.appendChild(row)}}
 };
-$('macDeleteSchedule')?.addEventListener('click',()=>{if(session?.role!=='gestor')return toast('Só um gestor pode eliminar a escala.',true);
+$('macDeleteSchedule')?.addEventListener('click',()=>{if(!macCan('schedule.edit'))return toast('Só um gestor pode eliminar a escala.',true);
  const month=$('scheduleMonth').value||state.selectedDate.slice(0,7);const entries=state.schedules.filter(x=>String(x.date).startsWith(month));
  if(!entries.length)return toast('Não existem horários para eliminar neste mês.',true);
  if(!confirm(`Eliminar definitivamente os ${entries.length} turnos de ${month} nesta loja?`))return;
@@ -7100,7 +7100,7 @@ html[data-theme="uni"] #page-history .mac-history-commission-total{background:#f
  renderHistory=function(){
    origHistory();if(!session)return;
    const table=byId('historyTable').querySelector('table');
-   let sales=isCollaborator()?state.sales.filter(x=>norm(x.employee)===norm(session.employee)):state.sales.slice();
+   let sales=(isCollaborator()&&!macCan('sales.edit'))?state.sales.filter(x=>norm(x.employee)===norm(session.employee)):state.sales.slice();
    if(!isCollaborator()&&byId('historyEmployee').value)sales=sales.filter(x=>norm(x.employee)===norm(byId('historyEmployee').value));
    if(byId('historyKind').value)sales=sales.filter(x=>x.kind===byId('historyKind').value);
    if(byId('historyDate')?.value)sales=sales.filter(x=>x.date===byId('historyDate').value);
@@ -7257,6 +7257,8 @@ html[data-theme="uni"] #macCollapseSidebar{background:#34353e!important;color:#f
   // Todos os módulos são acessíveis a Gestores de Loja e de Área.
   // Mesmo as regras antigas guardadas como false não restringem o Gestor.
   if(role==='gestor')return true;
+  // Permissão individual delegada pelo Administrador (validada também na Cloud).
+  if(!preview&&role==='colaborador'&&typeof macCan==='function'&&(macCan(key+'.view')||(key==='imports'&&macCan('imports.moviik'))))return true;
   const rule=perms()[key]?.[role];
   if(typeof rule==='boolean')return rule;
   return ['dashboard','sales','history','daily','ios','config','schedule'].includes(key);
@@ -7807,7 +7809,7 @@ html[data-theme="uni"] #page-dashboard .total-kpi .mac-total-caption{
 (function(){
  'use strict';
  const E=id=>document.getElementById(id), safe=x=>h(String(x??''));
- const canEdit=()=>!!session && session.role==='gestor';
+ const canEdit=()=>!!session && (session.role==='gestor'||macCan('schedule.edit'));
  const normalize=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
  const hours=['A','B','C','D','E','G','H','I'];
  const absence=['F','FA','FI','FE','FR','FC','HFC','BX','LM','LC','NL','FORM'];
@@ -9380,7 +9382,7 @@ const importLog=$('importLog');if(importLog){
  document.body.appendChild(dialog);
  let selected=null;
  const normalize=v=>norm(String(v||''));
- const canEdit=()=>session?.role==='gestor' && (typeof macCanAdministerStore!=='function'||macCanAdministerStore(currentShopId));
+ const canEdit=()=>(session?.role==='gestor' && (typeof macCanAdministerStore!=='function'||macCanAdministerStore(currentShopId)))||(session?.role==='colaborador'&&macCan('schedule.edit'));
  const month=()=>($('scheduleMonth')?.value||state?.selectedDate?.slice(0,7)||'');
  function applyScheduleDisplay(){
   const current=month(),aliases=state?.macScheduleAliasesByMonth?.[current]||{};
@@ -11085,7 +11087,7 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup{color:#
    const close=()=>dlg.close();E('macWeightsShareClose').addEventListener('click',close);E('macWeightsShareCancel').addEventListener('click',close);
    E('macWeightsSource').addEventListener('change',()=>{E('macWeightsFileRow').hidden=E('macWeightsSource').value!=='file'});
    share.addEventListener('click',async()=>{
-     if(session?.role!=='gestor')return toast('Só gestores autorizados podem partilhar ponderações.',true);
+     if(!macCan('weights.manage'))return toast('Só gestores autorizados podem partilhar ponderações.',true);
      const source=E('macWeightsSource');source.innerHTML='<option value="file">📤 Carregar ficheiro do dispositivo</option>';
      for(const st of allowed()){
        const data=await dataForStore(st.id);
@@ -12074,7 +12076,7 @@ html[data-theme="uni"].mac-dark #configPanelWeights #weightsUploadBtn {
  el('importLog')?.addEventListener('click',async event=>{
   const btn=event.target.closest('[data-mac-import-shop][data-mac-import-index]');if(!btn)return;
   event.preventDefault();event.stopImmediatePropagation();
-  if(session?.role!=='gestor')return toast('Só gestores autorizados podem eliminar registos de importações.',true);
+  if(!macCan('imports.moviik'))return toast('Só gestores autorizados podem eliminar registos de importações.',true);
   const shopId=btn.dataset.macImportShop,index=Number(btn.dataset.macImportIndex);
   if(!Number.isInteger(index)||index<0||!accessible().some(st=>st.id===shopId))return toast('Sem permissão para esta loja.',true);
   const data=await dataForStore(shopId),entry=data.imports?.[index];if(!entry||entry.type!=='MOVIIK')return toast('Este registo já não está disponível.',true);
@@ -12496,7 +12498,7 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
   event.stopImmediatePropagation();event.stopPropagation(); // não executar a importação antiga, só para a loja atual
   const file=weights.files?.[0];weights.value='';if(!file)return;
   void (async()=>{
-   if(!session||session.role!=='gestor')throw Error('Apenas o gestor pode importar ponderações.');
+   if(!session||!macCan('weights.manage'))throw Error('Apenas o gestor pode importar ponderações.');
    if(typeof window.macVisionParseWeights!=='function')throw Error('Leitor de ficheiros não encontrado.');
    const parsed=await window.macVisionParseWeights(file);
    const shops=(typeof accessibleManagerStores==='function'?accessibleManagerStores():[]).filter(st=>st&&macCanAdministerStore(st.id));

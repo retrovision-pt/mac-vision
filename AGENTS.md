@@ -48,3 +48,4 @@ use the editor.
 - Initial wallet setup may finish with stores only; store managers and collaborators are added later through the original access menus, so setup never forces placeholder accounts.
 - The public login directory lists only wallets with a valid GA and their own stores/accounts, so orphaned records never resurface after a reset.
 - User photos live once per Cloud user ID in the private mac-photos bucket, referenced by profiles.avatar_url and applied by the bridge to every registry/employee copy; employees link to IDs only by a unique name match so duplicate names never borrow a photo.
+- Delegated collaborator permissions live per user and store in the Cloud permissions table, written only through the admin/store-manager RPC and enforced by the document, sales and commission write functions; the original script's `macCan` only mirrors them for UI, so frontend gates never become the security boundary.

@@ -260,6 +260,38 @@ export type Database = {
           },
         ]
       }
+      mac_permissions: {
+        Row: {
+          granted_at: string
+          granted_by: string
+          perm: string
+          store_id: string
+          user_id: string
+        }
+        Insert: {
+          granted_at?: string
+          granted_by: string
+          perm: string
+          store_id: string
+          user_id: string
+        }
+        Update: {
+          granted_at?: string
+          granted_by?: string
+          perm?: string
+          store_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mac_permissions_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "mac_stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mac_pin_credentials: {
         Row: {
           pin_hash: string
@@ -508,6 +540,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      mac_can: { Args: { p: string; s: string }; Returns: boolean }
+      mac_can_manage_perms: { Args: { s: string }; Returns: boolean }
       mac_can_manage_photo: { Args: { u: string }; Returns: boolean }
       mac_can_view_photo: { Args: { u: string }; Returns: boolean }
       mac_complete_setup: {
@@ -555,6 +589,10 @@ export type Database = {
       }
       mac_set_admin_type: {
         Args: { a: string; t: string; u: string }
+        Returns: undefined
+      }
+      mac_set_permissions: {
+        Args: { perms: string[]; stores: string[]; u: string }
         Returns: undefined
       }
       mac_set_photo: { Args: { p: string; u: string }; Returns: undefined }
