@@ -11554,7 +11554,11 @@ body.mac-import-multishop #macImportsStoreFilter{display:none!important}
  };
  const keyOf=row=>canon(row.moviikStore)+'|'+String(row.id||'');
  async function savePendingFile(file,rows,knownLocations){
-  const pending=await readPending(),index=new Map(pending.rows.map((r,i)=>[keyOf(r),i]));
+  const pending=await readPending();
+  // Senhas antes guardadas sem loja e agora reimportadas com loja deixam de ficar pendentes em duplicado.
+  const ids=new Set(rows.filter(r=>r.moviikStore).map(r=>String(r.id||'')));
+  pending.rows=pending.rows.filter(r=>r.moviikStore||!ids.has(String(r.id||'')));
+  const index=new Map(pending.rows.map((r,i)=>[keyOf(r),i]));
   let inserted=0;
   for(const row of rows){
    const record={...row,macOriginalFile:file.name,macImportedAt:new Date().toISOString(),macImportedBy:session?.name||'Utilizador não identificado'};
@@ -11627,6 +11631,10 @@ body.mac-import-multishop #macImportsStoreFilter{display:none!important}
   if(!grid)throw Error('O ficheiro não contém uma folha MOVIIK com cabeçalhos reconhecidos.');
   const rows=parseMoviik(grid);if(!rows.length)throw Error('Não existem senhas MOVIIK com data válida.');
   const shops=allowedShops();if(!shops.length)throw Error('Não tens lojas autorizadas para a importação.');
+  // Exportações MOVIIK sem coluna de loja (ex.: histórico por loja): pertencem à loja onde a importação é feita.
+  const noStoreColumn=!rows.some(r=>r.moviikStore);
+  if(noStoreColumn){const here=currentStore();if(!here||!shops.some(x=>x.id===here.id))throw Error('Este ficheiro não indica a loja. Escolhe a loja no topo antes de importar.');
+   const label=here.moviikStoreName||here.name;for(const r of rows)r.moviikStore=label;}
   // Guardar primeiro todas as linhas: assim nunca se descarta uma loja que ainda não exista.
   const staged=await savePendingFile(file,rows);
   const result=await applyPendingToShops(undefined,staged.pending);
@@ -11635,9 +11643,12 @@ body.mac-import-multishop #macImportsStoreFilter{display:none!important}
   if(typeof render==='function')render();
   const locs=[...new Set(rows.map(r=>r.moviikStore).filter(Boolean))];
   const summary=file.name+': '+rows.length+' senhas recebidas de '+locs.length+(locs.length===1?' loja.':' lojas.');
+  const unknown=[...new Set(staged.pending.rows.filter(r=>r.macOriginalFile===file.name).map(r=>r.moviikStore||'Sem identificação'))];
+  const totals=' '+result.added+' novas, '+result.updated+' atualizadas.'+(noStoreColumn?' Ficheiro sem coluna de loja: senhas atribuídas a '+currentStore().name+'.':'');
+  if(!result.added&&!result.updated){toast(summary+' Nenhuma loja reconhecida: '+unknown.join(', ')+'. '+result.remaining+' senhas pendentes. A importação não foi concluída.',true);return result;}
   const msg=result.remaining
-    ?summary+' '+result.remaining+(result.remaining===1?' senha aguarda':' senhas aguardam')+' associação em Definições → Lojas. As restantes foram atribuídas às lojas configuradas.'
-    :summary+' Senhas atribuídas às lojas correspondentes.';
+    ?summary+totals+' '+result.remaining+' senhas pendentes de lojas não reconhecidas: '+unknown.join(', ')+'.'
+    :'Importação MOVIIK concluída. Ficheiro guardado na Cloud e Histórico de Importações atualizado.'+totals;
   toast(msg,false);
   return result;
  };
