@@ -5920,7 +5920,7 @@ start().catch(err=>{console.error(err);toast('Erro ao iniciar: '+err.message,tru
    const end=new Date(y,m-1,d,endClock[0],endClock[1]);
    if(end<=start)end.setDate(end.getDate()+1);
    const allowedFrom=new Date(start.getTime()-15*60*1000);
-   const allowedUntil=new Date(end.getTime()+15*60*1000);
+   const allowedUntil=new Date(end.getTime()+16*60*1000); // inclui todo o minuto de saída +15
    if(when>=allowedFrom&&when<allowedUntil)return {allowed:true,code,entry:allowedFrom,end:allowedUntil};
    if(when<allowedFrom&&(!next||allowedFrom<next))next=allowedFrom;
   }

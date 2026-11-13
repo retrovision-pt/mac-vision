@@ -58,3 +58,12 @@
 - [ ] Importação do ficheiro real do utilizador e validação das fórmulas comerciais: aguarda o ficheiro e a autorização para importar.
 
 Não publicar sem autorização.
+## Otimização Cloud → Local (pedido 13/11)
+- [x] Acesso contínuo durante a pausa (verificado na Cloud) e minuto final +15 incluído
+- [ ] Seleção global de loja em todos os menus (+ guardar última loja na conta)
+- [ ] Cache local por conta/loja/versão em IndexedDB, limpa no logout, aviso «Dados em cache — sem ligação à Cloud»
+- [ ] Escala: Excel original na Cloud + histórico, atualizar só dias alterados
+- [ ] Comissões: original na Cloud + histórico de versões
+- [ ] MOVIIK: separar senhas por loja do ficheiro, sem duplicados, contagem criadas/atualizadas
+- [ ] Vendas importadas: original na Cloud; IDs estáveis contra duplicados
+- [ ] Sincronização em tempo real leve por revisão em todos os módulos
