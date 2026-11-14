@@ -4215,6 +4215,16 @@ function parsePdsSales(grid,date){if(!grid)return [];let entries=[];
 function parseEmployees(grid){if(!grid)return 0;let count=0;for(let i=4;i<Math.min(45,grid.length);i++){let r=grid[i]||[],name=clean(r[1]),alias=clean(r[3]);if(!name||/TOTAL|NOME DA LOJA|LOJA/i.test(name))continue;if(name==='0')continue;let exist=state.employees.find(x=>norm(x.name)===norm(name));if(exist){if(alias)exist.alias=alias;if(num(r[9])>0)exist.target=num(r[9])}else {state.employees.push({name,alias,target:num(r[9]),targets:{}});count++}}return count}
 function parsePdsWeights(grid){if(!grid)return;const defs=[['mobile',77,78],['mark',81,83],['business',86,87]];for(let [kind,labelIndex,valueIndex] of defs){for(let row of grid){let key=clean(row[labelIndex]),weight=row[valueIndex];if(key&&weight!==''&&weight!==null&&weight!==undefined&&!Number.isNaN(Number(weight)))state.weights[kind][key]=num(weight)}}}
 function scheduleHeaderMonth(grid){const head=grid.slice(0,5).map(row=>row.slice(0,5).join(' ')).join(' ');return monthFromHeader(head)}
+function macRestoreImportedScheduleRows(data,rows){
+ const importedByMonth=new Map();
+ for(const row of rows){const month=String(row.date||'').slice(0,7);if(!/^\d{4}-\d{2}$/.test(month))continue;
+  if(!importedByMonth.has(month))importedByMonth.set(month,new Set());
+  importedByMonth.get(month).add(norm(row.employee));
+ }
+ for(const [month,names] of importedByMonth){const excluded=data.macScheduleExcludedByMonth?.[month];
+  if(Array.isArray(excluded))data.macScheduleExcludedByMonth[month]=excluded.filter(name=>!names.has(norm(name)));
+ }
+}
 function isScheduleHeadingName(name){
  const key=norm(name);
  return /^HORARIOS?(COM|SEM)/.test(key)||/^HORARIOS?(?:DE)?(?:HORAS)?NOTURN/.test(key)||key.includes('HORARIOSSEMHORASNOTURN');
@@ -4230,7 +4240,7 @@ function clockFromCell(v){if(typeof v==='number'&&v>=0&&v<=1){let n=Math.round(v
 function addImport(file,type,count){state.imports.push({type,name:file.name,count,when:new Date().toLocaleString('pt-PT')})}
 async function importPds(file){if(!macCan('imports.moviik'))throw Error('Importação reservada ao gestor.');let sheets=await loadSheets(file),v=pickGrid(sheets,'VENDAS'),m=pickGrid(sheets,'MOVIIK'),cfg=pickGrid(sheets,'DEFINIÇÕES'),esc=pickGrid(sheets,'ESCALA');if(!v&&!m&&!cfg&&!esc)throw Error('O ficheiro não contém as folhas esperadas do PDS (VENDAS, MOVIIK, DEFINIÇÕES, ESCALA).');if(cfg){let fileStore=clean(cfg[28]?.[3]);if(fileStore&&currentStore().excelCode&&norm(fileStore)!==norm(currentStore().excelCode))throw Error('Este PDS pertence a outra loja ('+fileStore+'). A loja selecionada é '+currentStore().name+'.');if(fileStore&&!currentStore().excelCode){if(!confirm('Este Excel indica a loja '+fileStore+'. Confirmas que pertence a '+currentStore().name+'?'))return;currentStore().excelCode=fileStore;await saveRegistry()}parseEmployees(cfg)}if(v)parsePdsWeights(v);let date=extractPdsDate(sheets),sr=v?upsert(parsePdsSales(v,date),'sales'):{added:0,updated:0},tr=m?upsert(parseMoviik(m),'tickets'):{added:0,updated:0};let count=sr.added+sr.updated+tr.added+tr.updated,old='';if(esc){importShiftHours(esc);let mth=scheduleHeaderMonth(esc);if(mth){let sc=upsert(parseSchedule(esc,mth),'schedules');count+=sc.added+sc.updated;old=mth}else old='indeterminado (não importada)'}if(v)state.selectedDate=date;addImport(file,'PDS completo',count);changed();$('globalDate').value=state.selectedDate;toast(`PDS importado: ${sr.added} vendas novas, ${tr.added} senhas novas. ${old?'Escala: '+old+'.':''}`)}
 async function importSchedules(file){if(!macCan('schedule.edit'))throw Error('Importação reservada ao gestor.');const sheets=await loadSheets(file);let grid=pickGrid(sheets,'ESCALA')||Object.values(sheets)[0],headerMonth=scheduleHeaderMonth(grid),target=$('importMonth').value||state.selectedDate.slice(0,7);if(headerMonth&&target!==headerMonth){if(!confirm(`A escala diz ${headerMonth}, mas escolheste ${target}. Aplicar a escala a ${target}? Clica Cancelar para corrigir o mês.`))return}
- importShiftHours(grid);let parsed=parseSchedule(grid,target);if(!parsed.length)throw Error('Não encontrei códigos de horário na grelha. Verifica o mês, a coluna dos nomes e os dias.');let s=upsert(parsed,'schedules');addImport(file,'Escala',s.added+s.updated);$('scheduleMonth').value=target;changed();toast(`Escala ${target} carregada: ${s.added} turnos novos, ${s.updated} atualizados.`)}
+ importShiftHours(grid);let parsed=parseSchedule(grid,target);if(!parsed.length)throw Error('Não encontrei códigos de horário na grelha. Verifica o mês, a coluna dos nomes e os dias.');macRestoreImportedScheduleRows(state,parsed);let s=upsert(parsed,'schedules');addImport(file,'Escala',s.added+s.updated);$('scheduleMonth').value=target;changed();toast(`Escala ${target} carregada: ${s.added} turnos novos, ${s.updated} atualizados.`)}
 async function importTicketsFile(file){if(!session||!['gestor','colaborador'].includes(session.role))throw Error('Inicia sessão para carregar senhas.');let sheets=await loadSheets(file),grid=pickGrid(sheets,'MOVIIK')||Object.values(sheets).find(rows=>rows.slice(0,12).some(hasMoviikHeader));if(!grid)throw Error('Não encontrei a tabela MOVIIK. Usa o export original ou CSV com cabeçalhos.');let rows=parseMoviik(grid);if(!rows.length)throw Error('A tabela MOVIIK não contém senhas com data válida.');
  const storesInColumnC=macMoviikStoresFromColumnC(grid);
  const locations=[...new Set([...storesInColumnC,...rows.map(r=>r.moviikStore)].filter(Boolean))];
@@ -4607,6 +4617,8 @@ async function start(){
   const schedules=state.schedules.filter(s=>s.date.startsWith(chosenMonth));
   const lookup=new Map(schedules.map(s=>[norm(s.employee)+'|'+s.date,s]));
   const macExcludedScheduleNames=new Set((state.macScheduleExcludedByMonth?.[chosenMonth]||[]).map(n=>norm(n)));
+  // Uma linha com turnos guardados existe: exclusões antigas não podem esconder reimportações.
+  for(const shift of schedules)macExcludedScheduleNames.delete(norm(shift.employee));
   const names=[...new Set([...state.employees.map(x=>x.name),...schedules.map(x=>x.employee)])]
    .filter(n=>n && !isScheduleHeadingName(n) && !macExcludedScheduleNames.has(norm(n)))
    .sort((a,b)=>(norm(b)===norm('Tiago Almeida'))-(norm(a)===norm('Tiago Almeida'))||rankCargo(a)-rankCargo(b)||a.localeCompare(b,'pt'));
