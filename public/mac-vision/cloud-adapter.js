@@ -1222,3 +1222,10 @@ window.addEventListener('load',()=>{
   return out;
  };
 });
+// Chat Vision mobile: o cabeçalho cresce com os separadores, que nunca se sobrepõem às mensagens.
+(()=>{const st=document.createElement('style');st.textContent=`html body #macChatPanel .mac-chat-head{height:auto!important;min-height:0!important;max-height:none!important;flex:0 0 auto!important;align-items:flex-start!important;overflow:visible!important}
+html body #macChatPanel .mcv-head{min-width:0!important;overflow:hidden}
+html body #macChatPanel .mcv-tabs{flex:0 0 auto!important;min-height:42px!important;align-items:center!important;overflow-x:auto!important;overflow-y:hidden!important;padding:2px 1px!important;position:static!important}
+html body #macChatPanel .mcv-tab{flex:0 0 auto!important}
+html body #macChatPanel .mac-chat-log{position:relative!important;flex:1 1 auto!important;min-height:0!important}
+@media(max-width:600px){html body #macChatPanel .mac-chat-head{flex-wrap:nowrap!important}html body #macChatPanel .mcv-tab .employee-avatar{width:28px!important;height:28px!important;min-width:28px!important;max-width:28px!important;min-height:28px!important;max-height:28px!important}}`;(document.head||document.documentElement).appendChild(st);})();
