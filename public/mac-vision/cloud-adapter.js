@@ -1236,3 +1236,9 @@ html body #ticketsByEmployee{overflow:visible!important}html body #ticketsByEmpl
 html body #ticketsByEmployee .tbl th,html body #ticketsByEmployee .tbl td{padding:8px 3px!important;font-size:12px!important;letter-spacing:0!important;white-space:normal!important;word-break:break-word}
 html body #ticketsByEmployee .tbl th{font-size:9.5px!important;line-height:1.2!important}
 html body #ticketsByEmployee .tbl th:first-child,html body #ticketsByEmployee .tbl td:first-child{width:32%!important;padding-left:6px!important;text-align:left!important}}`;(document.head||document.documentElement).appendChild(st);})();
+// Mobile: data do histórico dentro da caixa; Chat Vision com nome à esquerda e botões à direita; mensagens lidas a azul.
+(()=>{const st=document.createElement('style');st.textContent=`html body #macChatPanel .mac-chat-message small .mac-chat-read,html body #macChatPanel .mac-chat-message.own small .mac-chat-read{color:#1d8cf8!important;font-weight:700}
+@media(max-width:700px){html body #historyDate{width:100%!important;width:-webkit-fill-available!important;max-width:100%!important;flex:0 0 auto!important;align-self:stretch!important;overflow:hidden!important;margin-left:0!important;margin-right:0!important}}
+@media(max-width:600px){html body #macChatPanel .mac-chat-head>#mcvHead{order:0!important;flex:0 0 0!important;width:0!important;min-width:0!important;overflow:hidden!important}
+html body #macChatPanel .mac-chat-head>#mcvTabs{order:1!important;flex:1 1 0!important;width:auto!important;min-width:0!important;justify-content:flex-start!important}
+html body #macChatPanel .mac-chat-head>.mac-chat-head-actions{order:2!important;flex:0 0 auto!important;width:auto!important;margin-left:auto!important;justify-content:flex-end!important}}`;(document.head||document.documentElement).appendChild(st);})();
