@@ -4551,7 +4551,7 @@ async function start(){
  const originalDash=renderDashboard;
  renderDashboard=function(){originalDash();
   document.querySelectorAll('#productivityTable tbody tr').forEach(tr=>{const c=tr.cells[0];if(!c||c.querySelector('.mac-cell-user'))return;c.innerHTML=cell(c.textContent.trim());
-   const last=tr.cells[tr.cells.length-1];if(last){last.classList.remove('mac-traffic-bad');const value=last.textContent.trim();const p=value.split(':').map(Number);const seconds=p.length===3?p[0]*3600+p[1]*60+p[2]:p.length===2?p[0]*60+p[1]:NaN;last.classList.remove('traffic-good','traffic-bad','traffic-none');last.classList.add(Number.isFinite(seconds)?(seconds<=90?'traffic-good':'traffic-bad'):'traffic-none')}});
+   const last=tr.cells[tr.cells.length-1];if(last){last.classList.remove('mac-traffic-bad');const value=last.textContent.trim();const p=value.split(':').map(Number);const u=value.match(/(\d+)\s*[hms]/g);const seconds=u?u.reduce((t,x)=>t+parseInt(x)*({h:3600,m:60,s:1})[x.trim().slice(-1)],0):p.length===3?p[0]*3600+p[1]*60+p[2]:p.length===2?p[0]*60+p[1]:NaN;last.classList.remove('traffic-good','traffic-bad','traffic-none');last.classList.add(Number.isFinite(seconds)?(seconds<=90?'traffic-good':'traffic-bad'):'traffic-none')}});
   $id('productivityTable').querySelector('.idle-note')?.remove();
   document.querySelectorAll('#todaySchedule .rank-row').forEach(row=>{const name=row.querySelector('div')?.textContent?.trim();if(name){const first=row.querySelector('div');first.innerHTML=cell(name);first.style.textAlign='left'}});
  };
@@ -12404,6 +12404,7 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
 #trafficDetail .rc-quality-box span{display:block;font-size:11px;color:var(--muted);margin-bottom:6px}
 #trafficDetail .rc-quality-box strong{font-size:clamp(17px,2vw,24px);display:block;overflow-wrap:anywhere}
 #trafficDetail .rc-quality-info{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap}
+#trafficDetail strong.traffic-good,html.mac-dark #trafficDetail strong.traffic-good,html[data-theme] #trafficDetail strong.traffic-good{color:#25d68e!important;font-weight:800}#trafficDetail strong.traffic-bad,html.mac-dark #trafficDetail strong.traffic-bad,html[data-theme] #trafficDetail strong.traffic-bad{color:#ff667e!important;font-weight:800}html.mac-dark #productivityTable td.traffic-good,html[data-theme] #productivityTable td.traffic-good{color:#25d68e!important;font-weight:800}html.mac-dark #productivityTable td.traffic-bad,html[data-theme] #productivityTable td.traffic-bad{color:#ff667e!important;font-weight:800}
 #trafficDetail .rc-quality-note{font-size:11px;color:var(--muted);line-height:1.5;margin:10px 0 0}
 @media(max-width:480px){#trafficDetail .rc-quality-list{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}#trafficDetail .rc-quality-box{padding:9px 6px}}
 /* Night Shift: controlo interruptor compacto sem texto explicativo. */
@@ -12618,8 +12619,8 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
    '<div class="rc-quality-info"><span>Taxa de atendimento</span><strong>'+pct(rate)+'</strong></div>'+
    '<div class="rc-quality-info"><span>TD · Canceladas / Atendidas</span><strong>'+pct(td)+'</strong></div>'+
    '<div class="rc-quality-info"><span>Hora de maior emissão</span><strong>'+(peak?peak[0]+':00 · '+peak[1]+' senhas':'—')+'</strong></div>'+
-   '<div class="rc-quality-info"><span>TME · Tempo médio de espera</span><strong>'+(timeText(tme))+'</strong></div>'+
-   '<div class="rc-quality-info"><span>TMA · Tempo médio de atendimento</span><strong>'+(timeText(tma))+'</strong></div>'+
+   '<div class="rc-quality-info"><span>TME · Tempo médio de espera</span><strong class="'+(tme===null?'traffic-none':tme<=300?'traffic-good':'traffic-bad')+'">'+(timeText(tme))+'</strong></div>'+
+   '<div class="rc-quality-info"><span>TMA · Tempo médio de atendimento</span><strong class="'+(tma===null?'traffic-none':tma>=600&&tma<=900?'traffic-good':'traffic-bad')+'">'+(timeText(tma))+'</strong></div>'+
    '<p class="rc-quality-note">Cálculo efetuado somente com as senhas do período e lojas escolhidos. TME/TMA usam apenas senhas atendidas com tempos válidos; sem dados, apresenta —.</p>';
   // Os cinco cartões refletem a mesma amostra e média que a caixa de qualidade.
   const metrics=E('ticketMetrics');if(metrics){
