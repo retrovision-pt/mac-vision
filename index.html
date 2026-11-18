@@ -2248,7 +2248,7 @@ html:is([data-theme="claro"],[data-theme="nos"],[data-theme="sand"]) #configPane
     <button type="button" class="btn primary" id="macMobileInstallButton">📲 Instalar aplicação</button>
     <p class="smalltext muted" id="macMobileInstallStatus" aria-live="polite"></p>
    </div>
-   <div class="mac-chat-settings-card"><div class="mac-mobile-install-label"><span class="mac-mobile-install-icon" aria-hidden="true">💬</span><div><h3>Chat MAC Vision</h3><p class="smalltext muted">Conversas locais entre utilizadores neste navegador. Sem sincronização entre dispositivos.</p></div></div><button class="btn primary" type="button" id="macChatSettingsOpen">💬 Chat MAC Vision</button><div id="macChatSettingsPanel" hidden><label class="mac-switch-row"><span><strong>Ativar Chat MAC Vision para colaboradores</strong><small>Gestores e Administradores mantêm acesso ao chat, sem depender da escala</small></span><input type="checkbox" id="macChatStoreEnabled" checked></label><p class="smalltext muted">As mensagens são guardadas neste navegador e podem ser consultadas pelas contas locais. Não são partilhadas com outros computadores ou telemóveis.</p></div></div>
+   <div class="mac-chat-settings-card"><div class="mac-mobile-install-label"><span class="mac-mobile-install-icon" aria-hidden="true">💬</span><div><h3>Chat MAC Vision</h3><p class="smalltext muted">Conversas locais entre utilizadores neste navegador. Sem sincronização entre dispositivos.</p></div></div><button class="btn primary" type="button" id="macChatSettingsOpen">💬 Chat MAC Vision</button><div id="macChatSettingsPanel" hidden><label class="mac-switch-row"><span><strong>Ativar Chat MAC Vision para colaboradores</strong><small>Gestores e Administradores mantêm acesso ao chat, sem depender da escala</small></span><input type="checkbox" id="macChatStoreEnabled" checked></label><p class="smalltext muted">Chat Vision nesta versão mantém as conversas apenas neste navegador. As vendas, escalas e senhas estão sincronizadas na base de dados Supabase.</p></div></div>
     <div id="macVisionPermissions" class="mac-permission-list"></div>
   </div>
  </div>
@@ -2463,6 +2463,7 @@ function rememberLocalSession(){
 }
 function forgetLocalSession(){try{localStorage.removeItem(MAC_REMEMBERED_SESSION_KEY)}catch(err){console.warn(err)}}
 async function restoreLocalSession(){
+ if(window.macCloud?.session)return false;
  let saved;
  try{saved=JSON.parse(localStorage.getItem(MAC_REMEMBERED_SESSION_KEY)||'null')}
  catch{forgetLocalSession();return false}
@@ -2565,17 +2566,26 @@ function refreshSettingsRoleUI(){
 
 function blankStoreData(shop){const d=clone(START_DATA);d.store=shop.name;d.employees=[];d.sales=[];d.tickets=[];d.schedules=[];d.imports=[];d.selectedDate=localTodayIso();return d}
 async function readKey(key){
+ if(window.macCloud?.shared(key))return await window.macCloud.get(key);
  await initDB();
  if(db)return macLocalTransaction('storage','readonly',o=>o.get(key));
  try{const raw=localStorage.getItem(MAC_LOCAL_KV_PREFIX+key);return raw===null?undefined:JSON.parse(raw)}
  catch(err){throw Error('Não foi possível ler os dados locais: '+err.message)}
 }
 async function writeKey(key,value){
+ if(window.macCloud?.shared(key)){
+  const done=await window.macCloud.put(key,value);
+  if(done.merged && key==='store:'+currentShopId){
+   window.__macCloudMergedState=done.data;
+  }
+  return true;
+ }
  await initDB();
  if(db){await macLocalTransaction('storage','readwrite',o=>o.put(value,key));return true;}
  localStorage.setItem(MAC_LOCAL_KV_PREFIX+key,JSON.stringify(value));return true;
 }
 async function deleteKey(key){
+ if(window.macCloud?.shared(key))return await window.macCloud.remove(key);
  await initDB();
  if(db){await macLocalTransaction('storage','readwrite',o=>o.delete(key));return;}
  localStorage.removeItem(MAC_LOCAL_KV_PREFIX+key);
@@ -2638,7 +2648,11 @@ async function persist(){
  const task=macSaveQueue.catch(()=>false).then(async()=>{
   try{
    await writeKey('store:'+shopId,snapshot);
-   if(currentShopId===shopId&&macStateRevision===revision)macStateDirty=false;
+   if(currentShopId===shopId&&macStateRevision===revision){
+    const merged=window.__macCloudMergedState;window.__macCloudMergedState=null;
+    if(merged){const date=state.selectedDate;state=shape(merged);state.selectedDate=date;updateDateView();render();}
+    macStateDirty=false;
+   }
    signalMacLocalChange('store',shopId);
    setLocalStatus(true);
    return true;
@@ -2754,7 +2768,8 @@ async function loadRegistry(){
    st.users.push({...master,adminOnly:true,salesEnabled:false});
   }
  }
- await saveRegistry();
+ // A lista fornecida pela Cloud não contém passwords; não deve ser regravada ao carregar.
+ if(!window.macCloud?.session)await saveRegistry();
 }
 async function saveRegistry(){
  await writeKey(REGISTRY_KEY,shopRegistry);
@@ -3023,6 +3038,7 @@ async function finishAreaSetup(){
  const access=Object.fromEntries(stores.map(st=>[st.id,master.id]));
  await deleteKey(MAC_PENDING_MANAGER_KEY);await deleteKey(MAC_SETUP_WORKSPACE_KEY);
  pendingSetupManager=null;pendingSetupWorkspace={managers:[],stores:[]};authError('');
+ if(window.macCloud?.session)await window.macCloud.bindIdentity(master.id);
  await loginToStore(stores[0],stores[0].users[0],access,'administrador');
  toast(`Configuração concluída: ${stores.length} ${stores.length===1?'loja':'lojas'} e ${d.managers.length} ${d.managers.length===1?'gestor':'gestores'}.`);
 }
@@ -3094,12 +3110,21 @@ async function logout(){
  $('loginPassword').value='';
  renderLogin();
  $('loginRole').focus();
+ if(window.macCloud?.session)await window.macCloud.signOut();
 }
 async function submitLogin(e){
  e.preventDefault();const {shop:store,user}=selectedLoginAccount();
  if(!store||!user)return authError('Escolhe o acesso, o utilizador e a loja atribuída.');
  const password=$('loginPassword').value;
  try{
+  if(window.macCloud?.session){
+   const p=window.macCloud.profile;
+   if(String(p?.app_user_id)!==String(user.id))throw Error('Esta conta Cloud não está autorizada a entrar como este utilizador.');
+   const permitted=p.role==='admin'||window.macCloud.access.some(x=>x.shop_id===store.id);
+   if(!permitted)throw Error('Sem autorização para esta loja.');
+   const managerAccess=Object.fromEntries(shopRegistry.filter(st=>st.users.some(u=>u.id===user.id)).map(st=>[st.id,user.id]));
+   await loginToStore(store,user,managerAccess,p.role==='admin'?'administrador':'gestor');return;
+  }
   const hash=await hashPassword(password,user.salt,macUserIterations(user));
   if(hash!==user.hash){authFailures++;$('loginPassword').value='';authError('Palavra-passe incorreta.');return}
   const managerAccess={};
@@ -5324,14 +5349,19 @@ for(const id of ['macTimeZone','macRegionalFormat'])$(id)?.addEventListener('cha
 // Adaptação local: substitui completamente o backend Lovable Cloud.
 'use strict';
 async function macSaveBlob(file,key){
+ if(window.macCloud?.session && String(key).startsWith('import:')){
+  await window.macCloud.uploadAttachment(file,String(key).slice(7),currentShopId);return true;
+ }
  if(!(file instanceof Blob))throw Error('O anexo não é um ficheiro válido.');
  await macLocalTransaction('attachments','readwrite',store=>store.put(file,String(key)));
  return true;
 }
 async function macGetBlob(key){
+ if(window.macCloud?.session && String(key).startsWith('import:'))return await window.macCloud.downloadAttachment(String(key).slice(7),currentShopId);
  return await macLocalTransaction('attachments','readonly',store=>store.get(String(key)))||null;
 }
 async function macDeleteBlob(key){
+ if(window.macCloud?.session && String(key).startsWith('import:'))return await window.macCloud.removeAttachment(String(key).slice(7),currentShopId);
  await macLocalTransaction('attachments','readwrite',store=>store.delete(String(key)));
 }
 const MAC_CHAT_KEY='mac-vision-local-chat-v1';
@@ -5411,19 +5441,30 @@ async function macRPC(action,args={}){
   }
   case 'import-file-save':{
    if(!(args.file instanceof Blob))throw Error('Seleciona o ficheiro original para guardar.');
+   if(window.macCloud?.session){
+    return await window.macCloud.uploadAttachment(args.file,String(args.id),String(args.storeId||currentShopId));
+   }
    await macSaveBlob(args.file,'import:'+String(args.id));
    return {id:String(args.id),status:'stored'};
   }
   case 'import-file-get':{
-   const file=await macGetBlob('import:'+String(args.id));
+   const file=window.macCloud?.session
+    ?await window.macCloud.downloadAttachment(String(args.id),String(args.storeId||currentShopId))
+    :await macGetBlob('import:'+String(args.id));
    return {status:file?'stored':'pending_file',file};
   }
   default:throw Error('Operação remota não utilizada nesta versão local: '+action);
  }
 }
 </script>
+<script src="./cloud-config.js"></script>
+<script src="./cloud-bridge.js"></script>
 <script>
-start().catch(err=>{console.error(err);toast('Erro ao iniciar: '+err.message,true)});
+window.macCloud.loadGate()
+ .then(()=>start())
+ .then(()=>window.macCloud.autoLogin())
+ .then(()=>{setInterval(()=>{if(session && !document.hidden)void macRefreshLocalState()},12000)})
+ .catch(err=>{console.error('MAC Cloud:',err);alert('MAC Vision: '+err.message)});
 
 </script>
 
@@ -9170,7 +9211,7 @@ function macRenderManagerStores(){
     bubble.hidden = !session;
     if(!session){panel.hidden=true;return;}
     bubble.classList.toggle('mac-chat-locked',!chatPermitted());
-    bubble.title=cloudReady?'Chat Vision — Local':'Chat Vision — '+cloudReason;
+    bubble.title=cloudReady?'Chat Vision — Local neste navegador':'Chat Vision — '+cloudReason;
     const unread=cloudReady?chatUnread():[];
     bubble.classList.toggle('mac-chat-unread',unread.length>0);
     if(unread.length)bubble.dataset.unread=unread.length>99?'99+':String(unread.length);
