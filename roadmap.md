@@ -85,3 +85,6 @@ Não publicar sem autorização.
 - [x] Preservar sessão em falhas temporárias; recuperar leituras afetadas após reconexão sem substituir alterações pendentes.
 - [x] Sintaxe, 31 verificações essenciais e estados do indicador no navegador: pendente/403/Realtime sem vermelho, falha de rede confirmada e recuperação; sem dados criados, gravações reais ou publicação.
 - [ ] Gravação real e propagação entre utilizadores autenticados: não exercitadas nesta correção para não alterar os dados reais.
+
+## Arranque fiável (21/11)
+- [x] Excel sem bloquear o arranque; ecrã inicial visível no máximo após 4 s mesmo com Cloud lenta

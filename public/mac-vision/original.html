@@ -1241,7 +1241,7 @@ input.mac-calendar-only[type="datetime-local"]{
 @media(max-width:650px){#accessStoresPanel #userAccounts .manager-account-row{padding:12px!important;gap:12px!important}#accessStoresPanel #userAccounts .manager-account-row .account-controls{margin-left:0!important;flex:1 1 100%;justify-content:flex-start!important}}
 #accessManagersPanel .mac-manager-stores-section{display:none!important}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 /* MAC Vision: cartões comerciais estruturados */
 #page-dashboard #metrics .metric-sub{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:6px!important}
@@ -1818,6 +1818,7 @@ html:is([data-theme="claro"],[data-theme="nos"],[data-theme="sand"]) #configPane
 </style>
 </head>
 <body class="mac-starting">
+<script>setTimeout(function(){document.body.classList.remove("mac-starting")},4000);</script>
 <dialog id="macNameEditDialog" class="mac-name-dialog"><form method="dialog" id="macNameEditForm"><h2 id="macNameEditHeading">Editar designação</h2><p class="smalltext muted">O nome visível é alterado sem modificar os códigos internos das vendas anteriores.</p><div class="field"><label for="macEditVisibleName">Nome do produto / venda</label><input id="macEditVisibleName" maxlength="180" required></div><div class="form-footer"><button type="button" class="btn" id="macNameEditCancel">Cancelar</button><button type="submit" class="btn primary">Guardar nome</button></div></form></dialog>
 <div id="authScreen" class="auth-screen">
   <div class="auth-card">
