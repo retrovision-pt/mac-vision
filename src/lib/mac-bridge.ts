@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { macBootstrap, macSetupAuthorization, macCreateAccount, macDirectory, macPrivateDirectory, macSaveRegistry, macUpdatePassword, macUpdateWallet, macPinLogin, macRemoveAccess, macLoginPhoto, macShiftCheck } from './mac.functions';
+import { macBootstrap, macSetupAuthorization, macCreateAccount, macDirectory, macPrivateDirectory, macSaveRegistry, macUpdatePassword, macUpdateWallet, macPinLogin, macRemoveAccess, macDeleteStore, macLoginPhoto, macShiftCheck } from './mac.functions';
 import { mergeChanges, registryChanges } from './mac-rules';
 import { friendlyError } from './mac-pin';
 import { applyRegistryPhotos, applyEmployeePhotos, splitEmployeePhotos, registryPhotoChanges } from './mac-photo-rules';
@@ -211,6 +211,7 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
     if(name==='logout'){if(photoChannel){void supabase.removeChannel(photoChannel);photoChannel=null;}const u=await supabase.auth.getUser();if(u.data.user)await supabase.from('mac_presence').delete().eq('user_id',u.data.user.id);await supabase.auth.signOut();window.localStorage.removeItem(META_KEY);walletId='';cache.clear();readCache.clear();return true;}
     if(name==='account')return macCreateAccount({data:p});
     if(name==='password')return macUpdatePassword({data:p});
+    if(name==='delete-store')return macDeleteStore({data:p});
     if(name==='remove-access')return macRemoveAccess({data:p});
     if(name==='registry-save'){
       const prev:Record<string,string>={};for(const s of registryBase)for(const u of s.users||[])if(u?.id&&u.photo)prev[u.id]=u.photo;

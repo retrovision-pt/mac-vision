@@ -172,6 +172,24 @@ removeUser=async function(id,shopId=viewedAccessShop()?.id){
  macCloudDirectory=await macRPC('directory');shopRegistry=structuredClone(macCloudDirectory.stores);renderAccess();renderOptions();toast('Acesso removido; conta preservada na Cloud.');
 };
 
+// Apagar loja: operação Cloud explícita (o registo nunca apaga por omissão).
+deleteLocalStore=async function(shopId){
+ if(!macCanAdministerStore(shopId))return;
+ const shop=shopRegistry.find(s=>s.id===shopId);if(!shop)return;
+ if(shop.id===currentShopId)return toast('Não podes apagar a loja da sessão atual. Entra primeiro noutra loja.',true);
+ if(shopRegistry.length<=1)return toast('É necessário manter pelo menos uma loja.',true);
+ if(!confirm('Apagar definitivamente a loja «'+shop.name+'» e todos os seus dados na Cloud? Esta ação não pode ser anulada.'))return;
+ if(prompt('Para confirmar, escreve exatamente o nome da loja: '+shop.name)!==shop.name)return toast('Eliminação cancelada.',true);
+ try{
+  await macRPC('delete-store',{storeId:shopId});
+  if(session?.managerAccess)delete session.managerAccess[shopId];
+  if(accessViewedStoreId===shopId)accessViewedStoreId=currentShopId;
+  macCloudDirectory=await macRPC('directory');shopRegistry=structuredClone(macCloudDirectory.stores);
+  renderAccess();renderOptions();if(typeof renderEmployeeShopSelector==='function')renderEmployeeShopSelector();
+  toast('Loja '+shop.name+' apagada na Cloud.');
+ }catch(err){toast('Não foi possível apagar a loja: '+err.message,true)}
+};
+
 // A success message is never evidence of persistence until Cloud acknowledges it.
 function macPt(message){
  const text=String(message??'');
@@ -239,7 +257,7 @@ logout=async function(){const was=!!session;const r=await macLogoutWithBroadcast
 
 // One state owner: dirty data, failed operations and Realtime gaps never mean Offline.
 const macSyncState={connected:null,pending:0,writeError:'',sessionExpired:false,reconnecting:false,lastSync:0,failures:0};
-const macMutationActions=new Set(['write','delete','registry-save','preference','commission-save','import-file-save','permissions-save','account','password','remove-access']);
+const macMutationActions=new Set(['write','delete','registry-save','preference','commission-save','import-file-save','permissions-save','account','password','remove-access','delete-store']);
 let macHealthBusy=false,macHealthDelay=30000,macHealthTimer=null;
 function macSyncBegin(action){if(macMutationActions.has(action)){macSyncState.pending++;macSyncState.writeError='';macPaintHealth();}}
 function macSyncComplete(action){

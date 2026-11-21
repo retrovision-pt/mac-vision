@@ -631,6 +631,7 @@ export type Database = {
         Args: { k: string; w: string }
         Returns: undefined
       }
+      mac_delete_store: { Args: { a: string; s: string }; Returns: undefined }
       mac_get_commission: { Args: { f: string; w: string }; Returns: Json }
       mac_import_reader: { Args: { s: string }; Returns: boolean }
       mac_import_writer: { Args: { s: string }; Returns: boolean }

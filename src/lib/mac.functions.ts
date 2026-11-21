@@ -235,6 +235,14 @@ export const macRemoveAccess=createServerFn({method:'POST'}).middleware([require
   checked(await admin.rpc('mac_remove_access',{a:context.userId,u:data.id,s:data.storeId}));return true;
  });
 
+export const macDeleteStore=createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
+ .inputValidator((input:{storeId:string})=>input).handler(async({data,context})=>{
+  const actor=checked(await context.supabase.from('mac_accounts').select('role').eq('id',context.userId).single()).data;
+  if(actor?.role!=='admin')throw Error('Só um administrador pode apagar lojas.');
+  const {supabaseAdmin:admin}=await import('@/integrations/supabase/client.server');
+  checked(await admin.rpc('mac_delete_store',{a:context.userId,s:data.storeId}));return true;
+ });
+
 export const macPrivateDirectory = createServerFn({method:'GET'}).middleware([requireSupabaseAuth]).handler(async({context})=>{
  const wallets=checked(await context.supabase.from('mac_wallets').select('id,name,app_name')).data||[];
  const stores=checked(await context.supabase.from('mac_stores').select('*')).data||[];

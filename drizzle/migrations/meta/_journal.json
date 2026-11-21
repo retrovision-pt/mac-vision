@@ -183,6 +183,13 @@
       "when": 1794589918871,
       "tag": "0025_moviik_default_for_collaborators",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1795219708471,
+      "tag": "0026_mac_manager_delete_admins_stores",
+      "breakpoints": true
     }
   ]
 }
