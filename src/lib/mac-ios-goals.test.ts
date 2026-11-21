@@ -3,12 +3,37 @@ import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
 type Staff={id:string;name:string;points:number};
-type Rules={monthToDate:(rows:{date:string;points:number}[],date:string)=>{date:string;points:number}[];goal:(a:number|null,t:number|string|null,hasData?:boolean)=>string|null;areaStaff:(s:unknown[],d:string,m:string)=>Staff[];setTargets:(d:unknown,id:string|null,date:string,mode:string,v:Record<string,number>)=>void;targets:(d:unknown,id:string|null,date:string,mode:string)=>Record<string,number>;removeFromMonth:(d:unknown,n:string,m:string)=>void;scheduleLines:(d:unknown,m:string)=>{name:string;hidden:boolean}[];setScheduleVisibility:(d:unknown,n:string,m:string,v:boolean)=>void};
+type Rules={performance:(key:string,actual:number|null,target:number|null,hasData?:boolean)=>string|null;parseTarget:(key:string,input:string)=>number|null;formatTarget:(key:string,value:number|null)=>string;monthToDate:(rows:{date:string;points:number}[],date:string)=>{date:string;points:number}[];goal:(a:number|null,t:number|string|null,hasData?:boolean)=>string|null;areaStaff:(s:unknown[],d:string,m:string)=>Staff[];setTargets:(d:unknown,id:string|null,date:string,mode:string,v:Record<string,number>)=>void;targets:(d:unknown,id:string|null,date:string,mode:string)=>Record<string,number>;removeFromMonth:(d:unknown,n:string,m:string)=>void;scheduleLines:(d:unknown,m:string)=>{name:string;hidden:boolean}[];setScheduleVisibility:(d:unknown,n:string,m:string,v:boolean)=>void};
 const sandbox:{macIOSRules?:Rules}={};
 runInNewContext(readFileSync('public/mac-vision/ios-rules.js','utf8'),sandbox);
 const rules=sandbox.macIOSRules;
 if(!rules)throw Error('IOS rules not loaded');
 describe('IOS goals',()=>{
+ it('evaluates TE against 35 percent regardless of the configured target',()=>{
+  expect(rules.performance('te',35,90)).toBe('good');
+  expect(rules.performance('te',34.9,10)).toBe('bad');
+  expect(rules.performance('te',36,null)).toBe('good');
+ });
+ it('evaluates TD against a maximum of 12 percent regardless of the configured target',()=>{
+  expect(rules.performance('td',12,5)).toBe('good');
+  expect(rules.performance('td',12.1,20)).toBe('bad');
+  expect(rules.performance('td',10,null)).toBe('good');
+ });
+ it('keeps zero neutral when no objective exists for every indicator',()=>{
+  for(const key of ['points','fixed','mobile','marks','business','nc','alarms','energyTv','attended','te','td','tma'])expect(rules.performance(key,0,null)).toBeNull();
+  expect(rules.performance('td',0,12)).toBe('good');
+ });
+ it('reads TE and TD as percentage values rather than fractions',()=>{
+  expect(rules.parseTarget('te','35%')).toBe(35);
+  expect(rules.parseTarget('td','12%')).toBe(12);
+  expect(rules.parseTarget('te','35')).toBe(35);
+ });
+ it('stores TMA in seconds while accepting and displaying minutes and seconds',()=>{
+  expect(rules.parseTarget('tma','10:00')).toBe(600);
+  expect(rules.parseTarget('tma','10:30')).toBe(630);
+  expect(rules.formatTarget('tma',600)).toBe('10:00');
+  expect(rules.parseTarget('tma','10:60')).toBeNaN();
+ });
  it('keeps saved shifts when hiding and restoring a monthly row',()=>{
   const shifts=[{employee:'Ana',date:'2026-11-21',code:'A',start:'09:00',end:'18:00'}];
   const data={employees:[{name:'Ana'}],schedules:shifts};

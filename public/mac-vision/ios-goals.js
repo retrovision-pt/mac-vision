@@ -28,10 +28,11 @@
      cell.classList.remove('mac-ios-goal','mac-ios-goal-good','mac-ios-goal-bad','mac-ios-goal-neutral');delete cell.dataset.goal;
      const goal=goals[cell.dataset.iosKey],actual=accumulated[cell.dataset.iosKey];
      cell.dataset.monthlyActual=actual==null?'':actual;
-    const status=rules.goal(actual,goal,['attended','te','td','tma'].includes(cell.dataset.iosKey)?hasTickets:hasSales);
-     if(!status)cell.classList.add('mac-ios-goal-neutral');
-    if(goal==null)continue;
-    cell.dataset.goal=goal;cell.classList.add('mac-ios-goal');if(status)cell.classList.add('mac-ios-goal-'+status);
+     const key=cell.dataset.iosKey,shown=cell.dataset.actual===''?null:Number(cell.dataset.actual);
+     const fixed=['te','td'].includes(key);
+     const status=shown===0&&goal==null?null:rules.performance(key,fixed?shown:actual,goal,fixed?shown!==null:['attended','tma'].includes(key)?hasTickets:hasSales);
+     cell.classList.add('mac-ios-goal-'+(status||'neutral'));
+     if(goal!=null){cell.dataset.goal=goal;cell.classList.add('mac-ios-goal');}
    }
   }
  }
@@ -39,31 +40,28 @@
  renderIOS=function(){const out=oldIOS.apply(this,arguments);applyGoals();return out;};
  const dialog=document.createElement('dialog');dialog.id='macIOSGoalsDialog';dialog.className='mac-edit-dialog';
  dialog.setAttribute('aria-labelledby','macIOSGoalsTitle');
-  dialog.innerHTML='<h2 id="macIOSGoalsTitle">Editar Objetivos</h2><p id="macIOSGoalsContext" class="smalltext muted"></p><form id="macIOSGoalsForm"><div class="field"><label for="macIOSGoalsMonth">Mês e ano</label><input id="macIOSGoalsMonth" type="month" required></div><div class="mac-ios-goals-header"><span>Indicador</span><span>Objetivo mensal</span></div><div id="macIOSGoalsRows"></div><div class="mac-ios-goals-actions"><button type="submit" class="btn primary">Gravar</button><button type="button" class="btn" id="macIOSGoalsCancel">Cancelar</button></div></form>';
+  dialog.innerHTML='<h2 id="macIOSGoalsTitle">Editar Objetivos</h2><p id="macIOSGoalsContext" class="smalltext muted"></p><form id="macIOSGoalsForm"><div class="mac-ios-goals-header"><span>Indicador</span><span>Objetivo mensal</span></div><div id="macIOSGoalsRows"></div><div class="mac-ios-goals-actions"><button type="submit" class="btn primary">Gravar</button><button type="button" class="btn" id="macIOSGoalsCancel">Cancelar</button></div></form>';
  document.body.appendChild(dialog);
  let context=null,busy=false;
   function renderGoalFields(data){
    if(!context)return;
    const saved=targets(data,context.userId,context.date,'month');
-   E('macIOSGoalsRows').innerHTML=rules.defs.map(([label,key])=>'<div class="mac-ios-goals-row" data-key="'+h(key)+'"><label for="macGoal-'+h(key)+'">'+h(label.replace('|',' '))+'</label><input id="macGoal-'+h(key)+'" name="'+h(key)+'" aria-label="Objetivo '+h(label.split('|')[1])+'" type="number" min="0" step="any" value="'+(saved[key]==null?'':h(saved[key]))+'"></div>').join('');
+   E('macIOSGoalsRows').innerHTML=rules.defs.map(([label,key])=>{
+    const percentage=['te','td'].includes(key),time=key==='tma',special=percentage||time;
+    const attrs=special?'type="text" inputmode="'+(time?'numeric':'decimal')+'" placeholder="'+(time?'10:00':'35%')+'"':'type="number" min="0" step="any"';
+    return '<div class="mac-ios-goals-row" data-key="'+h(key)+'"><label for="macGoal-'+h(key)+'">'+h(label.replace('|',' '))+(percentage?' (%)':time?' (min:ss)':'')+'</label><input id="macGoal-'+h(key)+'" name="'+h(key)+'" aria-label="Objetivo '+h(label.split('|')[1])+'" '+attrs+' value="'+h(rules.formatTarget(key,saved[key]))+'"></div>';
+   }).join('');
   }
-  E('macIOSGoalsMonth').addEventListener('change',async()=>{
-   const c=context,month=E('macIOSGoalsMonth').value;if(!c||busy||!month)return;
-   busy=true;dialog.querySelectorAll('button,input').forEach(input=>input.disabled=true);
-   try{const data=await dataForStore(c.shopId);if(context!==c)return;c.date=month;renderGoalFields(data);}
-   catch(error){E('macIOSGoalsMonth').value=c.date;toast(error.message,true);}
-   finally{busy=false;dialog.querySelectorAll('button,input').forEach(input=>input.disabled=false);}
-  });
  async function openGoals(shopId,userId){
   try{
    if(!macCanAdministerStore(shopId))throw Error('Não tens permissão para editar os objetivos desta loja.');
+   const date=rules.periodKey(isCollaborator()?localTodayIso():state.selectedDate),mode='month';
    const shop=shopRegistry.find(s=>s.id===shopId),data=await dataForStore(shopId);
    const user=userId?shop?.users.find(u=>u.id===userId):null;
    if(userId&&!user)throw Error('O colaborador já não está disponível nesta loja.');
-    const date=rules.periodKey(state.selectedDate),mode='month';
    context={shopId,userId,date,mode};
-    E('macIOSGoalsContext').textContent=(user?.name||shop?.name||'Loja')+' · TMA (segundos)';
-    E('macIOSGoalsMonth').value=date;renderGoalFields(data);
+    E('macIOSGoalsContext').textContent=user?.name||shop?.name||'Loja';
+    renderGoalFields(data);
     dialog.showModal();
   }catch(error){toast(error.message,true);}
  }
@@ -76,7 +74,7 @@
    busy=true;dialog.querySelectorAll('button,input').forEach(b=>b.disabled=true);
   try{
    if(c.shopId===currentShopId&&!await macFlushChangesForExit())throw Error('Existem alterações por guardar. Tenta novamente.');
-    const values={};for(const input of E('macIOSGoalsRows').querySelectorAll('input')){if(input.value==='')continue;const value=Number(input.value);if(!Number.isFinite(value)||value<0)throw Error('Introduz objetivos iguais ou superiores a zero.');values[input.name]=value;}
+    const values={};for(const input of E('macIOSGoalsRows').querySelectorAll('input')){if(!input.value.trim())continue;const value=rules.parseTarget(input.name,input.value);if(!Number.isFinite(value)||value<0)throw Error(input.name==='tma'?'Introduz o objetivo TMA em minutos e segundos, por exemplo 10:00.':'Introduz objetivos numéricos iguais ou superiores a zero. TE e TD aceitam percentagens.');values[input.name]=value;}
    const data=await dataForStore(c.shopId);
    rules.setTargets(data,c.userId,c.date,c.mode,values);
    if(c.shopId===currentShopId){macMarkUnsaved();if(!await persist())throw Error('Objetivos por guardar na Cloud. Mantém esta janela aberta e tenta novamente.');}

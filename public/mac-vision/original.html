@@ -5575,7 +5575,7 @@ start().catch(err=>{console.error(err);toast('Erro ao iniciar: '+err.message,tru
  const previousOptions=renderOptions;
  renderOptions=function(...args){const result=previousOptions.apply(this,args);showSelector();return result;};
 
- async function refreshAll(){
+ async function refreshAll(forExport=false){
    if(!permitted()||!allSelected)return;
    const seq=++loadSequence;
    const select=node();if(select)select.disabled=true;
@@ -5594,6 +5594,7 @@ start().catch(err=>{console.error(err);toast('Erro ao iniciar: '+err.message,tru
      // The area panel uses the original per-shop data, not the synthetic sum.
      await macAreaOverview();
    }catch(err){
+     if(forExport)throw err;
      console.warn('Visão consolidada por lojas:',err);
      toast('Não foi possível calcular Todas as Lojas: '+err.message,true);
      allSelected=false;snapshots=null;
@@ -5602,6 +5603,8 @@ start().catch(err=>{console.error(err);toast('Erro ao iniciar: '+err.message,tru
      if(seq===loadSequence){showSelector();if(select)select.disabled=false;}
    }
  }
+
+ window.macRefreshOverviewForExport=()=>refreshAll(true);
 
  node()?.addEventListener('change',function(event){
    const selected=event.target.value;

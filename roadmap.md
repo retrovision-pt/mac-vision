@@ -1,5 +1,11 @@
 # MAC Vision
 
+## Ajustes de objetivos, cores e envio (21/11)
+- [x] Objetivos mensais pelo contexto selecionado, sem campos de mês/ano; percentagens TE/TD e TMA em minutos/segundos.
+- [x] Cores TE ≥35% e TD ≤12%; zero sem objetivo neutro em lojas, colaboradores e imagens.
+- [x] Atualizar os quadros antes do envio e preservar a apresentação visível da Visão Geral e IOS.
+- [ ] Confirmar envio numa sessão real: sessão autorizada indisponível; não criar contas nem modificar registos reais.
+
 ## Quadro IOS apenas com realizados (21/11)
 - [x] Remover os objetivos visíveis de lojas e colaboradores e das imagens da Visão Geral e Quadro IOS.
 - [x] Manter comparação mensal interna, cores existentes e configuração pelos popups, sem alterar objetivos ou realizados guardados.

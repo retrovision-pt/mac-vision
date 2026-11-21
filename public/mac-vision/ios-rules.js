@@ -4,6 +4,27 @@
  const key=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]/g,'').toUpperCase();
  const defs=[['⚖️|PONDERADOS','points'],['🏠|FIXO','fixed'],['📱|MÓVEL','mobile'],['🎯|MARCAÇÕES','marks'],['💼|+ NEGÓCIOS','business'],['📺|NC','nc'],['🚨|ALARMES','alarms'],['⚡|TV','energyTv'],['👨🏻‍💻|ATD','attended'],['📈|TE','te'],['🚨|TD','td'],['📈|TMA','tma']];
   const goal=(actual,target,hasData=true)=>!hasData||actual==null||target==null||target===''||!Number.isFinite(Number(actual))||!Number.isFinite(Number(target))?null:Number(actual)>=Number(target)?'good':'bad';
+ const performance=(indicator,actual,target,hasData=true)=>{
+  if(!hasData||actual==null||actual===''||!Number.isFinite(Number(actual)))return null;
+  if(Number(actual)===0&&(target==null||target===''))return null;
+  if(indicator==='td')return Number(actual)<=12?'good':'bad';
+  if(indicator==='te')return Number(actual)>=35?'good':'bad';
+  return goal(actual,target,hasData);
+ };
+ const parseTarget=(indicator,input)=>{
+  const text=String(input).trim();if(!text)return null;
+  if(indicator==='tma'){
+   const match=text.match(/^(\d+):([0-5]\d)$/);if(!match)return NaN;
+   return Number(match[1])*60+Number(match[2]);
+  }
+  const number=Number(text.replace(/%\s*$/,'').replace(',','.'));
+  return /%/.test(text)&&!['te','td'].includes(indicator)?NaN:number;
+ };
+ const formatTarget=(indicator,value)=>{
+  if(value==null)return '';
+  if(indicator==='tma'){const seconds=Math.round(Number(value));return Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0');}
+  return String(value)+(['te','td'].includes(indicator)?'%':'');
+ };
   const periodKey=date=>String(date).slice(0,7);
   const monthToDate=(rows,date)=>(rows||[]).filter(row=>String(row.date).slice(0,7)===periodKey(date)&&String(row.date)<=date);
  const targets=(data,id,date,mode)=>id?data.macIOSGoals?.users?.[id]?.[periodKey(date,mode)]||{}:data.macIOSGoals?.store?.[periodKey(date,mode)]||{};
@@ -60,5 +81,5 @@
   }
   return [...result.values()];
  }
-  root.macIOSRules={key,defs,goal,periodKey,monthToDate,targets,setTargets,removeFromMonth,scheduleLines,setScheduleVisibility,personId,areaStaff};
+  root.macIOSRules={key,defs,goal,performance,parseTarget,formatTarget,periodKey,monthToDate,targets,setTargets,removeFromMonth,scheduleLines,setScheduleVisibility,personId,areaStaff};
 })(typeof window==='undefined'?globalThis:window);

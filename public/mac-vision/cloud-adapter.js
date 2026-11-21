@@ -518,18 +518,24 @@ html body #macChatPanel .mcv-item{align-items:center!important}html body #macCha
    e depois de uma gravação, sem nunca substituir alterações ainda por guardar. */
 (function(){
  let busy=false;
- async function macPullStore(){
-  if(busy||!session||!currentShopId||macStateDirty||saveTimer!==null||document.hidden)return;
+ async function macPullStore(forExport=false){
+  if(busy||!session||!currentShopId||macStateDirty||saveTimer!==null||(!forExport&&document.hidden))return;
   busy=true;const shopId=currentShopId;
   try{
    const raw=await macRPC('read',{key:'store:'+shopId,accept:true});
-   let next;try{next=window.macCommissionHydrate?await window.macCommissionHydrate(shopId,raw):raw;}catch(e){return;}
-   if(!next||!session||currentShopId!==shopId||macStateDirty||saveTimer!==null)return;
+   let next;try{next=window.macCommissionHydrate?await window.macCommissionHydrate(shopId,raw):raw;}catch(e){if(forExport)throw e;return;}
+   if(!next||!session||currentShopId!==shopId||macStateDirty||saveTimer!==null){if(forExport)throw Error('A seleção ou os dados mudaram. Tenta enviar novamente.');return;}
    if(!sameState(next,state)){const d=state.selectedDate;state=shape(next);if(d)state.selectedDate=d;render();}
-  }catch(e){console.warn('Atualização Cloud da loja não concluída',e);}finally{busy=false;}
+  }catch(e){if(forExport)throw e;console.warn('Atualização Cloud da loja não concluída',e);}finally{busy=false;}
  }
- document.addEventListener('visibilitychange',()=>{if(!document.hidden)macPullStore();});
- window.addEventListener('focus',macPullStore);
+ window.macRefreshForExport=async function(){
+  const started=Date.now();while(busy){if(Date.now()-started>15000)throw Error('A atualização ainda está em curso. Tenta novamente.');await new Promise(resolve=>setTimeout(resolve,50));}
+  if(!session||!currentShopId)throw Error('Inicia sessão para enviar os resultados.');
+  if(macStateDirty||saveTimer!==null)throw Error('Existem alterações por guardar. Guarda-as antes de enviar.');
+  await macPullStore(true);
+ };
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)void macPullStore();});
+ window.addEventListener('focus',()=>void macPullStore());
  window.addEventListener('mac-cloud-recovered',()=>{if(macStateDirty||saveTimer!==null){window.macPullAfterSave=true;return;}window.macPullAfterSave=false;void macPullStore();if(window.macCommissionRefresh)void window.macCommissionRefresh(true).catch(console.warn);});
  const p=persist;persist=async function(){const ok=await p.apply(this,arguments);if(ok&&window.macPullAfterSave){window.macPullAfterSave=false;setTimeout(macPullStore,0);}return ok;};
 })();
