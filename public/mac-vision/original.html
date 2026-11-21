@@ -5330,9 +5330,9 @@ start().catch(err=>{console.error(err);toast('Erro ao iniciar: '+err.message,tru
  }
  async function renderImage(){return window.macExportImage.render('overview');}
   async function blobFromCanvas(canvas){
-    // PNG usa compressão sem perda (DEFLATE): sem artefactos de JPEG.
-    const result=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
-    if(!result || result.type!=='image/png')throw new Error('Não foi possível gerar o PNG sem perda de qualidade.');
+    // JPEG de alta qualidade: ficheiro leve e compatível com WhatsApp, sem perda visível.
+    const result=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.92));
+    if(!result || result.type!=='image/jpeg')throw new Error('Não foi possível gerar a imagem JPEG.');
     return result;
   }
  function downloadFile(blob,filename){
@@ -5352,8 +5352,8 @@ start().catch(err=>{console.error(err);toast('Erro ao iniciar: '+err.message,tru
    const shopName=canvas.macExportMetadata.shop;
    const shareDate=date.split('-').reverse().join('/');
    const description='Fecho "'+shopName+'" '+shareDate;
-   const filename='Fecho_'+shopName.replace(/[^a-zA-Z0-9À-ÿ_-]+/g,'_')+'_'+date+'.png';
-   const file=new File([blob],filename,{type:'image/png'});
+   const filename='Fecho_'+shopName.replace(/[^a-zA-Z0-9À-ÿ_-]+/g,'_')+'_'+date+'.jpg';
+   const file=new File([blob],filename,{type:'image/jpeg'});
    const title='Fecho '+shopName;
    if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
     try{await navigator.share({files:[file],title,text:description});return}
@@ -5362,7 +5362,7 @@ start().catch(err=>{console.error(err);toast('Erro ao iniciar: '+err.message,tru
    downloadFile(blob,filename);
    whatsappLink.href='https://api.whatsapp.com/send?text='+encodeURIComponent(description);
    if(typeof shareDialog.showModal==='function')shareDialog.showModal();
-   else alert('Imagem PNG sem perda descarregada. Para enviar, abre o WhatsApp e anexa o ficheiro. Texto: '+description);
+   else alert('Imagem JPG descarregada. Para enviar, abre o WhatsApp e anexa o ficheiro. Texto: '+description);
   }catch(err){console.error('Falha ao criar imagem da Visão Geral',err);
    if(typeof toast==='function')toast('Não foi possível gerar a imagem: '+err.message,true);
    else alert('Não foi possível gerar a imagem: '+err.message);
@@ -5479,7 +5479,7 @@ start().catch(err=>{console.error(err);toast('Erro ao iniciar: '+err.message,tru
   return headHeight+3+Math.max(1,Math.min(35,rows.length))*(rowHeight+3)+15;
  }
  async function makeIOSCanvas(){return window.macExportImage.render('ios');}
- async function blobOf(canvas){return new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Falha ao guardar a imagem.')),'image/png'))}
+ async function blobOf(canvas){return new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Falha ao guardar a imagem.')),'image/jpeg',0.92))}
  function download(blob,name){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),30000)}
  $('macShareIOS')?.addEventListener('click',async e=>{
   const button=e.currentTarget;if(button.disabled)return;button.disabled=true;const before=button.textContent;button.textContent='…';
@@ -5492,14 +5492,14 @@ start().catch(err=>{console.error(err);toast('Erro ao iniciar: '+err.message,tru
    const displayDate=/^\d{4}-\d{2}-\d{2}$/.test(isoDate)?isoDate.split('-').reverse().join('-'):
     (($('globalDateView')?.value||'').replace(/\//g,'-')||'Sem data');
    const title='Quadro IOS - '+shopName+' - '+displayDate;
-   const name=title.replace(/[\\/:*?"<>|\x00-\x1f]/g,'-').replace(/\s+/g,' ').trim()+'.png';
-   const f=new File([blob],name,{type:'image/png'});
+   const name=title.replace(/[\\/:*?"<>|\x00-\x1f]/g,'-').replace(/\s+/g,' ').trim()+'.jpg';
+   const f=new File([blob],name,{type:'image/jpeg'});
    if(navigator.share&&navigator.canShare&&navigator.canShare({files:[f]})){
     try{await navigator.share({files:[f],title,text:title});return}catch(error){if(error?.name==='AbortError')return}
    }
    download(blob,name);
    const d=$('macShareDialog'),wa=$('macShareOpenWhatsApp');if(wa)wa.href='https://api.whatsapp.com/send?text='+encodeURIComponent(title);
-   if(d?.showModal)d.showModal();else alert('Imagem PNG guardada. Podes anexá-la no WhatsApp.');
+   if(d?.showModal)d.showModal();else alert('Imagem JPG guardada. Podes anexá-la no WhatsApp.');
   }catch(error){console.error(error);if(typeof toast==='function')toast('Erro ao partilhar Quadro IOS: '+error.message,true);}
   finally{button.disabled=false;button.textContent=before}
  });
