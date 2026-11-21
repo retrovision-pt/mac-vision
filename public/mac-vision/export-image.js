@@ -58,6 +58,7 @@
      #mainApp .mac-ios-goal-caption{display:none!important}
      #mainApp .topbar{margin-bottom:24px!important}
      #mainApp main *{animation:none!important;transition:none!important}
+     #mainApp,#mainApp main,#mainApp main .page,#mainApp main *{content-visibility:visible!important;contain:none!important;contain-intrinsic-size:none!important}
      #mainApp .topbar{display:flex!important;flex-wrap:nowrap!important;align-items:flex-start!important;justify-content:space-between!important;gap:16px!important}
      #mainApp .topbar>*{min-width:0!important}
      #mainApp #metrics{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:10px!important;align-items:stretch!important}
