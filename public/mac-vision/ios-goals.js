@@ -32,7 +32,6 @@
      if(!status)cell.classList.add('mac-ios-goal-neutral');
     if(goal==null)continue;
     cell.dataset.goal=goal;cell.classList.add('mac-ios-goal');if(status)cell.classList.add('mac-ios-goal-'+status);
-     const small=document.createElement('small');small.className='mac-ios-goal-caption';small.textContent=nf(goal,Number.isInteger(Number(goal))?0:2);small.setAttribute('aria-label','Objetivo '+small.textContent);cell.appendChild(small);
    }
   }
  }

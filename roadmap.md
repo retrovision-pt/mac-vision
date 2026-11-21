@@ -1,5 +1,9 @@
 # MAC Vision
 
+## Quadro IOS apenas com realizados (21/11)
+- [x] Remover os objetivos visíveis de lojas e colaboradores e das imagens da Visão Geral e Quadro IOS.
+- [x] Manter comparação mensal interna, cores existentes e configuração pelos popups, sem alterar objetivos ou realizados guardados.
+
 ## Objetivos exclusivamente mensais (21/11)
 - [x] Seleção de mês/ano nos objetivos individuais e de loja; objetivos diários antigos preservados, mas não utilizados.
 - [x] Cores IOS pelo acumulado mensal até à data escolhida; realizados existentes mantidos e um único objetivo numérico também nas imagens.

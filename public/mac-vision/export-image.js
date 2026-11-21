@@ -8,8 +8,7 @@
  const cell=node=>{
   const css=getComputedStyle(node),target=node.getAttribute('data-target')??node.getAttribute('data-goal');
   const copy=node.cloneNode(true);copy.querySelectorAll('.mac-ios-goal-caption').forEach(n=>n.remove());
-  const caption=node.querySelector('.mac-ios-goal-caption');
-  return {text:clean(copy)+(caption?' · '+caption.textContent.trim():''),photo:node.querySelector('img')?.src||'',configuredGoal:target!==null,fg:css.color,bg:css.backgroundColor};
+  return {text:clean(copy),photo:node.querySelector('img')?.src||'',configuredGoal:target!==null,fg:css.color,bg:css.backgroundColor};
  };
  function personGoal(item,name,actual){
   if(item.configuredGoal)return item;
@@ -21,7 +20,6 @@
   const sales=ios.monthToDate(state.sales,date).filter(s=>ios.personId(currentStore(),state,s.employee)===id);
   const accumulated=sales.reduce((sum,s)=>sum+num(s.points),0);
   const result=ios.goal(accumulated,target,sales.length>0);
-  item.text+=' · '+nf(Number(target),Number.isInteger(Number(target))?0:2);
   if(!result)return item;
   item.bg=token(result==='good'?'--traffic-good':'--red');item.fg=token('--nav');
   return item;
@@ -91,7 +89,7 @@
   for(const turn of state.schedules||[])if(allowed.has(rules.key(turn.employee))&&typeof employeeName==='function')allowed.add(rules.key(employeeName(turn.employee)));
   const blocks=[];
   if(kind==='ios'){
-   blocks.push(table(E('macIosTopGrid'),'Resultados da loja'),table(E('macIosPeopleGrid'),'Resultados e objetivos individuais'));
+   blocks.push(table(E('macIosTopGrid'),'Resultados da loja'),table(E('macIosPeopleGrid'),'Resultados individuais'));
    const products=E('iosProducts');if(visible(products)&&clean(products))blocks.push({title:'Detalhe de produtos e ações',rows:[[{text:clean(products)}]]});
   }else{
    blocks.push(metrics(E('metrics'),'Vendas'),metrics(E('trafficMetrics'),'Tráfego'));
@@ -100,7 +98,7 @@
    const area=E('macAreaOverview');if(visible(area))blocks.push(list(area,'Colaboradores escalados'));
    // Include only IOS data actually displayed in the overview, never hidden/stale IOS panels.
    for(const node of E('page-dashboard').querySelectorAll('.mac-ios-table,table')){
-    if(visible(node)&&!node.closest('#productivityTable'))blocks.push(table(node,'Objetivos e resultados IOS',allowed));
+    if(visible(node)&&!node.closest('#productivityTable'))blocks.push(table(node,'Resultados IOS',allowed));
    }
   }
   const sections=blocks.filter(b=>b&&b.rows.length);
