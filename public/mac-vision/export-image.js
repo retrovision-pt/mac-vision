@@ -75,6 +75,12 @@
      #mainApp,#mainApp main,#mainApp main .page,#mainApp main *{content-visibility:visible!important;contain:none!important;contain-intrinsic-size:none!important}
      #mainApp .topbar{display:flex!important;flex-wrap:nowrap!important;align-items:flex-start!important;justify-content:space-between!important;gap:16px!important}
      #mainApp .topbar>*{min-width:0!important}
+     #mainApp .top-controls{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;justify-content:flex-end!important;gap:10px!important;width:auto!important;max-width:100%!important}
+     #mainApp .top-controls #storeSelect{flex:0 1 auto!important;width:auto!important;min-width:0!important;max-width:240px!important}
+     #mainApp .top-controls .date-share-group{display:flex!important;align-items:center!important;gap:8px!important;flex:0 0 auto!important;width:auto!important;max-width:none!important}
+     #mainApp .top-controls .date-pt-wrap{flex:0 0 auto!important;width:auto!important;min-width:0!important;max-width:none!important;padding:0 14px!important;justify-content:center!important}
+     #mainApp .top-controls .date-pt-wrap #globalDateView{flex:0 0 auto!important;width:112px!important;min-width:112px!important;max-width:112px!important;text-align:center!important;font-size:14px!important;padding:7px 0!important}
+     #mainApp .top-controls .date-pt-wrap #globalDate,#mainApp .top-controls .date-pt-wrap #openCalendar{display:none!important}
      #mainApp #metrics{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:10px!important;align-items:stretch!important}
      #mainApp #trafficMetrics{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:10px!important;align-items:stretch!important}
      #mainApp #trafficMetrics>*{grid-column:span 2!important;min-width:0!important}
