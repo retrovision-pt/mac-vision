@@ -96,3 +96,9 @@ Não publicar sem autorização.
 - [x] Operações globais do Gestor MAC Vision e proteção server-side; gestor normal limitado; editor administrativo aberto com sessão autorizada.
 - [x] Arquivamento preserva históricos e bloqueia alterações/eliminação; desativação global protege dono, sessão própria e último administrador MAC.
 - [ ] Confirmação de gravação real de SIM/NÃO entre sessões e operações administrativas reais: não exercitadas por proibição de criar dados fictícios ou alterar registos reais sem autorização.
+
+## Partilha da Visão Geral e Quadro IOS (21/11)
+- [x] Adaptar dimensões, texto e fotografias das imagens sem cortar colaboradores ou indicadores; PNG sem perdas, sem limites de 14/35/100 pessoas.
+- [x] Visão Geral: exportar apenas colaboradores escalados na data, sem loja junto ao nome, incluindo tabelas IOS visíveis e metas diárias existentes, sem inventar objetivos de loja.
+- [x] Quadro IOS: preservar valores e objetivos configurados, cores e legibilidade; ambos os botões descarregaram PNG com sessão autorizada e dados reais; verificado também a 603×780, sem gravar registos.
+- [ ] Partilha nativa para WhatsApp no dispositivo: depende do sistema do utilizador; download alternativo validado.

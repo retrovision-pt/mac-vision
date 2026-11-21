@@ -5290,6 +5290,8 @@ start().catch(err=>{console.error(err);toast('Erro ao iniciar: '+err.message,tru
 
 })();
 </script>
+<script src="/mac-vision/export-rules.js"></script>
+<script src="/mac-vision/export-image.js"></script>
 <script>
 /* MAC Vision — resumo gráfico da Visão Geral e partilha por WhatsApp. Sem bibliotecas externas. */
 (function(){
@@ -5331,144 +5333,7 @@ start().catch(err=>{console.error(err);toast('Erro ao iniciar: '+err.message,tru
    };
   });
  }
- function renderImage(){
-   const rankRows=[...document.querySelectorAll('#ranking .rank-row')];
-   const salesRows=[...document.querySelectorAll('#breakdown .chart-row')];
-   const shifts=[...document.querySelectorAll('#todaySchedule .rank-row')];
-   const count=Math.min(100,Math.max(rankRows.length,salesRows.length,shifts.length));
-   const panelHeight=Math.max(290,92+count*44);
-   const areaPanel=document.getElementById('macAreaOverview');
-   const areaVisible=!!areaPanel&&!areaPanel.hidden&&!!areaPanel.textContent.trim();
-   const areaShops=areaVisible?[...areaPanel.querySelectorAll('.mac-area-shop-item')]:[];
-   const areaStaff=areaVisible?[...areaPanel.querySelectorAll('.mac-area-employee-line')]:[];
-   const staffCount=Math.min(14,areaStaff.length);
-   const areaHeight=areaVisible?115+Math.max(1,Math.ceil(areaShops.length/2))*84+(staffCount?42+staffCount*26:0):0;
-   const areaOffset=areaVisible?areaHeight+20:0;
-   const W=1500,H=1080+panelHeight+28+areaOffset,scale=1.12;
-   const canvas=document.createElement('canvas');canvas.width=Math.round(W*scale);canvas.height=Math.round(H*scale);
-  const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Este navegador não suporta a criação da imagem.');
-  ctx.scale(scale,scale);
-  const bg='#f7f9f1',cardBg='#ffffff';
-  const card2='#edf3d9',border='#cddbb3';
-  const fg='#26321e',muted='#596a4c';
-  const green='#637f08';
-  ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
-  print(ctx,window.macWalletHeader?.()||'CARTEIRA EMR - PDS',36,38,750,{font:'800 16px Arial',color:green});
-  print(ctx,'Visão Geral',36,98,740,{font:'800 48px Arial',color:fg});
-  print(ctx,'Acompanhamento de vendas, objetivos e produtividade em tempo real.',36,134,980,{font:'400 18px Arial',color:muted});
-  const storeChoice=document.getElementById('storeSelect')?.selectedOptions?.[0];
-  const store=storeChoice?.value==='__mac_todas_as_lojas__'?'Todas as Lojas':
-    storeChoice?.textContent?.trim()||(typeof currentStore==='function'?currentStore()?.name:'')||'Loja';
-  const date=document.getElementById('globalDateView')?.value||'';
-  rounded(ctx,1085,34,177,45,12,card2,border);
-  print(ctx,store,1173,63,154,{font:'700 18px Arial',color:fg,align:'center'});
-  print(ctx,'Loja: '+store,36,160,1300,{font:'700 15px Arial',color:muted});
-  rounded(ctx,1274,34,191,45,12,card2,border);
-  print(ctx,date,1369,63,162,{font:'700 18px Arial',color:fg,align:'center'});
-  rounded(ctx,27,171,1446,87,18,cardBg,border);
-  const period=document.getElementById('displayPeriod')?.textContent?.trim()||'Resultados do dia';
-  print(ctx,period,54,223,1120,{font:'700 20px Arial',color:fg});
-  const monthly=document.querySelector('#periodTabs .selected')?.textContent?.trim()||'Diário';
-  rounded(ctx,1292,188,160,48,13,card2,border);
-  print(ctx,monthly,1372,217,135,{font:'700 17px Arial',color:green,align:'center'});
-  if(areaVisible){
-   rounded(ctx,28,275,1445,areaHeight,18,cardBg,border);
-   print(ctx,text(areaPanel,'.section-head h2')||'Gestor de Área — Todas as lojas',50,311,1000,{font:'800 22px Arial',color:fg});
-   print(ctx,text(areaPanel,'.section-head .tag')||'',1450,311,330,{font:'800 18px Arial',color:green,align:'right'});
-   print(ctx,text(areaPanel,'.section-head p'),50,337,1250,{font:'400 14px Arial',color:muted});
-   areaShops.forEach((node,i)=>{
-    const col=i%2,row=Math.floor(i/2),xx=49+col*706,yy=353+row*84;
-    rounded(ctx,xx,yy,693,75,10,card2,border);
-    print(ctx,text(node,'strong'),xx+12,yy+23,650,{font:'700 16px Arial',color:fg});
-    print(ctx,text(node,'b'),xx+12,yy+46,640,{font:'800 17px Arial',color:green});
-    print(ctx,text(node,'p'),xx+12,yy+67,660,{font:'400 12px Arial',color:muted});
-   });
-   if(staffCount){
-    let yy=353+Math.max(1,Math.ceil(areaShops.length/2))*84;
-    print(ctx,'Colaboradores de todas as lojas ('+areaStaff.length+')',50,yy+20,900,{font:'800 16px Arial',color:fg});
-    areaStaff.slice(0,staffCount).forEach((node,i)=>{
-     print(ctx,text(node,'span'),50,yy+43+i*26,1150,{font:'400 13px Arial',color:fg});
-     print(ctx,text(node,'strong'),1449,yy+43+i*26,150,{font:'800 13px Arial',color:green,align:'right'});
-    });
-    if(areaStaff.length>staffCount)print(ctx,'+'+(areaStaff.length-staffCount)+' colaboradores adicionais',51,275+areaHeight-12,760,{font:'400 12px Arial',color:muted});
-   }
-  }
-  rounded(ctx,28,288+areaOffset,54,54,15,card2,border);
-  print(ctx,'✦',55,325+areaOffset,40,{font:'700 28px Arial',color:fg,align:'center'});
-  print(ctx,'Vendas',98,308+areaOffset,850,{font:'800 23px Arial',color:fg});
-  print(ctx,'Indicadores comerciais da loja e detalhe por produto',98,338+areaOffset,1000,{font:'400 16px Arial',color:muted});
-  rounded(ctx,1196,283+areaOffset,273,68,15,card2,border);
-  print(ctx,'Ponderação total',1216,322+areaOffset,166,{font:'800 14px Arial',color:fg});
-  print(ctx,document.getElementById('totalProductionPoints')?.textContent?.trim()||'0,00',1453,328+areaOffset,102,{font:'800 32px Arial',color:green,align:'right'});
-  function drawCards(list,y,h,limit){
-   const gap=12,x0=27,right=1473,n=list.length||1;
-   const cardW=(right-x0-gap*(n-1))/n;
-   list.forEach((item,i)=>{
-    const x=x0+i*(cardW+gap),inner=x+14,usable=cardW-28;
-    rounded(ctx,x,y,cardW,h,19,cardBg,border);
-    print(ctx,item.title,inner,y+33,usable-33,{font:'800 17px Arial',color:fg});
-    rounded(ctx,x+cardW-52,y+14,37,37,11,card2,null);
-    print(ctx,item.icon,x+cardW-33,y+40,32,{font:'20px Arial',align:'center',color:fg});
-    print(ctx,item.value,inner,y+(limit?110:108),usable,{font:'800 38px Arial',color:green});
-    if(limit){
-     item.details.slice(0,4).forEach((d,j)=>{
-      const yy=y+135+j*40;
-      rounded(ctx,inner,yy,usable,34,8,card2,border);
-      print(ctx,d,x+cardW/2,yy+22,usable-12,{font:'500 14px Arial',color:fg,align:'center'});
-     });
-    }else if(item.desc){
-     print(ctx,item.desc,inner,y+145,usable,{font:'400 14px Arial',color:muted});
-    }
-   });
-  }
-  drawCards(readCards(document.getElementById('metrics')),367+areaOffset,317,true);
-  rounded(ctx,28,716+areaOffset,54,54,15,card2,border);
-  print(ctx,'🎫',55,752+areaOffset,46,{font:'24px Arial',align:'center',color:fg});
-  print(ctx,'Tráfego',98,737+areaOffset,950,{font:'800 23px Arial',color:fg});
-  print(ctx,'MOVIIK · entrados, atendidos e qualidade de atendimento',98,766+areaOffset,1080,{font:'400 16px Arial',color:muted});
-   drawCards(readCards(document.getElementById('trafficMetrics')),804+areaOffset,197,false);
-   // A exportação inclui todas as secções até à Escala Mensal da Visão Geral.
-   const y=1034+areaOffset,gap=13,panelW=(1446-2*gap)/3,x0=27;
-   const panels=[
-    {title:'🏆 Ranking de Vendas',rows:rankRows},
-    {title:'📈 Distribuição de Vendas',rows:salesRows},
-    {title:'📆 Escala Mensal',rows:shifts}
-   ];
-   panels.forEach((panel,p)=>{
-    const x=x0+p*(panelW+gap);
-    rounded(ctx,x,y,panelW,panelHeight,18,cardBg,border);
-    print(ctx,panel.title,x+19,y+40,panelW-36,{font:'800 19px Arial',color:fg});
-    const list=panel.rows.slice(0,100);
-    list.forEach((node,i)=>{
-     const yy=y+81+i*44;
-     if(p===0){
-      const label=text(node,'.person-line')||text(node,'.rank-title');
-      const points=text(node,'.standout');
-      print(ctx,(i+1)+'. '+label,x+16,yy,panelW-135,{font:'700 14px Arial',color:fg});
-      print(ctx,points,x+panelW-13,yy,116,{font:'700 14px Arial',color:green,align:'right'});
-      const width=parseFloat(node.querySelector('.bar')?.style.width)||0;
-      rounded(ctx,x+17,yy+8,(panelW-34),7,4,card2,null);
-      if(width>0)rounded(ctx,x+17,yy+8,Math.max(3,(panelW-34)*Math.min(100,width)/100),7,4,green,null);
-     }else if(p===1){
-      print(ctx,text(node,'.label'),x+17,yy,panelW-135,{font:'700 14px Arial',color:fg});
-      print(ctx,text(node,'.n'),x+panelW-15,yy,100,{font:'700 14px Arial',color:green,align:'right'});
-      rounded(ctx,x+17,yy+8,panelW-34,7,4,card2,null);
-      const width=parseFloat(node.querySelector('.bar')?.style.width)||0;
-      if(width>0)rounded(ctx,x+17,yy+8,Math.max(3,(panelW-34)*Math.min(100,width)/100),7,4,green,null);
-     }else{
-      const label=text(node,'div:first-child');
-      const code=text(node,'.tag');
-      const time=text(node,'.smalltext');
-      print(ctx,label,x+17,yy,panelW-115,{font:'700 14px Arial',color:fg});
-      print(ctx,code,x+panelW-16,yy,90,{font:'700 14px Arial',color:green,align:'right'});
-      if(time)print(ctx,time,x+17,yy+18,panelW-34,{font:'400 12px Arial',color:muted});
-     }
-    });
-    if(!list.length)print(ctx,'Sem dados no período selecionado',x+18,y+100,panelW-35,{font:'400 14px Arial',color:muted});
-    if(panel.rows.length>100)print(ctx,'+'+(panel.rows.length-100)+' registos adicionais',x+18,y+panelHeight-16,panelW-35,{font:'400 12px Arial',color:muted});
-   });
-   return canvas;
- }
+ async function renderImage(){return window.macExportImage.render('overview');}
   async function blobFromCanvas(canvas){
     // PNG usa compressão sem perda (DEFLATE): sem artefactos de JPEG.
     const result=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
@@ -5486,12 +5351,10 @@ start().catch(err=>{console.error(err);toast('Erro ao iniciar: '+err.message,tru
   shareButton.disabled=true;
   const oldText=shareButton.textContent;shareButton.textContent='…';
   try{
-   const canvas=renderImage();
+   const canvas=await renderImage();
    const blob=await blobFromCanvas(canvas);
-   const date=typeof state!=='undefined'&&state?.selectedDate?state.selectedDate:new Date().toISOString().slice(0,10);
-   const shopChoice=document.getElementById('storeSelect')?.selectedOptions?.[0];
-   const shopName=shopChoice?.value==='__mac_todas_as_lojas__'?'Todas as Lojas':
-     shopChoice?.textContent?.trim()||(typeof currentStore==='function'?currentStore()?.name:'')||'Loja';
+   const date=canvas.macExportMetadata.date;
+   const shopName=canvas.macExportMetadata.shop;
    const shareDate=date.split('-').reverse().join('/');
    const description='Fecho "'+shopName+'" '+shareDate;
    const filename='Fecho_'+shopName.replace(/[^a-zA-Z0-9À-ÿ_-]+/g,'_')+'_'+date+'.png';
@@ -5620,48 +5483,28 @@ start().catch(err=>{console.error(err);toast('Erro ao iniciar: '+err.message,tru
   if(rows.length===0)drawText(ctx,'Sem registos para este período',x+15,yy+24,W-30,{font:'13px Arial'});
   return headHeight+3+Math.max(1,Math.min(35,rows.length))*(rowHeight+3)+15;
  }
- function makeIOSCanvas(){
-  const top=$('macIosTopGrid'),people=$('macIosPeopleGrid');
-  if(!top||!people)throw new Error('O Quadro IOS ainda não está preparado.');
-  const n=people.querySelectorAll('.mac-ios-person-row').length;
-  const W=1500,topH=72+45+15,peopleH=72+Math.max(1,Math.min(35,n))*43+15,H=195+topH+70+peopleH+75;
-  const canvas=document.createElement('canvas');canvas.width=W*2;canvas.height=H*2;
-  const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Não foi possível gerar imagem.');ctx.scale(2,2);
-  ctx.fillStyle='#f7f9f1';ctx.fillRect(0,0,W,H);
-  drawText(ctx,window.macWalletHeader?.()||'CARTEIRA EMR - PDS',32,38,600,{font:'800 17px Arial',color:'#6b880b'});
-  drawText(ctx,'Quadro IOS',32,91,580,{font:'800 42px Arial'});
-  const shop=$('storeSelect')?.selectedOptions?.[0]?.textContent?.trim()||'Loja';
-  const date=$('globalDateView')?.value||'';
-  drawText(ctx,shop,970,48,490,{font:'700 18px Arial',color:'#596a4c'});
-  drawText(ctx,date,970,77,490,{font:'700 16px Arial',color:'#596a4c'});
-  let y=121;rounded(ctx,20,y,W-40,topH+51,16,'#ffffff');drawText(ctx,'▤ Quadro IOS',40,y+36,900,{font:'800 21px Arial'});
-  drawGrid(ctx,top,40,y+56,W-80);y+=topH+69;
-  rounded(ctx,20,y,W-40,peopleH+58,16,'#ffffff');drawText(ctx,'Produção por colaborador',40,y+35,930,{font:'800 21px Arial'});
-  drawGrid(ctx,people,40,y+52,W-80);
-  return canvas;
- }
- async function blobOf(canvas){return new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Falha ao guardar a imagem.')),'image/jpeg',.78))}
+ async function makeIOSCanvas(){return window.macExportImage.render('ios');}
+ async function blobOf(canvas){return new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Falha ao guardar a imagem.')),'image/png'))}
  function download(blob,name){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),30000)}
  $('macShareIOS')?.addEventListener('click',async e=>{
   const button=e.currentTarget;if(button.disabled)return;button.disabled=true;const before=button.textContent;button.textContent='…';
   try{
-   const blob=await blobOf(makeIOSCanvas());
+   const canvas=await makeIOSCanvas();
+   const blob=await blobOf(canvas);
    // O nome do anexo e o assunto enviado usam a loja e a data efetivamente selecionadas.
-   const selectedShop=$('storeSelect')?.selectedOptions?.[0];
-   const shopName=selectedShop?.value==='__mac_todas_as_lojas__'?'Todas as Lojas':
-    (selectedShop?.textContent?.trim()||currentStore()?.name||'Loja');
-   const isoDate=$('globalDate')?.value||state?.selectedDate||'';
+   const shopName=canvas.macExportMetadata.shop;
+   const isoDate=canvas.macExportMetadata.date;
    const displayDate=/^\d{4}-\d{2}-\d{2}$/.test(isoDate)?isoDate.split('-').reverse().join('-'):
     (($('globalDateView')?.value||'').replace(/\//g,'-')||'Sem data');
    const title='Quadro IOS - '+shopName+' - '+displayDate;
-   const name=title.replace(/[\\/:*?"<>|\x00-\x1f]/g,'-').replace(/\s+/g,' ').trim()+'.jpg';
-   const f=new File([blob],name,{type:'image/jpeg'});
+   const name=title.replace(/[\\/:*?"<>|\x00-\x1f]/g,'-').replace(/\s+/g,' ').trim()+'.png';
+   const f=new File([blob],name,{type:'image/png'});
    if(navigator.share&&navigator.canShare&&navigator.canShare({files:[f]})){
     try{await navigator.share({files:[f],title,text:title});return}catch(error){if(error?.name==='AbortError')return}
    }
    download(blob,name);
    const d=$('macShareDialog'),wa=$('macShareOpenWhatsApp');if(wa)wa.href='https://api.whatsapp.com/send?text='+encodeURIComponent(title);
-   if(d?.showModal)d.showModal();else alert('Imagem JPG guardada. Podes anexá-la no WhatsApp.');
+   if(d?.showModal)d.showModal();else alert('Imagem PNG guardada. Podes anexá-la no WhatsApp.');
   }catch(error){console.error(error);if(typeof toast==='function')toast('Erro ao partilhar Quadro IOS: '+error.message,true);}
   finally{button.disabled=false;button.textContent=before}
  });
