@@ -3229,7 +3229,7 @@ function renderAccess(){
   const card=btn.closest('.mac-user-profile');const name=card?.querySelector('.mac-user-heading strong')?.textContent||'';
   const target=shop.users.find(u=>u.role==='gestor'&&norm(u.name)===norm(name));
   if(!master&&target?.id!==session.id)btn.hidden=true;
-  if(target?.isAreaMaster&&btn.hasAttribute('data-profile-remove'))btn.hidden=true;
+  if(target?.isAreaMaster&&btn.hasAttribute('data-profile-remove')&&!(currentStore()?.users.some(u=>u.id===session?.id&&u.adminRole==='mac')&&target.id!==session?.id))btn.hidden=true;
  }
  refreshUserCandidates().catch(err=>toast(err.message,true));
 }
