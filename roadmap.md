@@ -1,5 +1,11 @@
 # MAC Vision
 
+## Atualização de portabilidade, linhas e objetivos (21/11)
+- [x] Título de portabilidade com 📲, sem alterar deteção nem contagem.
+- [x] Gestão de visibilidade mensal antes de ⇪, preservando horários e gravação Cloud.
+- [x] Popups de objetivos apenas com campos manuais; IOS com um único objetivo sem texto repetido.
+- [ ] Confirmar alterações guardadas numa sessão autorizada; não criar contas nem alterar registos reais para verificar.
+
 ## Atualização geral — objetivos IOS e interface (21/11)
 - [x] Portabilidade por ícone antes de Editar, com gravação Cloud existente.
 - [x] Resumo global apenas de colaboradores escalados, sem duplicados, com fotografia e ponderação.

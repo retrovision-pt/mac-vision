@@ -14,16 +14,22 @@
  function applyGoals(){
   if(!session)return;
   const date=isCollaborator()?localTodayIso():state.selectedDate,mode=isCollaborator()?'day':period;
+  const sales=isCollaborator()?state.sales.filter(x=>x.date===date):dataSales();
+  const tickets=isCollaborator()?state.tickets.filter(x=>x.date===date):dataTickets();
   for(const row of document.querySelectorAll('#macIosTopGrid .mac-ios-total-row,#macIosPeopleGrid .mac-ios-person-row')){
    const name=row.querySelector('.mac-ios-employee-name')?.textContent?.trim();
    const id=name?rules.personId(currentStore(),state,name):null;
    const goals=name&&!id?{}:targets(state,id,date,mode);
+   const matches=record=>!name||(id?rules.personId(currentStore(),state,record.employee)===id:rules.key(record.employee)===rules.key(name));
+   const hasSales=sales.some(matches),hasTickets=tickets.some(matches);
    for(const cell of row.querySelectorAll('[data-ios-key]')){
+     cell.querySelectorAll('.mac-ios-goal-caption').forEach(caption=>caption.remove());
+     cell.classList.remove('mac-ios-goal','mac-ios-goal-good','mac-ios-goal-bad');delete cell.dataset.goal;
     const goal=goals[cell.dataset.iosKey],actual=cell.dataset.actual===''?null:Number(cell.dataset.actual);
-    const status=rules.goal(actual,goal);
+    const status=rules.goal(actual,goal,['attended','te','td','tma'].includes(cell.dataset.iosKey)?hasTickets:hasSales);
     if(goal==null)continue;
     cell.dataset.goal=goal;cell.classList.add('mac-ios-goal');if(status)cell.classList.add('mac-ios-goal-'+status);
-    const small=document.createElement('small');small.className='mac-ios-goal-caption';small.textContent='Objetivo '+format(cell.dataset.iosKey,goal);cell.appendChild(small);
+     const small=document.createElement('small');small.className='mac-ios-goal-caption';small.textContent=nf(goal,Number.isInteger(Number(goal))?0:2);small.setAttribute('aria-label','Objetivo '+small.textContent);cell.appendChild(small);
    }
   }
  }
@@ -31,7 +37,7 @@
  renderIOS=function(){const out=oldIOS.apply(this,arguments);applyGoals();return out;};
  const dialog=document.createElement('dialog');dialog.id='macIOSGoalsDialog';dialog.className='mac-edit-dialog';
  dialog.setAttribute('aria-labelledby','macIOSGoalsTitle');
- dialog.innerHTML='<h2 id="macIOSGoalsTitle">Editar Objetivos</h2><p id="macIOSGoalsContext" class="smalltext muted"></p><form id="macIOSGoalsForm"><div class="mac-ios-goals-header"><span>Indicador</span><span>Objetivo</span><span>Realizado</span></div><div id="macIOSGoalsRows"></div><div class="mac-ios-goals-actions"><button type="submit" class="btn primary">Gravar</button><button type="button" class="btn" id="macIOSGoalsCancel">Cancelar</button></div></form>';
+  dialog.innerHTML='<h2 id="macIOSGoalsTitle">Editar Objetivos</h2><p id="macIOSGoalsContext" class="smalltext muted"></p><form id="macIOSGoalsForm"><div class="mac-ios-goals-header"><span>Indicador</span><span>Objetivo</span></div><div id="macIOSGoalsRows"></div><div class="mac-ios-goals-actions"><button type="submit" class="btn primary">Gravar</button><button type="button" class="btn" id="macIOSGoalsCancel">Cancelar</button></div></form>';
  document.body.appendChild(dialog);
  let context=null,busy=false;
  async function openGoals(shopId,userId){
@@ -44,24 +50,10 @@
    context={shopId,userId,date,mode};
    E('macIOSGoalsContext').textContent=(user?.name||shop?.name||'Loja')+' · '+(mode==='month'?date.slice(0,7):datePT(date))+' · TMA (segundos)';
    const saved=targets(data,userId,date,mode);
-   E('macIOSGoalsRows').innerHTML=rules.defs.map(([label,key])=>'<div class="mac-ios-goals-row" data-key="'+h(key)+'"><label for="macGoal-'+h(key)+'">'+h(label.replace('|',' '))+'</label><input id="macGoal-'+h(key)+'" name="'+h(key)+'" aria-label="Objetivo '+h(label.split('|')[1])+'" type="number" min="0" step="any" value="'+(saved[key]==null?'':h(saved[key]))+'"><output>—</output></div>').join('');
-   await refreshPopup();dialog.showModal();
+    E('macIOSGoalsRows').innerHTML=rules.defs.map(([label,key])=>'<div class="mac-ios-goals-row" data-key="'+h(key)+'"><label for="macGoal-'+h(key)+'">'+h(label.replace('|',' '))+'</label><input id="macGoal-'+h(key)+'" name="'+h(key)+'" aria-label="Objetivo '+h(label.split('|')[1])+'" type="number" min="0" step="any" value="'+(saved[key]==null?'':h(saved[key]))+'"></div>').join('');
+    dialog.showModal();
   }catch(error){toast(error.message,true);}
  }
- async function refreshPopup(){
-  const c=context;if(!c)return;
-  const data=await dataForStore(c.shopId),shop=shopRegistry.find(s=>s.id===c.shopId);
-  const inPeriod=r=>c.mode==='month'?String(r.date).startsWith(c.date.slice(0,7)):r.date===c.date;
-  const match=r=>!c.userId||rules.personId(shop,data,r.employee)===c.userId;
-  const values=summarize((data.sales||[]).filter(r=>inPeriod(r)&&match(r)),(data.tickets||[]).filter(r=>inPeriod(r)&&match(r)));
-  if(context!==c)return;
-  for(const row of E('macIOSGoalsRows').children){
-   const input=row.querySelector('input'),actual=values[row.dataset.key],status=rules.goal(actual,input.value);
-   row.classList.toggle('mac-ios-goal-good',status==='good');row.classList.toggle('mac-ios-goal-bad',status==='bad');
-   row.querySelector('output').textContent=format(row.dataset.key,actual);
-  }
- }
- E('macIOSGoalsRows').addEventListener('input',()=>void refreshPopup().catch(e=>toast(e.message,true)));
  E('macIOSGoalsCancel').addEventListener('click',()=>{if(!busy)dialog.close();});
  dialog.addEventListener('cancel',event=>{if(busy)event.preventDefault();});
  dialog.addEventListener('close',()=>{context=null;});
@@ -86,12 +78,47 @@
  }
  addButton(E('editUserNameRow'),'macEditUserGoals',()=>void openGoals(E('editUserStoreId').value,E('editUserId').value));
  const storeField=E('editStoreName')?.closest('.field');if(storeField){storeField.classList.add('mac-store-goal-field');addButton(storeField,'macEditStoreGoals',()=>void openGoals(E('editStoreId').value,null));}
- setInterval(()=>{if(dialog.open&&!busy)void refreshPopup().catch(()=>{});},3000);
+  const linesDialog=document.createElement('dialog');linesDialog.id='macScheduleLinesDialog';linesDialog.className='mac-edit-dialog';
+  linesDialog.setAttribute('aria-labelledby','macScheduleLinesTitle');
+  linesDialog.innerHTML='<h2 id="macScheduleLinesTitle">✏️ Gerir Linhas da Escala</h2><p id="macScheduleLinesContext" class="smalltext muted"></p><div id="macScheduleLinesRows"></div><div class="mac-ios-goals-actions"><button type="button" class="btn" id="macScheduleLinesClose">Fechar</button></div>';
+  document.body.appendChild(linesDialog);
+  const upload=document.querySelector('#page-schedule label[for="fileSchedule"]');
+  const linesButton=document.createElement('button');linesButton.type='button';linesButton.id='macScheduleLinesOpen';linesButton.className='btn small';linesButton.textContent='✏️';linesButton.title='Gerir Linhas da Escala';linesButton.setAttribute('aria-label',linesButton.title);upload?.before(linesButton);
+  const canManageLines=()=>session?.role==='gestor'?macCanAdministerStore(currentShopId):isCollaborator()&&macCan('schedule.edit');
+  let linesContext=null,linesBusy=false;
+  function renderLines(){
+   const c=linesContext;if(!c||c.shopId!==currentShopId)return;
+   E('macScheduleLinesContext').textContent=(currentStore()?.name||'Loja')+' · '+c.month.slice(5,7)+'/'+c.month.slice(0,4);
+   E('macScheduleLinesRows').innerHTML=rules.scheduleLines(state,c.month).filter(row=>!isScheduleHeadingName(row.name)).sort((a,b)=>a.name.localeCompare(b.name,'pt')).map(row=>{
+    const name=state.macScheduleAliasesByMonth?.[c.month]?.[norm(row.name)]||row.name;
+    return '<div class="mac-schedule-line-row"><span>'+h(name)+'</span><span class="smalltext muted">'+(row.hidden?'Oculta':'Visível')+'</span><button type="button" class="btn small" data-schedule-line="'+h(row.name)+'" data-visible="'+row.hidden+'">'+(row.hidden?'Reverter':'Ocultar')+'</button></div>';
+   }).join('')||'<div class="empty">Sem colaboradores nesta escala.</div>';
+  }
+  linesButton.addEventListener('click',()=>{
+   if(!canManageLines())return toast('Não tens permissão para editar esta escala.',true);
+   linesContext={shopId:currentShopId,month:E('scheduleMonth').value||state.selectedDate.slice(0,7)};renderLines();linesDialog.showModal();
+  });
+  E('macScheduleLinesClose').addEventListener('click',()=>{if(!linesBusy)linesDialog.close();});
+  linesDialog.addEventListener('cancel',event=>{if(linesBusy)event.preventDefault();});
+  linesDialog.addEventListener('close',()=>{linesContext=null;});
+  E('macScheduleLinesRows').addEventListener('click',async event=>{
+   const button=event.target.closest('[data-schedule-line]'),c=linesContext;
+   if(!button||!c||linesBusy||c.shopId!==currentShopId||!canManageLines())return;
+   linesBusy=true;linesDialog.querySelectorAll('button').forEach(b=>b.disabled=true);
+   try{
+    if(!await macFlushChangesForExit())throw Error('Existem alterações por guardar. Tenta novamente.');
+    if(linesContext!==c||c.shopId!==currentShopId)return;
+    rules.setScheduleVisibility(state,button.dataset.scheduleLine,c.month,button.dataset.visible==='true');macMarkUnsaved();renderSchedule();
+    if(!await persist())throw Error('Alteração por guardar na Cloud. Mantém esta janela aberta e tenta novamente.');
+    renderLines();toast('Visibilidade guardada na Cloud.');
+   }catch(error){toast(error.message,true);}
+   finally{linesBusy=false;linesDialog.querySelectorAll('button').forEach(b=>b.disabled=false);}
+  });
  function fitLegend(){
   const sample=E('calendarWrap')?.querySelector('.cal-cell'),legend=E('shiftLegend');if(!sample||!legend)return;
   const css=getComputedStyle(sample);legend.style.setProperty('--mac-shift-width',css.width);legend.style.setProperty('--mac-shift-height',css.height);legend.style.setProperty('--mac-shift-radius',css.borderRadius);legend.style.setProperty('--mac-shift-font',css.fontSize);
  }
- const oldSchedule=renderSchedule;renderSchedule=function(){const result=oldSchedule.apply(this,arguments);fitLegend();return result;};
+  const oldSchedule=renderSchedule;renderSchedule=function(){const result=oldSchedule.apply(this,arguments);fitLegend();linesButton.hidden=!canManageLines();if(linesDialog.open&&!linesBusy)renderLines();return result;};
  window.addEventListener('resize',()=>requestAnimationFrame(fitLegend));
  window.macIOSGoals={summarize,format,targets,applyGoals};
 })();

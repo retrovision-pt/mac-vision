@@ -7,15 +7,15 @@
 .mac-store-goal-field>label{grid-column:1/-1}
 .mac-store-goal-field>.mac-goal-open{height:42px;padding:0}
 #macIOSGoalsDialog{width:min(620px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto;box-sizing:border-box;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px}
-.mac-ios-goals-header,.mac-ios-goals-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(75px,110px) minmax(75px,110px);gap:10px;align-items:center;padding:10px}
+.mac-ios-goals-header,.mac-ios-goals-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(90px,140px);gap:10px;align-items:center;padding:10px}
 .mac-ios-goals-header{font-weight:800}
 .mac-ios-goals-row{border:1px solid var(--border);background:var(--surface2);margin-bottom:4px;border-radius:4px}
 .mac-ios-goals-row input{width:100%;min-width:0;box-sizing:border-box}
 .mac-ios-goals-row label,.mac-ios-goals-row output{overflow-wrap:anywhere}
 .mac-ios-goals-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:14px}
-html[data-theme] #mainApp #page-ios .mac-ios-row .mac-ios-value.mac-ios-goal-good,html[data-theme] #macIOSGoalsDialog .mac-ios-goals-row.mac-ios-goal-good{background:var(--traffic-good,var(--accent))!important;color:var(--nav)!important}
-html[data-theme] #mainApp #page-ios .mac-ios-row .mac-ios-value.mac-ios-goal-bad,html[data-theme] #macIOSGoalsDialog .mac-ios-goals-row.mac-ios-goal-bad{background:var(--red)!important;color:var(--nav)!important}
-html[data-theme] #mainApp #page-ios .mac-ios-goal :is(small,span),html[data-theme] #macIOSGoalsDialog :is(.mac-ios-goal-good,.mac-ios-goal-bad) :is(label,output,small){color:inherit!important}
+html[data-theme] #mainApp #page-ios .mac-ios-row .mac-ios-value.mac-ios-goal-good{background:var(--traffic-good,var(--accent))!important;color:var(--nav)!important}
+html[data-theme] #mainApp #page-ios .mac-ios-row .mac-ios-value.mac-ios-goal-bad{background:var(--red)!important;color:var(--nav)!important}
+html[data-theme] #mainApp #page-ios .mac-ios-goal :is(small,span){color:inherit!important}
 .mac-ios-goal-caption{display:block;white-space:normal;font-size:10px;line-height:1.3;margin-top:3px}
 html[data-theme] #mainApp #page-ios .mac-ios-row:has(.mac-ios-goal)>div{height:auto!important;min-height:56px!important;max-height:none!important}
 html[data-theme] #mainApp #page-ios .mac-ios-row .mac-ios-value.mac-ios-goal{white-space:normal!important;overflow:visible!important;display:flex!important;flex-direction:column;justify-content:center;align-items:center}
@@ -28,4 +28,9 @@ html[data-theme] #mainApp .mac-area-employee-line>.person-line{flex:1;white-spac
 html[data-theme] #page-schedule #shiftLegend{gap:8px 12px!important}
 html[data-theme] #page-schedule #shiftLegend .tag{gap:8px!important;min-height:var(--mac-shift-height,30px)!important}
 html[data-theme] #page-schedule #shiftLegend .tag .mac-schedule-code{box-sizing:border-box!important;width:var(--mac-shift-width,30px)!important;min-width:var(--mac-shift-width,30px)!important;max-width:var(--mac-shift-width,30px)!important;height:var(--mac-shift-height,30px)!important;min-height:var(--mac-shift-height,30px)!important;max-height:var(--mac-shift-height,30px)!important;border-radius:var(--mac-shift-radius,4px)!important;font-size:var(--mac-shift-font,12px)!important;display:flex!important;align-items:center;justify-content:center;padding:0!important}
-@media(max-width:480px){.mac-ios-goals-header,.mac-ios-goals-row{grid-template-columns:minmax(0,1fr) 80px 80px;gap:6px;padding:8px;font-size:12px}#editUserDialog #editUserNameRow{gap:6px!important}#editUserDialog #editUserNameRow label{font-size:12px}#editUserDialog #editUserNameRow>.mac-goal-open{flex-basis:38px;min-width:38px}}
+#macScheduleLinesDialog{width:min(620px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto;box-sizing:border-box;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px}
+#page-schedule #macScheduleLinesOpen{min-width:35px!important;width:35px!important;height:35px!important;min-height:35px!important;max-height:35px!important;padding:0!important;font-size:16px!important;line-height:1!important}
+.mac-schedule-line-row{display:grid;grid-template-columns:minmax(0,1fr) 60px 80px;gap:10px;align-items:center;border-bottom:1px solid var(--border);padding:10px 0}
+.mac-schedule-line-row>span:first-child{overflow-wrap:anywhere}
+.mac-schedule-line-row>.btn{min-width:0;width:100%}
+@media(max-width:480px){.mac-ios-goals-header,.mac-ios-goals-row{grid-template-columns:minmax(0,1fr) 100px;gap:6px;padding:8px;font-size:12px}#editUserDialog #editUserNameRow{gap:6px!important}#editUserDialog #editUserNameRow label{font-size:12px}#editUserDialog #editUserNameRow>.mac-goal-open{flex-basis:38px;min-width:38px}.mac-schedule-line-row{gap:6px;font-size:12px}}

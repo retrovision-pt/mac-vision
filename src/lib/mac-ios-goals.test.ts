@@ -3,15 +3,39 @@ import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
 type Staff={id:string;name:string;points:number};
-type Rules={goal:(a:number|null,t:number|string|null)=>string|null;areaStaff:(s:unknown[],d:string,m:string)=>Staff[];setTargets:(d:unknown,id:string|null,date:string,mode:string,v:Record<string,number>)=>void;targets:(d:unknown,id:string|null,date:string,mode:string)=>Record<string,number>;removeFromMonth:(d:unknown,n:string,m:string)=>void};
+type Rules={goal:(a:number|null,t:number|string|null,hasData?:boolean)=>string|null;areaStaff:(s:unknown[],d:string,m:string)=>Staff[];setTargets:(d:unknown,id:string|null,date:string,mode:string,v:Record<string,number>)=>void;targets:(d:unknown,id:string|null,date:string,mode:string)=>Record<string,number>;removeFromMonth:(d:unknown,n:string,m:string)=>void;scheduleLines:(d:unknown,m:string)=>{name:string;hidden:boolean}[];setScheduleVisibility:(d:unknown,n:string,m:string,v:boolean)=>void};
 const sandbox:{macIOSRules?:Rules}={};
 runInNewContext(readFileSync('public/mac-vision/ios-rules.js','utf8'),sandbox);
 const rules=sandbox.macIOSRules;
 if(!rules)throw Error('IOS rules not loaded');
 describe('IOS goals',()=>{
+ it('keeps saved shifts when hiding and restoring a monthly row',()=>{
+  const shifts=[{employee:'Ana',date:'2026-11-21',code:'A',start:'09:00',end:'18:00'}];
+  const data={employees:[{name:'Ana'}],schedules:shifts};
+  rules.setScheduleVisibility(data,'Ana','2026-11',false);
+  expect(rules.scheduleLines(data,'2026-11')).toEqual([{name:'Ana',hidden:true}]);
+  expect(data.schedules).toEqual(shifts);
+  expect(rules.scheduleLines(data,'2026-12')).toEqual([{name:'Ana',hidden:false}]);
+  rules.setScheduleVisibility(data,'Ana','2026-11',true);
+  expect(rules.scheduleLines(data,'2026-11')).toEqual([{name:'Ana',hidden:false}]);
+  expect(data.schedules).toEqual(shifts);
+ });
+ it('finds hidden names outside the current staff list and restores old exclusions',()=>{
+  const data={employees:[],schedules:[],macScheduleHiddenByMonth:{'2026-11':['Ana']},macScheduleExcludedByMonth:{'2026-11':['Rui']}};
+  expect(rules.scheduleLines(data,'2026-11')).toEqual([{name:'Ana',hidden:true},{name:'Rui',hidden:true}]);
+  rules.setScheduleVisibility(data,'Rui','2026-11',true);
+  expect(data.macScheduleExcludedByMonth['2026-11']).toEqual([]);
+  expect(data.macScheduleHiddenByMonth['2026-11']).toEqual(['Ana']);
+ });
+ it('does not invent a default goal or fall back to store goals for a person',()=>{
+  const data={};rules.setTargets(data,null,'2026-11-21','day',{points:30});
+  expect(rules.targets(data,'u1','2026-11-21','day')).toEqual({});
+  expect(rules.goal(null,30)).toBeNull();
+ });
  it('is green when the result equals the goal',()=>expect(rules.goal(10,10)).toBe('good'));
  it('is red below the goal',()=>expect(rules.goal(9,10)).toBe('bad'));
  it('is neutral without a goal',()=>expect(rules.goal(9,'')).toBeNull());
+ it('is neutral when zero results have no supporting records',()=>expect(rules.goal(0,30,false)).toBeNull());
  it('keeps store, individual and period targets independent',()=>{
   const data={};
   rules.setTargets(data,'u1','2026-11-21','day',{points:10});

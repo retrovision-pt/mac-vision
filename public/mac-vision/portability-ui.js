@@ -54,7 +54,7 @@
  new ResizeObserver(()=>requestAnimationFrame(fitSidebar)).observe(E('mainApp'));
  requestAnimationFrame(fitSidebar);
  const dialog=document.createElement('dialog');dialog.id='macPortabilityDialog';dialog.setAttribute('aria-labelledby','macPortabilityTitle');
- dialog.innerHTML='<div class="mac-port-heading"><h2 id="macPortabilityTitle">Móvel com Portabilidade?</h2><button type="button" class="btn mac-port-close" aria-label="Fechar">✕</button></div><div class="mac-port-options"><button type="button" class="btn mac-port-yes" data-port-answer="yes">SIM</button><button type="button" class="btn mac-port-no" data-port-answer="no">NÃO</button></div>';
+  dialog.innerHTML='<div class="mac-port-heading"><h2 id="macPortabilityTitle">📲 Móvel com Portabilidade?</h2><button type="button" class="btn mac-port-close" aria-label="Fechar">✕</button></div><div class="mac-port-options"><button type="button" class="btn mac-port-yes" data-port-answer="yes">SIM</button><button type="button" class="btn mac-port-no" data-port-answer="no">NÃO</button></div>';
  document.body.appendChild(dialog);
  let resolveAnswer=null;
  function ask(){return new Promise(resolve=>{resolveAnswer=resolve;dialog.showModal();});}
