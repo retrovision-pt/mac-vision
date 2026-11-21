@@ -88,3 +88,10 @@ Não publicar sem autorização.
 
 ## Arranque fiável (21/11)
 - [x] Excel sem bloquear o arranque; ecrã inicial visível no máximo após 4 s mesmo com Cloud lenta
+
+## Pedidos de 21/11 — barra lateral, portabilidade e administração
+- [ ] Ajustar altura da barra lateral à área disponível, preservando menus e fotografia.
+- [ ] Venda Móvel/Convergente: confirmação SIM/NÃO, cancelamento sem guardar e proteção contra duplicados.
+- [ ] Indicador Port filtrado e edição exclusiva da portabilidade no Histórico, sincronizados na Cloud.
+- [ ] Corrigir operações globais do Gestor MAC Vision; manter o gestor normal limitado.
+- [ ] Arquivar lojas com histórico, preservar dados comerciais e proteger o último administrador global.
