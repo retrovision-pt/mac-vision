@@ -1,0 +1,3 @@
+Versão antiga carregada pelo GitHub (17–18 nov 2026), com ligação a outra base de dados.
+Não é usada pela app: a app abre em src/routes/index.tsx com public/mac-vision/original.html.
+Guardada aqui para não ser publicada como página inicial.

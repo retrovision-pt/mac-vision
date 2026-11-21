@@ -54,3 +54,5 @@ use the editor.
 - MOVIIK imports by collaborators require delegated imports.moviik on the target store (store tickets) and on any wallet store for the shared pending-MOVIIK document; enforced in mac_put_document so revocation applies server-side immediately.
 - Schedule access security is decided by the Cloud function mac_shift_status (Europe/Lisbon, shift start −15 min to end +15 min, per-store setting in the store document): checked at PIN login after the password, re-checked during the session, and enforced by write triggers, so browser timers never act as the security boundary.
 - Original MOVIIK files live in the private mac-imports bucket under <store>/<importId>/, with metadata in mac_import_files written only via mac_record_import (admin, store manager or delegated imports.moviik); history entries reference cloud:<id> and downloads use short signed URLs, so no browser storage holds originals.
+
+- Root index.html is forbidden: hosting serves it instead of the TanStack app; the app entry is src/routes/index.tsx with public/mac-vision/original.html.
