@@ -59,8 +59,8 @@
    const shop=shopRegistry.find(s=>s.id===shopId),data=await dataForStore(shopId);
    const user=userId?shop?.users.find(u=>u.id===userId):null;
    if(userId&&!user)throw Error('O colaborador já não está disponível nesta loja.');
-   context={shopId,userId,date,mode};
-    E('macIOSGoalsContext').textContent=user?.name||shop?.name||'Loja';
+   context={shopId,userId,date,mode,team:false};
+    E('macIOSGoalsTitle').textContent='Editar Objetivos';E('macIOSGoalsContext').textContent=user?.name||shop?.name||'Loja';
     renderGoalFields(data);
     dialog.showModal();
   }catch(error){toast(error.message,true);}
@@ -76,7 +76,13 @@
    if(c.shopId===currentShopId&&!await macFlushChangesForExit())throw Error('Existem alterações por guardar. Tenta novamente.');
     const values={};for(const input of E('macIOSGoalsRows').querySelectorAll('input')){if(!input.value.trim())continue;const value=rules.parseTarget(input.name,input.value);if(!Number.isFinite(value)||value<0)throw Error(input.name==='tma'?'Introduz o objetivo TMA em minutos e segundos, por exemplo 10:00.':'Introduz objetivos numéricos iguais ou superiores a zero. TE e TD aceitam percentagens.');values[input.name]=value;}
    const data=await dataForStore(c.shopId);
-   rules.setTargets(data,c.userId,c.date,c.mode,values);
+   if(c.team){
+    const shop=shopRegistry.find(s=>s.id===c.shopId);const ids=(shop?.users||[]).filter(u=>u.role==='colaborador').map(u=>u.id);
+    if(!ids.length)throw Error('Esta loja não tem colaboradores.');
+    const differs=ids.some(id=>{const t=targets(data,id,c.date,'month');return Object.keys(t).length&&JSON.stringify(t)!==JSON.stringify(values);});
+    if(differs&&!confirm('Existem objetivos individuais diferentes. Serão substituídos pelos novos valores. Continuar?'))throw Error('Gravação cancelada.');
+    for(const id of ids)rules.setTargets(data,id,c.date,'month',{...values});
+   }else rules.setTargets(data,c.userId,c.date,c.mode,values);
    if(c.shopId===currentShopId){macMarkUnsaved();if(!await persist())throw Error('Objetivos por guardar na Cloud. Mantém esta janela aberta e tenta novamente.');}
    else await writeKey('store:'+c.shopId,data);
    renderIOS();if(page==='dashboard')renderDashboard();dialog.close();toast('Objetivos guardados na Cloud.');
@@ -87,6 +93,17 @@
   if(!parent)return;
   const button=document.createElement('button');button.type='button';button.id=id;button.className='btn small mac-goal-open';button.textContent='🏪';button.title='Editar Objetivos';button.setAttribute('aria-label','Editar Objetivos');parent.appendChild(button);button.addEventListener('click',open);
  }
+  async function openTeamGoals(shopId){
+   try{
+    if(!shopId||!macCanAdministerStore(shopId))throw Error('Não tens permissão para editar os objetivos desta loja.');
+    const date=rules.periodKey(state.selectedDate),shop=shopRegistry.find(s=>s.id===shopId),data=await dataForStore(shopId);
+    const first=(shop?.users||[]).find(u=>u.role==='colaborador');
+    context={shopId,userId:first?.id||null,date,mode:'month',team:true};
+    E('macIOSGoalsTitle').textContent='🏪 Editar Objetivos dos Colaboradores';E('macIOSGoalsContext').textContent=shop?.name||'Loja';
+    renderGoalFields(data);dialog.showModal();
+   }catch(error){toast(error.message,true);}
+  }
+  {const sel=E('accessUsersView');if(sel){const b=document.createElement('button');b.type='button';b.id='macTeamGoals';b.className='btn small mac-goal-open mac-team-goals';b.textContent='🏪';b.title='Editar Objetivos dos Colaboradores';b.setAttribute('aria-label',b.title);sel.after(b);b.addEventListener('click',()=>void openTeamGoals(sel.value));}}
  addButton(E('editUserNameRow'),'macEditUserGoals',()=>void openGoals(E('editUserStoreId').value,E('editUserId').value));
  const storeField=E('editStoreName')?.closest('.field');if(storeField){storeField.classList.add('mac-store-goal-field');addButton(storeField,'macEditStoreGoals',()=>void openGoals(E('editStoreId').value,null));}
   const linesDialog=document.createElement('dialog');linesDialog.id='macScheduleLinesDialog';linesDialog.className='mac-edit-dialog';

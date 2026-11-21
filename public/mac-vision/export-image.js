@@ -34,6 +34,8 @@
   await document.fonts.ready;
   const main=E('mainApp')?.querySelector('main');
   if(!main||!E(pageId))throw Error('O quadro não está disponível.');
+  await Promise.all([...main.querySelectorAll('#'+pageId+' img')].map(img=>img.complete?null:new Promise(r=>{img.addEventListener('load',r,{once:true});img.addEventListener('error',r,{once:true});setTimeout(r,8000);})));
+  await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
   const capture=await loadRenderer();checkContext();
   const shop=E('storeSelect')?.selectedOptions[0]?.textContent?.trim()||currentStore()?.name||'Loja';
   const canvas=await capture(main,{
@@ -55,7 +57,24 @@
      #mainApp .mac-ios-table{width:100%!important;min-width:0!important}
      #mainApp .mac-ios-goal-caption{display:none!important}
      #mainApp .topbar{margin-bottom:24px!important}
-     #mainApp main *{animation:none!important;transition:none!important}`;
+     #mainApp main *{animation:none!important;transition:none!important}
+     #mainApp .topbar{display:flex!important;flex-wrap:nowrap!important;align-items:flex-start!important;justify-content:space-between!important;gap:16px!important}
+     #mainApp .topbar>*{min-width:0!important}
+     #mainApp #metrics{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:10px!important;align-items:stretch!important}
+     #mainApp #trafficMetrics{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:10px!important;align-items:stretch!important}
+     #mainApp #trafficMetrics>*{grid-column:span 2!important;min-width:0!important}
+     #mainApp #trafficMetrics>*:nth-child(-n+2){grid-column:span 3!important}
+     #mainApp #metrics>*,#mainApp .dash-three>*{min-width:0!important;height:auto!important}
+     #mainApp .dash-three{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:16px!important;align-items:stretch!important}
+     #mainApp .production-heading{display:flex!important;flex-wrap:nowrap!important;align-items:center!important}
+     #mainApp #page-dashboard .metric *{overflow-wrap:anywhere!important}
+     #mainApp #page-dashboard>.surface.card:last-child{display:none!important}
+     #mainApp #page-ios .mac-ios-table{--mac-ios-template:230px repeat(12,minmax(0,1fr))!important;width:100%!important}
+     #mainApp #page-ios .mac-ios-row{width:100%!important;min-width:0!important;grid-template-columns:var(--mac-ios-template)!important}
+     #mainApp #page-ios .mac-ios-row>*{min-width:0!important;overflow:hidden!important;white-space:nowrap!important;text-overflow:clip!important}
+     #mainApp #page-ios .ios-kpis{grid-template-columns:repeat(6,minmax(0,1fr))!important}
+     #mainApp #page-ios #iosProducts,#mainApp #page-ios #iosProducts~*,#mainApp #page-ios .surface.card:has(#iosProducts),#mainApp #page-ios #iosCollaboratorSchedule{display:none!important}
+     #mainApp [title]:hover::after{display:none!important}`;
     doc.head.appendChild(style);
     root.querySelectorAll('.mac-ios-goal-caption').forEach(node=>node.remove());
     root.querySelectorAll('#macShareIOS,#macShareOverview').forEach(button=>{button.textContent='▲';button.disabled=false;});

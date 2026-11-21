@@ -35,3 +35,6 @@ html[data-theme] #page-schedule #shiftLegend .tag .mac-schedule-code{box-sizing:
 .mac-schedule-line-row>span:first-child{overflow-wrap:anywhere}
 .mac-schedule-line-row>.btn{min-width:0;width:100%}
 @media(max-width:480px){.mac-ios-goals-header,.mac-ios-goals-row{grid-template-columns:minmax(0,1fr) 100px;gap:6px;padding:8px;font-size:12px}#editUserDialog #editUserNameRow{gap:6px!important}#editUserDialog #editUserNameRow label{font-size:12px}#editUserDialog #editUserNameRow>.mac-goal-open{flex-basis:38px;min-width:38px}.mac-schedule-line-row{gap:6px;font-size:12px}}
+#accessUsersPanel .access-store-choice .mac-team-goals{flex:0 0 auto;align-self:stretch;min-height:0;height:auto;padding:0 12px;margin:0}
+#accessUsersPanel .access-store-choice{flex-wrap:wrap}
+#accessUsersPanel .access-store-choice label{flex-basis:100%}
