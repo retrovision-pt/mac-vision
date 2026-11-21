@@ -15,20 +15,25 @@ describe('Login never changes credentials',()=>{
   mocks.otp.mockResolvedValue({data:{session:{access_token:'unit-access',refresh_token:'unit-refresh'}}});
  });
  for(const legacy of [false,true])it(legacy?'validates a legacy password without upgrading or replacing it':'validates a four-digit PIN without writing its hash',async()=>{
-  mocks.from.mockImplementation((table:string)=>({select:()=>({eq:()=>({maybeSingle:async()=>({error:null,data:table==='mac_accounts'?{id:'c84cdb63-5fee-477d-a7c0-603499a1adfd'}:legacy?null:{pin_hash:'existing'}})})}),upsert:mocks.upsert}));
+  mocks.from.mockImplementation((table:string)=>({select:()=>({eq:()=>({eq:()=>({maybeSingle:async()=>({error:null,data:{id:'c84cdb63-5fee-477d-a7c0-603499a1adfd'}})}),maybeSingle:async()=>({error:null,data:legacy?null:{pin_hash:'existing'}})})}),upsert:mocks.upsert}));
   mocks.legacy.mockResolvedValue({error:null,data:{session:{}}});
   await login({data:{id:'c84cdb63-5fee-477d-a7c0-603499a1adfd',pin:'1234'}});
   expect(mocks.update).not.toHaveBeenCalled();expect(mocks.upsert).not.toHaveBeenCalled();
   expect(mocks.rpc).toHaveBeenCalledWith('mac_pin_success',{u:'c84cdb63-5fee-477d-a7c0-603499a1adfd'});
  });
  it('rejects a collaborator outside the schedule window after the password is checked',async()=>{
-  mocks.from.mockImplementation((table:string)=>({select:()=>({eq:()=>({maybeSingle:async()=>({error:null,data:table==='mac_accounts'?{id:'c84cdb63-5fee-477d-a7c0-603499a1adfd'}:{pin_hash:'existing'}})})})}));
+  mocks.from.mockImplementation((table:string)=>({select:()=>({eq:()=>({eq:()=>({maybeSingle:async()=>({error:null,data:{id:'c84cdb63-5fee-477d-a7c0-603499a1adfd'}})}),maybeSingle:async()=>({error:null,data:{pin_hash:'existing'}})})})}));
   mocks.rpc.mockImplementation(async(name:string)=>name==='mac_shift_status'?{error:null,data:{allowed:false,reason:'before'}}:{error:null,data:null});
   await expect(login({data:{id:'c84cdb63-5fee-477d-a7c0-603499a1adfd',pin:'1234',storeId:'loja-x'}} as any)).rejects.toThrow('MAC_SHIFT:O teu acesso estará disponível 15 minutos antes do início do turno.');
   expect(mocks.generate).not.toHaveBeenCalled();
  });
+ it('rejects disabled accounts before issuing a session',async()=>{
+  mocks.from.mockImplementation(()=>({select:()=>({eq:()=>({eq:()=>({maybeSingle:async()=>({error:null,data:null})})})})}));
+  await expect(login({data:{id:'c84cdb63-5fee-477d-a7c0-603499a1adfd',pin:'1234'}})).rejects.toThrow('Password incorreta.');
+  expect(mocks.generate).not.toHaveBeenCalled();
+ });
  it('reports a Cloud failure as a connection problem, not a permission problem',async()=>{
-  mocks.from.mockImplementation((table:string)=>({select:()=>({eq:()=>({maybeSingle:async()=>({error:null,data:table==='mac_accounts'?{id:'c84cdb63-5fee-477d-a7c0-603499a1adfd'}:{pin_hash:'existing'}})})})}));
+  mocks.from.mockImplementation((table:string)=>({select:()=>({eq:()=>({eq:()=>({maybeSingle:async()=>({error:null,data:{id:'c84cdb63-5fee-477d-a7c0-603499a1adfd'}})}),maybeSingle:async()=>({error:null,data:{pin_hash:'existing'}})})})}));
   mocks.rpc.mockImplementation(async(name:string)=>name==='mac_shift_status'?{error:{message:'timeout'},data:null}:{error:null,data:null});
   await expect(login({data:{id:'c84cdb63-5fee-477d-a7c0-603499a1adfd',pin:'1234',storeId:'loja-x'}} as any)).rejects.toThrow('Não foi possível verificar o horário na Cloud. Tenta novamente.');
  });

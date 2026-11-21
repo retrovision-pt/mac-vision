@@ -68,7 +68,7 @@ export function mountMacBridge(frame: HTMLIFrameElement) {
     const {data,error}=await supabase.auth.getUser();
     if(error)throw error;
     if(!data.user)throw Error('Inicia sessão na Cloud.');
-    const account=await supabase.from('mac_accounts').select('*').eq('id',data.user.id).single();
+    const account=await supabase.from('mac_accounts').select('*').eq('id',data.user.id).eq('disabled',false).single();
     if(account.error||!account.data)throw Error('Conta sem carteira.');
     walletId=account.data.wallet_id;return account.data;
   }

@@ -56,3 +56,4 @@ use the editor.
 - Original MOVIIK files live in the private mac-imports bucket under <store>/<importId>/, with metadata in mac_import_files written only via mac_record_import (admin, store manager or delegated imports.moviik); history entries reference cloud:<id> and downloads use short signed URLs, so no browser storage holds originals.
 
 - Root index.html is forbidden: hosting serves it instead of the TanStack app; the app entry is src/routes/index.tsx with public/mac-vision/original.html.
+- Extend sale submission in the original document through shared portability rules; retain catalog handlers and Cloud acknowledgements.

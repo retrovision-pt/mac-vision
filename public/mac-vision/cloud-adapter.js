@@ -168,8 +168,10 @@ resetUserPassword=async function(id,shopId=viewedAccessShop()?.id){
 removeUser=async function(id,shopId=viewedAccessShop()?.id){
  const user=shopRegistry.find(s=>s.id===shopId)?.users.find(u=>u.id===id);if(!user)return;
  if(!confirm('Remover explicitamente o acesso de '+user.name+' a esta loja? A conta será preservada na Cloud.'))return;
- await macRPC('remove-access',{id,storeId:shopId});
- macCloudDirectory=await macRPC('directory');shopRegistry=structuredClone(macCloudDirectory.stores);renderAccess();renderOptions();toast('Acesso removido; conta preservada na Cloud.');
+ try{
+  await macRPC('remove-access',{id,storeId:shopId});
+  macCloudDirectory=await macRPC('directory');shopRegistry=structuredClone(macCloudDirectory.stores);renderAccess();renderOptions();toast('Acesso removido; históricos preservados na Cloud.');
+ }catch(error){toast('Não foi possível remover o acesso: '+error.message,true);}
 };
 
 // Apagar loja: operação Cloud explícita (o registo nunca apaga por omissão).
@@ -178,7 +180,7 @@ deleteLocalStore=async function(shopId){
  const shop=shopRegistry.find(s=>s.id===shopId);if(!shop)return;
  if(shop.id===currentShopId)return toast('Não podes apagar a loja da sessão atual. Entra primeiro noutra loja.',true);
  if(shopRegistry.length<=1)return toast('É necessário manter pelo menos uma loja.',true);
- if(!confirm('Apagar definitivamente a loja «'+shop.name+'» e todos os seus dados na Cloud? Esta ação não pode ser anulada.'))return;
+ if(!confirm('Arquivar a loja «'+shop.name+'»? A loja deixa de estar ativa; vendas, senhas, escalas, chat e comissionamento ficam preservados na Cloud.'))return;
  if(prompt('Para confirmar, escreve exatamente o nome da loja: '+shop.name)!==shop.name)return toast('Eliminação cancelada.',true);
  try{
   await macRPC('delete-store',{storeId:shopId});
@@ -186,7 +188,7 @@ deleteLocalStore=async function(shopId){
   if(accessViewedStoreId===shopId)accessViewedStoreId=currentShopId;
   macCloudDirectory=await macRPC('directory');shopRegistry=structuredClone(macCloudDirectory.stores);
   renderAccess();renderOptions();if(typeof renderEmployeeShopSelector==='function')renderEmployeeShopSelector();
-  toast('Loja '+shop.name+' apagada na Cloud.');
+  toast('Loja '+shop.name+' arquivada na Cloud; históricos preservados.');
  }catch(err){toast('Não foi possível apagar a loja: '+err.message,true)}
 };
 

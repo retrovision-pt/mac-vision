@@ -90,8 +90,9 @@ Não publicar sem autorização.
 - [x] Excel sem bloquear o arranque; ecrã inicial visível no máximo após 4 s mesmo com Cloud lenta
 
 ## Pedidos de 21/11 — barra lateral, portabilidade e administração
-- [ ] Ajustar altura da barra lateral à área disponível, preservando menus e fotografia.
-- [ ] Venda Móvel/Convergente: confirmação SIM/NÃO, cancelamento sem guardar e proteção contra duplicados.
-- [ ] Indicador Port filtrado e edição exclusiva da portabilidade no Histórico, sincronizados na Cloud.
-- [ ] Corrigir operações globais do Gestor MAC Vision; manter o gestor normal limitado.
-- [ ] Arquivar lojas com histórico, preservar dados comerciais e proteger o último administrador global.
+- [x] Ajustar altura da barra lateral à área disponível, incluindo zoom; verificado em computador e mobile com sessão autorizada.
+- [x] Venda Móvel/Convergente: confirmação SIM/NÃO, cancelamento mantém formulário sem guardar, bloqueio de submissões repetidas e retoma da gravação pendente.
+- [x] Indicador Port acrescenta +1 por SIM aos indicadores anteriores; edição exclusiva no Histórico e consulta em todas as lojas pelo armazenamento Cloud existente.
+- [x] Operações globais do Gestor MAC Vision e proteção server-side; gestor normal limitado; editor administrativo aberto com sessão autorizada.
+- [x] Arquivamento preserva históricos e bloqueia alterações/eliminação; desativação global protege dono, sessão própria e último administrador MAC.
+- [ ] Confirmação de gravação real de SIM/NÃO entre sessões e operações administrativas reais: não exercitadas por proibição de criar dados fictícios ou alterar registos reais sem autorização.

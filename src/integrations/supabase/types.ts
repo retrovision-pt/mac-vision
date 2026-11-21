@@ -44,6 +44,7 @@ export type Database = {
       mac_accounts: {
         Row: {
           admin_type: string
+          disabled: boolean
           id: string
           name: string
           role: string
@@ -52,6 +53,7 @@ export type Database = {
         }
         Insert: {
           admin_type?: string
+          disabled?: boolean
           id: string
           name: string
           role: string
@@ -60,6 +62,7 @@ export type Database = {
         }
         Update: {
           admin_type?: string
+          disabled?: boolean
           id?: string
           name?: string
           role?: string
@@ -514,18 +517,21 @@ export type Database = {
       }
       mac_stores: {
         Row: {
+          archived_at: string | null
           id: string
           metadata: Json
           name: string
           wallet_id: string
         }
         Insert: {
+          archived_at?: string | null
           id: string
           metadata?: Json
           name: string
           wallet_id: string
         }
         Update: {
+          archived_at?: string | null
           id?: string
           metadata?: Json
           name?: string

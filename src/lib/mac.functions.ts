@@ -3,6 +3,7 @@ import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import { createClient } from '@supabase/supabase-js';
 import { hashPin, verifyPin, isValidPin, internalSecret, friendlyError } from './mac-pin';
 import { normalizeUsername, normalizeWallet, loginAddress, authorizeAccountCreation, hasValidAreaManager, canStartWalletSetup, canStartPreviewSetup } from './mac-rules';
+import { removalError } from './mac-admin-rules';
 
 async function setupDigest(token:string) {
  const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token));
@@ -84,7 +85,7 @@ function loginCargo(a:{role:string;admin_type?:string|null},meta:any){
 export const macLoginPhoto = createServerFn({method:'POST'}).inputValidator((input:{id:string})=>input).handler(async({data})=>{
   if(!/^[0-9a-f-]{36}$/i.test(String(data.id||'')))return '';
   const { supabaseAdmin: admin } = await import('@/integrations/supabase/client.server');
-  const acc=checked(await admin.from('mac_accounts').select('id,wallet_id').eq('id',data.id).maybeSingle()).data;if(!acc)return '';
+  const acc=checked(await admin.from('mac_accounts').select('id,wallet_id').eq('id',data.id).eq('disabled',false).maybeSingle()).data;if(!acc)return '';
   const prof=checked(await admin.from('profiles').select('avatar_url').eq('id',acc.id).maybeSingle()).data;
   const path=prof?.avatar_url;if(!path||!path.startsWith(acc.id+'/'))return '';
   const file=await admin.storage.from('mac-photos').download(path);if(file.error||!file.data||file.data.size>300000)return '';
@@ -95,8 +96,8 @@ export const macLoginPhoto = createServerFn({method:'POST'}).inputValidator((inp
 export const macDirectory = createServerFn({method:'GET'}).handler(async () => {
   const { supabaseAdmin: admin } = await import('@/integrations/supabase/client.server');
    const allWallets = checked(await admin.from('mac_wallets').select('id,name,app_name,owner_id')).data || [];
-  const stores = checked(await admin.from('mac_stores').select('id,wallet_id,name')).data || [];
-  const accounts = checked(await admin.from('mac_accounts').select('id,wallet_id,name,role,admin_type')).data || [];
+  const stores = checked(await admin.from('mac_stores').select('id,wallet_id,name').is('archived_at',null)).data || [];
+  const accounts = checked(await admin.from('mac_accounts').select('id,wallet_id,name,role,admin_type').eq('disabled',false)).data || [];
   const members = checked(await admin.from('mac_memberships').select('user_id,store_id,role,metadata')).data || [];
    const roles=checked(await admin.from('user_roles').select('user_id,role')).data||[];
    const wallets=allWallets.filter(w=>hasValidAreaManager(w,accounts,roles));
@@ -153,7 +154,7 @@ export const macPinLogin = createServerFn({method:'POST'})
   const generic='Password incorreta.';
   if(!/^[0-9a-f-]{36}$/i.test(String(data.id))||!isValidPin(data.pin))throw Error(generic);
   const {supabaseAdmin:admin}=await import('@/integrations/supabase/client.server');
-  const account=checked(await admin.from('mac_accounts').select('id').eq('id',data.id).maybeSingle()).data;
+  const account=checked(await admin.from('mac_accounts').select('id').eq('id',data.id).eq('disabled',false).maybeSingle()).data;
   if(!account)throw Error(generic);
   const locked=checked(await admin.rpc('mac_pin_attempt',{u:data.id})).data as string|null;
   if(locked){const minutes=Math.max(1,Math.ceil((Date.parse(locked)-Date.now())/60000));throw Error(`Acesso bloqueado temporariamente por excesso de tentativas. Tenta novamente dentro de ${minutes} minuto${minutes===1?'':'s'}.`);}
@@ -180,7 +181,7 @@ export const macPinLogin = createServerFn({method:'POST'})
 export const macCreateAccount = createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
  .inputValidator((input:{name:string;role:string;password:string;employee?:string})=>input)
  .handler(async({data,context})=>{
-  const actor=checked(await context.supabase.from('mac_accounts').select('*').eq('id',context.userId).single()).data;
+  const actor=checked(await context.supabase.from('mac_accounts').select('*').eq('id',context.userId).eq('disabled',false).single()).data;
   if(!actor||!authorizeAccountCreation(actor.role,data.role))throw Error('Sem permissão para criar este acesso.');
   if(data.name.trim().length<2)throw Error('Indica o nome do utilizador.');
   if(!isValidPin(data.password))throw Error('A password deve ter, no mínimo, 4 números.');
@@ -198,7 +199,7 @@ export const macCreateAccount = createServerFn({method:'POST'}).middleware([requ
 export const macSaveRegistry = createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
  .inputValidator((input:{stores:any[]})=>input)
  .handler(async({data,context})=>{
-  const actor=checked(await context.supabase.from('mac_accounts').select('*').eq('id',context.userId).single()).data;
+  const actor=checked(await context.supabase.from('mac_accounts').select('*').eq('id',context.userId).eq('disabled',false).single()).data;
   if(!actor||actor.role==='colaborador')throw Error('Sem permissão.');
   const {supabaseAdmin:admin}=await import('@/integrations/supabase/client.server');
   checked(await admin.rpc('mac_save_registry',{a:context.userId,items:data.stores}));
@@ -213,8 +214,8 @@ export const macSaveRegistry = createServerFn({method:'POST'}).middleware([requi
 export const macUpdatePassword = createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
  .inputValidator((input:{id:string;password:string;storeId:string})=>input)
  .handler(async({data,context})=>{
-  const actor=checked(await context.supabase.from('mac_accounts').select('*').eq('id',context.userId).single()).data;
-  const target=checked(await context.supabase.from('mac_accounts').select('*').eq('id',data.id).single()).data;
+  const actor=checked(await context.supabase.from('mac_accounts').select('*').eq('id',context.userId).eq('disabled',false).single()).data;
+  const target=checked(await context.supabase.from('mac_accounts').select('*').eq('id',data.id).eq('disabled',false).single()).data;
   const membership=checked(await context.supabase.from('mac_memberships').select('role').eq('store_id',data.storeId).eq('user_id',context.userId).maybeSingle()).data;
   const targetMember=checked(await context.supabase.from('mac_memberships').select('user_id').eq('store_id',data.storeId).eq('user_id',data.id).maybeSingle()).data;
   if(!actor||!target||actor.wallet_id!==target.wallet_id||!(actor.role==='admin'||(membership?.role==='gestor'&&target.role==='colaborador'&&targetMember)))throw Error('Sem permissão para alterar esta password.');
@@ -229,15 +230,22 @@ export const macUpdatePassword = createServerFn({method:'POST'}).middleware([req
 
 export const macRemoveAccess=createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
  .inputValidator((input:{id:string;storeId:string})=>input).handler(async({data,context})=>{
-  const actor=checked(await context.supabase.from('mac_accounts').select('role').eq('id',context.userId).single()).data;
+  const actor=checked(await context.supabase.from('mac_accounts').select('*').eq('id',context.userId).eq('disabled',false).single()).data;
   if(actor?.role!=='admin')throw Error('Só um administrador pode remover acessos.');
+  const target=checked(await context.supabase.from('mac_accounts').select('*').eq('id',data.id).single()).data;
+  const wallet=checked(await context.supabase.from('mac_wallets').select('owner_id').eq('id',actor.wallet_id).single()).data;
+  if(!target||!wallet)throw Error('Conta ou carteira indisponível.');
+  const admins=checked(await context.supabase.from('mac_accounts').select('*').eq('wallet_id',actor.wallet_id).eq('role','admin').eq('disabled',false)).data||[];
+  const denied=removalError(actor,target,wallet.owner_id,admins,data.storeId==='');if(denied)throw Error(denied);
   const {supabaseAdmin:admin}=await import('@/integrations/supabase/client.server');
-  checked(await admin.rpc('mac_remove_access',{a:context.userId,u:data.id,s:data.storeId}));return true;
+  checked(await admin.rpc('mac_remove_access',{a:context.userId,u:data.id,s:data.storeId}));
+  if(data.storeId==='')checked(await admin.auth.admin.updateUserById(data.id,{ban_duration:'876000h'}));
+  return true;
  });
 
 export const macDeleteStore=createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
  .inputValidator((input:{storeId:string})=>input).handler(async({data,context})=>{
-  const actor=checked(await context.supabase.from('mac_accounts').select('role').eq('id',context.userId).single()).data;
+  const actor=checked(await context.supabase.from('mac_accounts').select('role').eq('id',context.userId).eq('disabled',false).single()).data;
   if(actor?.role!=='admin')throw Error('Só um administrador pode apagar lojas.');
   const {supabaseAdmin:admin}=await import('@/integrations/supabase/client.server');
   checked(await admin.rpc('mac_delete_store',{a:context.userId,s:data.storeId}));return true;
@@ -245,8 +253,8 @@ export const macDeleteStore=createServerFn({method:'POST'}).middleware([requireS
 
 export const macPrivateDirectory = createServerFn({method:'GET'}).middleware([requireSupabaseAuth]).handler(async({context})=>{
  const wallets=checked(await context.supabase.from('mac_wallets').select('id,name,app_name')).data||[];
- const stores=checked(await context.supabase.from('mac_stores').select('*')).data||[];
- const accounts=checked(await context.supabase.from('mac_accounts').select('id,wallet_id,name,role,admin_type')).data||[];
+ const stores=checked(await context.supabase.from('mac_stores').select('*').is('archived_at',null)).data||[];
+ const accounts=checked(await context.supabase.from('mac_accounts').select('id,wallet_id,name,role,admin_type').eq('disabled',false)).data||[];
  const members=checked(await context.supabase.from('mac_memberships').select('*')).data||[];
  return {wallets,accounts,stores:stores.map(s=>({...s.metadata as object,id:s.id,name:s.name,wallet_id:s.wallet_id,users:members.filter(m=>m.store_id===s.id).flatMap(m=>{
   const a=accounts.find(a=>a.id===m.user_id);return a?[{...m.metadata as object,id:a.id,name:a.name,role:a.role==='colaborador'?'colaborador':'gestor',isAreaMaster:a.role==='admin',adminRole:a.role==='admin'?a.admin_type:undefined}]:[];
@@ -255,7 +263,7 @@ export const macPrivateDirectory = createServerFn({method:'GET'}).middleware([re
 
 export const macUpdateWallet = createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
  .inputValidator((input:{appName:string;carteira:string})=>input).handler(async({data,context})=>{
- const actor=checked(await context.supabase.from('mac_accounts').select('*').eq('id',context.userId).single()).data;
+ const actor=checked(await context.supabase.from('mac_accounts').select('*').eq('id',context.userId).eq('disabled',false).single()).data;
  if(!actor||actor.role!=='admin')throw Error('Apenas o administrador pode alterar a carteira.');
  const name=normalizeWallet(data.carteira);if(!/^[A-Z0-9_-]{1,20}$/.test(name)||data.appName.trim().length<2)throw Error('Indica um nome de aplicação e de carteira válidos.');
  const {supabaseAdmin:admin}=await import('@/integrations/supabase/client.server');

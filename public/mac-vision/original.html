@@ -3382,7 +3382,7 @@ async function fillEditMoviikOptions(shopId,selected=''){
 function openUserProfileEditor(id){
  if(session?.role!=='gestor')return;
  const shop=viewedAccessShop(),u=shop?.users.find(x=>x.id===id);if(!u||!macCanAdministerStore(shop.id))return;
- if(u.adminOnly)return toast('Esta conta administrativa é gerida em Administradores.',true);
+ if(u.adminOnly&&!currentStore()?.users.some(x=>x.id===session?.id&&x.adminRole==='mac'))return toast('Esta conta administrativa é gerida em Administradores.',true);
  if(u.role==='gestor'&&!macIsAreaSession()&&u.id!==session.id)return toast('Só um administrador pode editar outros gestores.',true);
  // Completar a ficha com a informação guardada na loja consultada.
  (async()=>{
@@ -3421,7 +3421,7 @@ async function submitUserProfileEdit(e){
  if(u.isAreaMaster&&(role!=='gestor'||targetShopId!==oldShopId))return toast('Não podes alterar a função ou loja da conta Master.',true);
  if(name.length<2)return toast('Introduz um nome válido.',true);
  if(u.id===session.id&&(role!=='gestor'||targetShopId!==oldShopId))return toast('Não podes alterar o acesso ou a loja do gestor com sessão iniciada.',true);
- if(u.role==='gestor'&&(role!=='gestor'||targetShopId!==oldShopId)&&oldShop.users.filter(x=>x.role==='gestor').length<=1)return toast('Mantém pelo menos um gestor na loja de origem.',true);
+ if(u.role==='gestor'&&(role!=='gestor'||targetShopId!==oldShopId)&&!currentStore()?.users.some(x=>x.id===session?.id&&x.isAreaMaster&&x.adminRole==='mac')&&oldShop.users.filter(x=>x.role==='gestor').length<=1)return toast('Mantém pelo menos um gestor na loja de origem.',true);
  const details={cargo:clean($('editUserCargo').value),cav:clean($('editUserCAV').value),sfid:clean($('editUserSFID').value),email:clean($('editUserEmail').value),contacto:clean($('editUserContacto').value)};
  if(u.isAreaMaster&&u.adminOnly)details.cargo=macAdministratorLabel(u)||'Gestor de Área';
  if(role==='gestor'&&!details.cargo)details.cargo='Gestor de Loja';
@@ -3456,6 +3456,7 @@ async function submitUserProfileEdit(e){
   if(formerRole==='gestor'&&role!=='gestor'&&session?.managerAccess?.[oldShopId]===u.id&&u.id!==session.id)delete session.managerAccess[oldShopId];
   if(targetShopId===currentShopId){state=targetData;await persist()}else await writeKey('store:'+targetShopId,targetData);
   await saveRegistry();
+  if(targetShopId!==oldShopId)await macRPC('remove-access',{id:u.id,storeId:oldShopId});
   if(newPhoto!==undefined&&role==='gestor'){
    for(const shop of shopRegistry)for(const linked of shop.users){
     if(linked!==u&&linked.role==='gestor'&&linked.id===u.id&&norm(linked.name)===norm(u.name))linked.photo=newPhoto;
@@ -5260,6 +5261,7 @@ for(const id of ['macTimeZone','macRegionalFormat'])$(id)?.addEventListener('cha
 // Access to shared data and device layout are fully local; master role uses existing manager authorization.
 
 </script>
+<script src="/mac-vision/portability-rules.js"></script>
 <script src="/mac-vision/cloud-adapter.js"></script>
 <script>
 start().catch(err=>{console.error(err);toast('Erro ao iniciar: '+err.message,true)});
@@ -7274,7 +7276,7 @@ html[data-theme="uni"] #macCollapseSidebar{background:#34353e!important;color:#f
   // Mesmo as regras antigas guardadas como false não restringem o Gestor.
   if(role==='gestor'){
    // Administradores (GA/MAC) e a página de configurações mantêm acesso total; o resto segue o interruptor Gestor.
-   if(key==='config'||(!preview&&session?.accessKind==='administrador'))return true;
+   if(key==='config'||(!preview&&(session?.accessKind==='administrador'||macIsAreaSession())))return true;
    return perms()[key]?.gestor!==false;
   }
   // Permissão individual delegada pelo Administrador (validada também na Cloud).
@@ -8629,7 +8631,7 @@ function macRenderManagerStores(){
   <h2 id="macAdminEditTitle">✏️ Editar administrador</h2>
   <input id="macAdminEditId" type="hidden">
   <div class="field"><label for="macAdminEditName">Nome</label><input id="macAdminEditName" minlength="2" maxlength="90" required></div>
-  <div class="field"><label for="macAdminEditType">Cargo</label><select id="macAdminEditType" required><option value="area">Gestor de Área</option><option value="beta">Gestor Beta Tester</option><option value="mac">Gestor MAC Vision</option></select></div>
+  <div class="field"><label for="macAdminEditType">Cargo</label><select id="macAdminEditType" required><option value="area">Gestor de Área</option><option value="beta">Gestor Beta Tester</option><option value="mac">Gestor MAC Vision</option><option value="gestor">Gestor de Loja</option><option value="colaborador">Colaborador</option></select></div>
   <div class="field"><label for="macAdminEditAppName">Nome</label><input id="macAdminEditAppName" type="text" minlength="2" maxlength="70" required placeholder="MAC Vision"><div id="rcAppNamePreview" class="rc-app-preview" aria-live="polite"><span id="rcAppPreviewMark" class="brand-mark">MAC</span><span><strong id="rcAppPreviewName">MAC Vision</strong><small>Mapa de Acompanhamento Comercial</small></span></div></div>
   <div class="field"><label for="macAdminEditCarteira">Carteira</label><input id="macAdminEditCarteira" type="text" minlength="1" maxlength="20" pattern="[A-Z0-9_-]{1,20}" placeholder="Nome da Carteira" required autocapitalize="characters" autocomplete="off"></div>
   <div class="field"><label for="macAdminEditPhoto">Fotografia (opcional)</label><input id="macAdminEditPhoto" type="file" accept="image/jpeg,image/png,image/webp"></div>
@@ -8658,7 +8660,7 @@ function macRenderManagerStores(){
  const canManage=()=>!!session&&typeof macIsAreaSession==='function'&&macIsAreaSession();
  const adminAccounts=id=>shopRegistry.flatMap(shop=>(shop.users||[]).filter(u=>u.id===id&&macIsAreaUser(u)).map(user=>({shop,user})));
  const adminById=id=>adminAccounts(id)[0]?.user;
- const cargoFor={area:'Gestor de Área',beta:'Gestor Beta Tester',mac:'Gestor MAC Vision'};
+ const cargoFor={area:'Gestor de Área',beta:'Gestor Beta Tester',mac:'Gestor MAC Vision',gestor:'Gestor de Loja',colaborador:'Colaborador'};
  function closeAdminModal(id){const dialog=byId(id);if(dialog?.open)dialog.close()}
  function showAdminModal(id){const dialog=byId(id);if(dialog&&!dialog.open)dialog.showModal()}
  function adminAlert(msg,bad=false){if(typeof toast==='function')toast(msg,bad);else alert(msg)}
@@ -8719,7 +8721,7 @@ function macRenderManagerStores(){
   try{
    const file=byId('macAdminEditPhoto').files[0],remove=byId('macAdminEditRemovePhoto').checked;
    const photo=remove?'':file?await compressPhoto(file):null;
-   for(const {user} of copies){user.name=name;if(!user.macPromotedFromManager||user.adminOnly)user.cargo=cargoFor[type];user.adminRole=type;user.isAreaMaster=true;user.carteira=carteira;user.rcAppName=appName;if(photo!==null)user.photo=photo;}
+   for(const {user} of copies){user.name=name;if(!user.macPromotedFromManager||user.adminOnly)user.cargo=cargoFor[type];user.isAreaMaster=['area','beta','mac'].includes(type);user.role=type==='colaborador'?'colaborador':'gestor';if(user.isAreaMaster)user.adminRole=type;else{delete user.adminRole;user.adminOnly=false;user.employee=type==='colaborador'?name:'';}user.carteira=carteira;user.rcAppName=appName;if(photo!==null)user.photo=photo;}
    if(session?.id===id)session.name=name;
    if(session?.id===id){session.carteira=carteira;session.rcAppName=appName;}
    await saveRegistry();await window.rcSaveGlobalSettings?.(appName,carteira);
@@ -11081,7 +11083,7 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup{color:#
    if(E('macHistoryCommissionValue'))E('macHistoryCommissionValue').textContent=commission.toLocaleString('pt-PT',{style:'currency',currency:'EUR'});
    const fam=typeof family==='object'?family:{};
    E('historyHelp').textContent='Histórico das lojas disponíveis (consulta conjunta; para editar, seleciona a loja).';
-   E('historyTable').innerHTML=results.length?`<table class="tbl history-grid"><thead><tr><th>Loja</th><th>Data</th><th>Colaborador</th><th>Família</th><th>Produto / Ação</th><th>Qtd.</th><th>Pond.</th><th>Comissão</th></tr></thead><tbody>${results.slice(0,350).map(r=>`<tr><td>${escapeHTML(r.shop.name)}</td><td>${escapeHTML(r.date)}</td><td>${escapeHTML(r.employee)}</td><td>${escapeHTML(fam[r.kind]||r.kind)}</td><td>${escapeHTML(r.meta?.catalogProduct||r.label)}</td><td>${Number(r.qty)||0}</td><td>${Number(r.points||0).toFixed(2)}</td><td>${Number(r.meta?.catalogCommissionTotal||0).toLocaleString('pt-PT',{style:'currency',currency:'EUR'})}</td></tr>`).join('')}</tbody></table>${results.length>350?'<p class="smalltext muted">A mostrar os 350 registos mais recentes.</p>':''}`:'<div class="empty">Sem vendas nas lojas selecionadas.</div>';
+   E('historyTable').innerHTML=results.length?`<table class="tbl history-grid"><thead><tr><th>Loja</th><th>Data</th><th>Colaborador</th><th>Família</th><th>Produto / Ação</th><th>Qtd.</th><th>Pond.</th><th>Comissão</th></tr></thead><tbody>${results.slice(0,350).map(r=>`<tr><td>${escapeHTML(r.shop.name)}</td><td>${escapeHTML(r.date)}</td><td>${escapeHTML(r.employee)}</td><td>${escapeHTML(fam[r.kind]||r.kind)}</td><td>${escapeHTML(r.meta?.catalogProduct||r.label)}${window.macPortabilityRules?.eligible(r)?'<span class="mac-history-portability">Port: '+(window.macPortabilityRules.value(r)===true?'SIM':window.macPortabilityRules.value(r)===false?'NÃO':'Não definido')+'</span>':''}</td><td>${Number(r.qty)||0}</td><td>${Number(r.points||0).toFixed(2)}</td><td>${Number(r.meta?.catalogCommissionTotal||0).toLocaleString('pt-PT',{style:'currency',currency:'EUR'})}</td></tr>`).join('')}</tbody></table>${results.length>350?'<p class="smalltext muted">A mostrar os 350 registos mais recentes.</p>':''}`:'<div class="empty">Sem vendas nas lojas selecionadas.</div>';
  }
  const originalHistory=renderHistory;
  renderHistory=function(...args){const result=originalHistory.apply(this,args);updateShopFilter(historyFilter);if(historyFilter.value==='__all__')void showAllHistory().catch(err=>toast('Erro ao carregar histórico: '+err.message,true));else historyToken++;return result;};
@@ -12741,5 +12743,6 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
  }
 })();
 </script>
+<script src="/mac-vision/portability-ui.js"></script>
 </body>
 </html>

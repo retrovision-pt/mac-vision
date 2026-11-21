@@ -197,6 +197,27 @@
       "when": 1795219864240,
       "tag": "0027_revoke_client_shift_status",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1795222810588,
+      "tag": "0028_mac_safe_archive_and_global_access",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1795223153031,
+      "tag": "0029_mac_disabled_permission_guards",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1795223354691,
+      "tag": "0030_mac_archive_history_delete_guard",
+      "breakpoints": true
     }
   ]
 }
