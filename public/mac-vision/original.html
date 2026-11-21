@@ -4622,7 +4622,7 @@ async function start(){
   // Uma linha com turnos guardados existe: exclusões antigas não podem esconder reimportações.
   for(const shift of schedules)macExcludedScheduleNames.delete(norm(shift.employee));
   const names=[...new Set([...state.employees.map(x=>x.name),...schedules.map(x=>x.employee)])]
-   .filter(n=>n && !isScheduleHeadingName(n) && !macExcludedScheduleNames.has(norm(n)))
+   .filter(n=>n && !isScheduleHeadingName(n) && !macExcludedScheduleNames.has(norm(n)) && !(state.macScheduleHiddenByMonth?.[chosenMonth]||[]).some(hidden=>norm(hidden)===norm(n)))
    .sort((a,b)=>(norm(b)===norm('Tiago Almeida'))-(norm(a)===norm('Tiago Almeida'))||rankCargo(a)-rankCargo(b)||a.localeCompare(b,'pt'));
 
   let html=`<div class="calendar mac-schedule-grid" style="grid-template-columns:200px repeat(${days}, 30px); width:max-content; min-width:${200+days*30+days*3}px">`;
@@ -5175,14 +5175,9 @@ async function macAreaOverview(){const panel=$('macAreaOverview');if(!panel)retu
  const rows=snapshots.map(({shop,data})=>{const sales=(data.sales||[]).filter(s=>period==='month'?String(s.date).startsWith(date.slice(0,7)):s.date===date);
   const tickets=(data.tickets||[]).filter(t=>period==='month'?String(t.date).startsWith(date.slice(0,7)):t.date===date);
   return {name:shop.name,points:sales.reduce((a,s)=>a+num(s.points),0),sales:sales.length,tickets:tickets.length,employees:(data.employees||[]).length};});
- const staffRows=snapshots.flatMap(({shop,data})=>{
- const sales=(data.sales||[]).filter(s=>period==='month'?String(s.date).startsWith(date.slice(0,7)):s.date===date);
- const by=new Map();for(const emp of data.employees||[])by.set(norm(emp.name),{name:emp.name,points:0});
- for(const sale of sales){const key=norm(sale.employee);const item=by.get(key)||{name:sale.employee||'Sem colaborador',points:0};item.points+=num(sale.points);by.set(key,item)}
- return [...by.values()].filter(e=>!(data.macHiddenAreaStaff||[]).some(n=>norm(n)===norm(e.name))).map(e=>({...e,shop:shop.name}));
- });
+ const staffRows=window.macIOSRules.areaStaff(snapshots,date,period);
  const total=rows.reduce((a,r)=>a+r.points,0);
- panel.innerHTML=`<div class="section-head"><div><h2>${h(macSessionProfileLabel())} — Todas as lojas</h2><p class="smalltext muted">Dados disponíveis neste navegador · ${h(period==='month'?date.slice(0,7):datePT(date))} · ${allowed.length} loja(s)</p></div><span class="tag ok">Total ${h(nf(total,2))} pts</span></div><div class="mac-area-shop-grid">${rows.map(r=>`<div class="mac-area-shop-item"><strong>${h(r.name)}</strong><b>${h(nf(r.points,2))} pts</b><p class="smalltext muted">${r.sales} venda(s) · ${r.tickets} senha(s) · ${r.employees} colaborador(es)</p></div>`).join('')}</div><h3 style="margin:16px 0 9px">Colaboradores de todas as lojas (${staffRows.length})</h3><div class="mac-area-employee-list">${staffRows.map(r=>`<div class="mac-area-employee-line"><span title="${h(r.name)} · ${h(r.shop)}">${h(r.name)} · ${h(r.shop)}</span><strong>${h(nf(r.points,2))}</strong></div>`).join('')}</div>`;
+ panel.innerHTML=`<div class="section-head"><div><h2>${h(macSessionProfileLabel())} — Todas as lojas</h2><p class="smalltext muted">${h(period==='month'?date.slice(0,7):datePT(date))} · ${allowed.length} loja(s)</p></div><span class="tag ok">Total ${h(nf(total,2))} pts</span></div><div class="mac-area-shop-grid">${rows.map(r=>`<div class="mac-area-shop-item"><strong>${h(r.name)}</strong><b>${h(nf(r.points,2))} pts</b><p class="smalltext muted">${r.sales} venda(s) · ${r.tickets} senha(s) · ${r.employees} colaborador(es)</p></div>`).join('')}</div><h3 style="margin:16px 0 9px">Colaboradores de todas as lojas (${staffRows.length})</h3><div class="mac-area-employee-list">${staffRows.map(r=>`<div class="mac-area-employee-line"><span class="person-line" data-mac-area-staff="${h(r.name)}">${avatarFor(r.name,r.photo,'small')}<span class="mac-person-name">${h(r.name)}</span></span><strong>${h(nf(r.points,2))} pts</strong></div>`).join('')}</div>`;
 }
 const dashboard=$('page-dashboard');if(dashboard){const area=document.createElement('div');area.id='macAreaOverview';area.className='surface card mac-area-summary';area.hidden=true;dashboard.insertBefore(area,dashboard.children[1]||null)}
 const macOrigRenderDashboard=renderDashboard;
@@ -5851,10 +5846,10 @@ start().catch(err=>{console.error(err);toast('Erro ao iniciar: '+err.message,tru
   const sales=isCollaborator()?state.sales.filter(x=>x.date===localTodayIso()):dataSales();
   const tickets=isCollaborator()?state.tickets.filter(x=>x.date===localTodayIso()):dataTickets();
   const defs=[['⚖️|PONDERADOS','points'],['🏠|FIXO','fixed'],['📱|MÓVEL','mobile'],['🎯|MARCAÇÕES','marks'],['💼|+ NEGÓCIOS','business'],['📺|NC','nc'],['🚨|ALARMES','alarms'],['⚡|TV','energyTv'],['👨🏻‍💻|ATD','attended'],['📈|TE','te'],['🚨|TD','td'],['📈|TMA','tma']];
-  const summarize=(rows,ts)=>{const k=salesKpis(rows),att=ts.filter(isTerminated),canc=ts.filter(isCancelled);const pts=rows.reduce((sum,x)=>sum+num(x.points),0);const pointsFor=kind=>rows.filter(x=>x.kind===kind).reduce((sum,x)=>sum+num(x.points),0);const energyAlarm=rows.filter(x=>x.kind==='business'&&norm(x.label).includes('ENERGIA')&&norm(x.label).includes('ALARME')).reduce((sum,x)=>sum+num(x.qty),0);return {points:pts,fixed:pointsFor('fixed'),mobile:pointsFor('mobile'),marks:pointsFor('mark'),business:pointsFor('business'),nc:k.nc,alarms:k.alarms,alarmPme:k.alarmsPme,energyTv:k.energyTv||0,energyAlarm,standalone:k.energyStandalone||0,attended:att.length,te:att.length?100*pts/att.length:null,td:att.length?100*canc.length/att.length:null,tma:att.length?avg(att.map(x=>num(x.serviceSec))):null};};
+  const summarize=window.macIOSGoals.summarize;
   const summary=summarize(sales,tickets);
   const format=(key,value)=>{if(value==null)return '—'; if(key==='te'||key==='td')return nf(value,1)+'%'; if(key==='tma')return secTime(value); return nf(value,pointKeys.has(key)?2:0);};
-  const cells=data=>defs.map(([label,key])=>{const n=data[key],zero=(n===0||n==null),plain=['te','td','tma'].includes(key);return `<div class="mac-ios-value ${zero?'mac-ios-zero':plain?'mac-ios-neutral':'mac-ios-positive'}" data-ios-key="${h(key)}" title="${h(label)}: ${h(format(key,n))}">${h(format(key,n))}</div>`}).join('');
+  const cells=data=>defs.map(([label,key])=>{const n=data[key],zero=(n===0||n==null),plain=['te','td','tma'].includes(key);return `<div class="mac-ios-value ${zero?'mac-ios-zero':plain?'mac-ios-neutral':'mac-ios-positive'}" data-ios-key="${h(key)}" data-actual="${n==null?'':h(n)}" title="${h(label)}: ${h(format(key,n))}">${h(format(key,n))}</div>`}).join('');
   const headers=defs.map(([label,key])=>{const [emoji,name]=label.split('|');return `<div class="mac-ios-heading" data-ios-key="${h(key)}" title="${h(name)}"><span class="mac-ios-heading-icon">${h(emoji)}</span><span class="mac-ios-heading-label">${h(name)}</span></div>`}).join('');
   const header=`<div class="mac-ios-row mac-ios-table-header"><div class="mac-ios-heading mac-ios-label"></div>${headers}</div>`;
   const shopLabel=currentStore()?.name||state.store||'Loja';
@@ -9243,9 +9238,9 @@ const importLog=$('importLog');if(importLog){
  // Escala: as exclusões e nomes visíveis são específicos de cada mês e loja.
  const wrap=$('calendarWrap');
  const dialog=document.createElement('dialog');dialog.id='macSchedulePersonDialog';
- dialog.innerHTML='<h2>Editar colaborador da escala</h2><p class="smalltext muted" id="macSchedulePersonContext"></p><label for="macSchedulePersonName">Nome na escala</label><input id="macSchedulePersonName" maxlength="90" autocomplete="off"><div class="mac-schedule-person-actions"><button type="button" class="btn" id="macSchedulePersonCancel">Cancelar</button><button type="button" class="btn danger" id="macSchedulePersonDelete">🗑️ Apagar linha</button><button type="button" class="btn primary" id="macSchedulePersonSave">Guardar</button></div>';
+ dialog.innerHTML='<h2>Editar colaborador da escala</h2><p class="smalltext muted" id="macSchedulePersonContext"></p><label for="macSchedulePersonName">Nome na escala</label><input id="macSchedulePersonName" maxlength="90" autocomplete="off"><div class="mac-schedule-person-actions"><button type="button" class="btn primary" id="macSchedulePersonSave">Gravar</button><button type="button" class="btn" id="macSchedulePersonHide">Ocultar</button><button type="button" class="btn danger" id="macSchedulePersonDelete">Apagar</button><button type="button" class="btn" id="macSchedulePersonCancel">Cancelar</button></div>';
  document.body.appendChild(dialog);
- let selected=null;
+ let selected=null,busy=false;
  const normalize=v=>norm(String(v||''));
  const canEdit=()=>(session?.role==='gestor' && (typeof macCanAdministerStore!=='function'||macCanAdministerStore(currentShopId)))||(session?.role==='colaborador'&&macCan('schedule.edit'));
  const month=()=>($('scheduleMonth')?.value||state?.selectedDate?.slice(0,7)||'');
@@ -9279,27 +9274,45 @@ const importLog=$('importLog');if(importLog){
  $('macSchedulePersonCancel').addEventListener('click',closeDialog);
  dialog.addEventListener('click',e=>{if(e.target===dialog)closeDialog()});
  dialog.addEventListener('close',()=>{selected=null});
+ async function saveSelection(change,message){
+  if(busy||!canEdit()||!selected||selected.shop!==currentShopId)return;
+  const chosen=selected;busy=true;dialog.querySelectorAll('button').forEach(b=>b.disabled=true);
+  try{
+   if(!await macFlushChangesForExit())throw Error('Existem alterações por guardar. Tenta novamente.');
+   if(selected!==chosen||chosen.shop!==currentShopId)return;
+   change(chosen);macMarkUnsaved();renderSchedule();
+   if(!await persist())throw Error('Alteração por guardar na Cloud. Mantém esta janela aberta e tenta novamente.');
+   closeDialog();renderDashboard();renderIOS();toast(message);
+  }catch(err){toast(err.message,true);}
+  finally{busy=false;dialog.querySelectorAll('button').forEach(b=>b.disabled=false);}
+ }
+ dialog.addEventListener('cancel',event=>{if(busy)event.preventDefault();});
  $('macSchedulePersonSave').addEventListener('click',()=>{
-  if(!canEdit()||!selected||selected.shop!==currentShopId)return;
   const name=$('macSchedulePersonName').value.trim();
   if(name.length<2||name.length>90)return toast('Introduz um nome válido.',true);
-  const {month:m,name:original}=selected;
-  state.macScheduleAliasesByMonth??={};state.macScheduleAliasesByMonth[m]??={};
-  if(normalize(name)===normalize(original))delete state.macScheduleAliasesByMonth[m][normalize(original)];
-  else state.macScheduleAliasesByMonth[m][normalize(original)]=name;
-  changed(false);closeDialog();renderSchedule();toast('Nome atualizado na escala.');
+  void saveSelection(({month:m,name:original})=>{
+   state.macScheduleAliasesByMonth??={};state.macScheduleAliasesByMonth[m]??={};
+   if(normalize(name)===normalize(original))delete state.macScheduleAliasesByMonth[m][normalize(original)];
+   else state.macScheduleAliasesByMonth[m][normalize(original)]=name;
+  },'Nome guardado na escala.');
+ });
+ $('macSchedulePersonHide').addEventListener('click',()=>{
+  void saveSelection(({month:m,name})=>{
+   state.macScheduleHiddenByMonth??={};
+   state.macScheduleHiddenByMonth[m]=[...new Set([...(state.macScheduleHiddenByMonth[m]||[]),normalize(name)])];
+  },'Linha ocultada. Os horários foram preservados.');
  });
  $('macSchedulePersonDelete').addEventListener('click',()=>{
-  if(!canEdit()||!selected||selected.shop!==currentShopId)return;
+  if(busy||!canEdit()||!selected||selected.shop!==currentShopId)return;
   const {month:m,name}=selected;
   const display=state.macScheduleAliasesByMonth?.[m]?.[normalize(name)]||name;
-  if(!confirm('Apagar a linha de '+display+' da Escala Mensal de '+m.slice(5,7)+'/'+m.slice(0,4)+'? Os restantes colaboradores subirão uma linha. A conta e as vendas não serão apagadas.'))return;
-  state.macScheduleExcludedByMonth??={};
-  const old=state.macScheduleExcludedByMonth[m]||[];
-  state.macScheduleExcludedByMonth[m]=[...new Set([...old,normalize(name)])];
-  state.schedules=state.schedules.filter(s=>!(s.date?.startsWith(m)&&normalize(s.employee)===normalize(name)));
-  if(state.macScheduleAliasesByMonth?.[m])delete state.macScheduleAliasesByMonth[m][normalize(name)];
-  changed(false);closeDialog();renderSchedule();toast('Linha removida. Os restantes colaboradores subiram automaticamente.');
+  if(!confirm('Apagar a linha de '+display+' da Escala Mensal de '+m.slice(5,7)+'/'+m.slice(0,4)+'? A ficha, as vendas e os históricos serão preservados.'))return;
+  void saveSelection(({month:m,name})=>{
+   state.macScheduleExcludedByMonth??={};
+   state.macScheduleExcludedByMonth[m]=[...new Set([...(state.macScheduleExcludedByMonth[m]||[]),normalize(name)])];
+   window.macIOSRules.removeFromMonth(state,name,m);
+   if(state.macScheduleAliasesByMonth?.[m])delete state.macScheduleAliasesByMonth[m][normalize(name)];
+  },'Linha removida da escala mensal.');
  });
  if(session)applyScheduleDisplay();
 })();
@@ -12587,5 +12600,8 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
 })();
 </script>
 <script src="/mac-vision/portability-ui.js"></script>
+<link rel="stylesheet" href="/mac-vision/ios-goals.css">
+<script src="/mac-vision/ios-rules.js"></script>
+<script src="/mac-vision/ios-goals.js"></script>
 </body>
 </html>

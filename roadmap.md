@@ -1,5 +1,13 @@
 # MAC Vision
 
+## Atualização geral — objetivos IOS e interface (21/11)
+- [x] Portabilidade por ícone antes de Editar, com gravação Cloud existente.
+- [x] Resumo global apenas de colaboradores escalados, sem duplicados, com fotografia e ponderação.
+- [x] Escala: Gravar / Ocultar / Apagar / Cancelar e legenda proporcional à grelha; preservadas as permissões delegadas existentes para ocultar/editar nomes.
+- [x] Objetivos IOS individuais e de loja por período, integrados com um único cálculo dos resultados existentes e documentos Cloud versionados.
+- [x] Exportações preservam os objetivos e incluem a lista global de escalados, sem filtrá-la pela escala da loja atual.
+- [ ] Confirmar gravação e partilha dos novos objetivos com sessão real: indisponível sessão autorizada neste pedido; não criar contas de teste nem alterar dados comerciais para verificar.
+
 ## Reposição total e instalação limpa (12/11)
 - [x] Cópia de segurança privada antes da eliminação; zero contas, carteiras, lojas, vendas, mensagens e passwords após o reset.
 - [x] Causas corrigidas: sincronização que apagava acessos, login que alterava passwords, autopreenchimento do navegador nos campos de criação, contas de carteiras sem GA no ecrã de entrada; mensagem de ligação privada removida.

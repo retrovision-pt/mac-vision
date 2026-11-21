@@ -7,12 +7,12 @@
  const token=name=>getComputedStyle(document.documentElement).getPropertyValue(name).trim();
  const cell=node=>{
   const css=getComputedStyle(node),target=node.getAttribute('data-target')??node.getAttribute('data-goal'),actual=node.getAttribute('data-actual');
-  const goal=target!==null&&actual!==null?rules.goal(Number(actual),Number(target)):null;
-  return {text:clean(node),photo:node.querySelector('img')?.src||'',fg:css.color,bg:goal?token(goal==='good'?'--traffic-good':'--red'):css.backgroundColor};
+  const goal=target!==null&&actual!==null&&actual!==''?rules.goal(Number(actual),Number(target)):null;
+  return {text:clean(node),photo:node.querySelector('img')?.src||'',configuredGoal:target!==null,fg:css.color,bg:goal?token(goal==='good'?'--traffic-good':'--red'):css.backgroundColor};
  };
  function personGoal(item,name,actual){
   // The existing target field is a daily weighted-points goal, not a monthly or store goal.
-  if(period!=='day')return item;
+  if(period!=='day'||item.configuredGoal)return item;
   const employee=(state.employees||[]).find(e=>rules.key(e.name)===rules.key(name));
   const target=employee?.target;
   if(target==null||!Number.isFinite(Number(target)))return item;
@@ -92,7 +92,7 @@
    blocks.push(metrics(E('metrics'),'Vendas'),metrics(E('trafficMetrics'),'Tráfego'));
    blocks.push(list(E('ranking'),'Ponderação por colaborador',allowed),list(E('breakdown'),'Distribuição de Vendas'),list(E('todaySchedule'),'Escala da data selecionada',allowed));
    blocks.push(table(E('productivityTable'),'Produtividade e Atendimento',allowed));
-   const area=E('macAreaOverview');if(visible(area))blocks.push(list(area,'Colaboradores escalados',allowed));
+   const area=E('macAreaOverview');if(visible(area))blocks.push(list(area,'Colaboradores escalados'));
    // Include only IOS data actually displayed in the overview, never hidden/stale IOS panels.
    for(const node of E('page-dashboard').querySelectorAll('.mac-ios-table,table')){
     if(visible(node)&&!node.closest('#productivityTable'))blocks.push(table(node,'Objetivos e resultados IOS',allowed));

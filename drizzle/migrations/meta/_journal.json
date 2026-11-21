@@ -218,6 +218,13 @@
       "when": 1795223354691,
       "tag": "0030_mac_archive_history_delete_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1795225679445,
+      "tag": "0031_schedule_display_delegated_fields",
+      "breakpoints": true
     }
   ]
 }

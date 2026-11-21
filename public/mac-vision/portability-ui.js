@@ -25,7 +25,7 @@
  html[data-theme] #macPortabilityDialog .mac-port-yes{background:var(--traffic-good,var(--accent))!important;color:var(--nav)!important;border-color:var(--traffic-good,var(--accent))!important}
  html[data-theme] #macPortabilityDialog .mac-port-no{background:var(--red)!important;color:var(--nav)!important;border-color:var(--red)!important}
  #macPortabilityDialog .mac-port-close{width:32px;min-height:32px;padding:0}
- .mac-history-portability{display:block;margin-top:5px;font-size:11px;max-width:100%;white-space:normal}
+ .mac-history-portability{display:inline-flex;align-items:center;justify-content:center}
  `;
  document.head.appendChild(style);
  // The original document applies zoom; viewport units are scaled by it too.
@@ -108,11 +108,10 @@
   for(const row of E('historyTable')?.querySelectorAll('tbody tr')||[]){
    const edit=row.querySelector('[data-edit-sale]');if(!edit)continue;
    const sale=state.sales.find(s=>s.id===edit.dataset.editSale);if(!rules.eligible(sale))continue;
-   const index=[...row.closest('table').querySelectorAll('thead th')].findIndex(th=>/Produto/i.test(th.textContent));
-   const product=row.children[index];if(!product)continue;
-   const button=document.createElement('button');button.type='button';button.className='btn small mac-history-portability';button.dataset.portSale=sale.id;
-   button.textContent='Port: '+(rules.value(sale)===true?'SIM':rules.value(sale)===false?'NÃO':'Não definido');
-   button.title='Editar Móvel com Portabilidade?';product.appendChild(button);
+   const button=document.createElement('button');button.type='button';button.className='btn small mac-sale-action mac-history-portability';button.dataset.portSale=sale.id;
+   button.textContent=rules.value(sale)===true?'📲':'📱';
+   button.title='Portabilidade: '+(rules.value(sale)===true?'SIM':'NÃO')+' — Editar';button.setAttribute('aria-label',button.title);
+   edit.before(button);
   }
   return result;
  };
