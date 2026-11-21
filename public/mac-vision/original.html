@@ -4441,7 +4441,8 @@ async function start(){
     try{void macReceiveLocalChange(JSON.parse(event.newValue))}catch(_ignored){}
   });
   if(!window.XLSX){const hint=$('#page-imports .hint');if(hint)hint.title='Para ficheiros .xlsb ou .xlsx é preciso ligação à internet na importação.'}
- }finally{document.body.classList.remove('mac-starting');document.getElementById('macBootLoading')?.remove()}
+   document.body.classList.remove('mac-starting');document.getElementById('macBootLoading')?.remove();
+ }catch(e){const l=document.getElementById('macBootLoading');if(l)l.innerHTML='<span style="pointer-events:auto;text-align:center">Não foi possível ligar ao MAC Vision.<br><br><button onclick="location.reload()" style="padding:10px 18px;border-radius:10px;border:0;background:#bad80a;font-weight:800;cursor:pointer">Tentar novamente</button></span>';throw e}
 }
 /* MAC Vision V2 — harmonização de dados, painéis e formulários, sem serviços externos. */
 (function(){
