@@ -7272,7 +7272,11 @@ html[data-theme="uni"] #macCollapseSidebar{background:#34353e!important;color:#f
   if(!session)return false;
   // Todos os módulos são acessíveis a Gestores de Loja e de Área.
   // Mesmo as regras antigas guardadas como false não restringem o Gestor.
-  if(role==='gestor')return true;
+  if(role==='gestor'){
+   // Administradores (GA/MAC) e a página de configurações mantêm acesso total; o resto segue o interruptor Gestor.
+   if(key==='config'||(!preview&&session?.accessKind==='administrador'))return true;
+   return perms()[key]?.gestor!==false;
+  }
   // Permissão individual delegada pelo Administrador (validada também na Cloud).
   if(!preview&&role==='colaborador'&&typeof macCan==='function'&&(macCan(key+'.view')||(key==='imports'&&macCan('imports.moviik'))))return true;
   const rule=perms()[key]?.[role];
@@ -7282,7 +7286,7 @@ html[data-theme="uni"] #macCollapseSidebar{background:#34353e!important;color:#f
  const isAdmin=()=>session?.role==='gestor';
  const labelFor=key=>macPages.find(x=>x[0]===key)?.[2]||key;
  function renderPermissions(){const root=el('macVisionPermissions');if(!root)return;
-  root.innerHTML=macPages.map(([key,icon,title])=>`<div class="mac-permission-row"><div><div class="mac-permission-title">${esc(icon)} ${esc(title)}</div><div class="mac-permission-note">Gestor: acesso total · Colaborador: visibilidade configurável</div></div>${['gestor','colaborador'].map(role=>`<label class="mac-permission-toggle" ${role==='gestor'?'title="Acesso total permanente para gestores"':''}><input type="checkbox" data-mac-permission="${key}" data-mac-role="${role}" ${role==='gestor'?'checked disabled':(canShow(key,role,true)?'checked':'')}><span class="mac-toggle-track" aria-hidden="true"></span><span>${role==='gestor'?'Gestor':'Colaborador'}</span></label>`).join('')}</div>`).join('')+`<div class="mac-permission-row mac-schedule-access-row"><div><div class="mac-permission-title">🔒 Segurança de acesso pela escala</div><div class="mac-permission-note">Por defeito, colaboradores entram apenas desde 15 minutos antes do turno até à hora de saída. Folga, férias, faltas e dias sem escala bloqueiam. Administradores e Gestores de Loja têm acesso sem escala e podem gerir esta opção.</div></div><label class="mac-permission-toggle"><input type="checkbox" id="macRequireScheduledShift" ${state.macRequireScheduledShift!==false?'checked':''}><span class="mac-toggle-track" aria-hidden="true"></span><span>${state.macRequireScheduledShift!==false?'Ativa':'Desativada'}</span></label></div>`;
+  root.innerHTML=macPages.map(([key,icon,title])=>`<div class="mac-permission-row"><div><div class="mac-permission-title">${esc(icon)} ${esc(title)}</div><div class="mac-permission-note">Gestor e Colaborador: visibilidade configurável</div></div>${['gestor','colaborador'].map(role=>`<label class="mac-permission-toggle" ${role==='gestor'?'title="Acesso total permanente para gestores"':''}><input type="checkbox" data-mac-permission="${key}" data-mac-role="${role}" ${role==='gestor'&&key==='config'?'checked disabled':(canShow(key,role,true)?'checked':'')}><span class="mac-toggle-track" aria-hidden="true"></span><span>${role==='gestor'?'Gestor':'Colaborador'}</span></label>`).join('')}</div>`).join('')+`<div class="mac-permission-row mac-schedule-access-row"><div><div class="mac-permission-title">🔒 Segurança de acesso pela escala</div><div class="mac-permission-note">Por defeito, colaboradores entram apenas desde 15 minutos antes do turno até à hora de saída. Folga, férias, faltas e dias sem escala bloqueiam. Administradores e Gestores de Loja têm acesso sem escala e podem gerir esta opção.</div></div><label class="mac-permission-toggle"><input type="checkbox" id="macRequireScheduledShift" ${state.macRequireScheduledShift!==false?'checked':''}><span class="mac-toggle-track" aria-hidden="true"></span><span>${state.macRequireScheduledShift!==false?'Ativa':'Desativada'}</span></label></div>`;
   const gate=root.querySelector('.mac-schedule-access-row');
   const shiftRow=root.querySelector('input[data-mac-permission="schedule"]')?.closest('.mac-permission-row');
   if(gate&&shiftRow)shiftRow.appendChild(gate);
@@ -7301,7 +7305,7 @@ html[data-theme="uni"] #macCollapseSidebar{background:#34353e!important;color:#f
   const box=e.target.closest('input[data-mac-permission]');if(!box)return;
   if(!isAdmin()){box.checked=!box.checked;return;}
   const name=box.dataset.macPermission,role=box.dataset.macRole;
-  if(role==='gestor'){box.checked=true;return;} // Nunca retirar acesso ao Gestor.
+  if(role==='gestor'&&name==='config'){box.checked=true;return;} // As configurações ficam sempre acessíveis ao Gestor.
   perms()[name]??={};perms()[name][role]=box.checked;
   changed(false);renderPermissions();updateNav();
   audit('Permissões',`${labelFor(name)} · ${role}: ${box.checked?'ativado':'desativado'}`);
