@@ -4,7 +4,8 @@
  const key=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]/g,'').toUpperCase();
  const defs=[['⚖️|PONDERADOS','points'],['🏠|FIXO','fixed'],['📱|MÓVEL','mobile'],['🎯|MARCAÇÕES','marks'],['💼|+ NEGÓCIOS','business'],['📺|NC','nc'],['🚨|ALARMES','alarms'],['⚡|TV','energyTv'],['👨🏻‍💻|ATD','attended'],['📈|TE','te'],['🚨|TD','td'],['📈|TMA','tma']];
   const goal=(actual,target,hasData=true)=>!hasData||actual==null||target==null||target===''||!Number.isFinite(Number(actual))||!Number.isFinite(Number(target))?null:Number(actual)>=Number(target)?'good':'bad';
- const periodKey=(date,mode)=>mode==='month'?String(date).slice(0,7):date;
+  const periodKey=date=>String(date).slice(0,7);
+  const monthToDate=(rows,date)=>(rows||[]).filter(row=>String(row.date).slice(0,7)===periodKey(date)&&String(row.date)<=date);
  const targets=(data,id,date,mode)=>id?data.macIOSGoals?.users?.[id]?.[periodKey(date,mode)]||{}:data.macIOSGoals?.store?.[periodKey(date,mode)]||{};
  function setTargets(data,id,date,mode,values){
   const p=periodKey(date,mode);data.macIOSGoals??={};
@@ -59,5 +60,5 @@
   }
   return [...result.values()];
  }
-  root.macIOSRules={key,defs,goal,periodKey,targets,setTargets,removeFromMonth,scheduleLines,setScheduleVisibility,personId,areaStaff};
+  root.macIOSRules={key,defs,goal,periodKey,monthToDate,targets,setTargets,removeFromMonth,scheduleLines,setScheduleVisibility,personId,areaStaff};
 })(typeof window==='undefined'?globalThis:window);

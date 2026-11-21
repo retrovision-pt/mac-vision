@@ -6,18 +6,23 @@
  const visible=node=>!!node&&!node.hidden&&getComputedStyle(node).display!=='none';
  const token=name=>getComputedStyle(document.documentElement).getPropertyValue(name).trim();
  const cell=node=>{
-  const css=getComputedStyle(node),target=node.getAttribute('data-target')??node.getAttribute('data-goal'),actual=node.getAttribute('data-actual');
-  const goal=target!==null&&actual!==null&&actual!==''?rules.goal(Number(actual),Number(target)):null;
-  return {text:clean(node),photo:node.querySelector('img')?.src||'',configuredGoal:target!==null,fg:css.color,bg:goal?token(goal==='good'?'--traffic-good':'--red'):css.backgroundColor};
+  const css=getComputedStyle(node),target=node.getAttribute('data-target')??node.getAttribute('data-goal');
+  const copy=node.cloneNode(true);copy.querySelectorAll('.mac-ios-goal-caption').forEach(n=>n.remove());
+  const caption=node.querySelector('.mac-ios-goal-caption');
+  return {text:clean(copy)+(caption?' · '+caption.textContent.trim():''),photo:node.querySelector('img')?.src||'',configuredGoal:target!==null,fg:css.color,bg:css.backgroundColor};
  };
  function personGoal(item,name,actual){
-  // The existing target field is a daily weighted-points goal, not a monthly or store goal.
-  if(period!=='day'||item.configuredGoal)return item;
-  const employee=(state.employees||[]).find(e=>rules.key(e.name)===rules.key(name));
-  const target=employee?.target;
+  if(item.configuredGoal)return item;
+  const ios=window.macIOSRules;if(!ios)return item;
+  const date=isCollaborator()?localTodayIso():state.selectedDate;
+  const id=ios.personId(currentStore(),state,name);if(!id)return item;
+  const target=ios.targets(state,id,date,'month').points;
   if(target==null||!Number.isFinite(Number(target)))return item;
-  const result=rules.goal(actual,Number(target));if(!result)return item;
-  item.text+=' · Objetivo: '+nf(Number(target),2);
+  const sales=ios.monthToDate(state.sales,date).filter(s=>ios.personId(currentStore(),state,s.employee)===id);
+  const accumulated=sales.reduce((sum,s)=>sum+num(s.points),0);
+  const result=ios.goal(accumulated,target,sales.length>0);
+  item.text+=' · '+nf(Number(target),Number.isInteger(Number(target))?0:2);
+  if(!result)return item;
   item.bg=token(result==='good'?'--traffic-good':'--red');item.fg=token('--nav');
   return item;
  }

@@ -1,5 +1,9 @@
 # MAC Vision
 
+## Objetivos exclusivamente mensais (21/11)
+- [x] Seleção de mês/ano nos objetivos individuais e de loja; objetivos diários antigos preservados, mas não utilizados.
+- [x] Cores IOS pelo acumulado mensal até à data escolhida; realizados existentes mantidos e um único objetivo numérico também nas imagens.
+
 ## Atualização de portabilidade, linhas e objetivos (21/11)
 - [x] Título de portabilidade com 📲, sem alterar deteção nem contagem.
 - [x] Gestão de visibilidade mensal antes de ⇪, preservando horários e gravação Cloud.

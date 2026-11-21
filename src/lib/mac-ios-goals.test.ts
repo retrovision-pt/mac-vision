@@ -3,7 +3,7 @@ import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
 type Staff={id:string;name:string;points:number};
-type Rules={goal:(a:number|null,t:number|string|null,hasData?:boolean)=>string|null;areaStaff:(s:unknown[],d:string,m:string)=>Staff[];setTargets:(d:unknown,id:string|null,date:string,mode:string,v:Record<string,number>)=>void;targets:(d:unknown,id:string|null,date:string,mode:string)=>Record<string,number>;removeFromMonth:(d:unknown,n:string,m:string)=>void;scheduleLines:(d:unknown,m:string)=>{name:string;hidden:boolean}[];setScheduleVisibility:(d:unknown,n:string,m:string,v:boolean)=>void};
+type Rules={monthToDate:(rows:{date:string;points:number}[],date:string)=>{date:string;points:number}[];goal:(a:number|null,t:number|string|null,hasData?:boolean)=>string|null;areaStaff:(s:unknown[],d:string,m:string)=>Staff[];setTargets:(d:unknown,id:string|null,date:string,mode:string,v:Record<string,number>)=>void;targets:(d:unknown,id:string|null,date:string,mode:string)=>Record<string,number>;removeFromMonth:(d:unknown,n:string,m:string)=>void;scheduleLines:(d:unknown,m:string)=>{name:string;hidden:boolean}[];setScheduleVisibility:(d:unknown,n:string,m:string,v:boolean)=>void};
 const sandbox:{macIOSRules?:Rules}={};
 runInNewContext(readFileSync('public/mac-vision/ios-rules.js','utf8'),sandbox);
 const rules=sandbox.macIOSRules;
@@ -36,7 +36,7 @@ describe('IOS goals',()=>{
  it('is red below the goal',()=>expect(rules.goal(9,10)).toBe('bad'));
  it('is neutral without a goal',()=>expect(rules.goal(9,'')).toBeNull());
  it('is neutral when zero results have no supporting records',()=>expect(rules.goal(0,30,false)).toBeNull());
- it('keeps store, individual and period targets independent',()=>{
+  it('keeps monthly targets independent by person, store and month, regardless of display mode',()=>{
   const data={};
   rules.setTargets(data,'u1','2026-11-21','day',{points:10});
   rules.setTargets(data,'u2','2026-11-21','day',{points:20});
@@ -44,8 +44,24 @@ describe('IOS goals',()=>{
   expect(rules.targets(data,'u1','2026-11-21','day')).toEqual({points:10});
   expect(rules.targets(data,'u2','2026-11-21','day')).toEqual({points:20});
   expect(rules.targets(data,null,'2026-11-21','month')).toEqual({points:200});
-  expect(rules.targets(data,'u1','2026-11-21','month')).toEqual({});
+   expect(rules.targets(data,'u1','2026-11-01','month')).toEqual({points:10});
+   rules.setTargets(data,'u1','2026-12-01','month',{points:30});
+   expect(rules.targets(data,'u1','2026-11-30','day')).toEqual({points:10});
+   expect(rules.targets(data,'u1','2026-12-21','day')).toEqual({points:30});
  });
+  it('accumulates from the first day through the selected date without later days or other months',()=>{
+   const rows=[{date:'2026-10-31',points:100},{date:'2026-11-01',points:10},{date:'2026-11-21',points:20},{date:'2026-11-22',points:50},{date:'2026-12-01',points:100}];
+   const accumulated=rules.monthToDate(rows,'2026-11-21');
+   expect(accumulated.map(r=>r.date)).toEqual(['2026-11-01','2026-11-21']);
+   expect(accumulated.reduce((sum,row)=>sum+row.points,0)).toBe(30);
+  });
+  it('ignores legacy daily goals without deleting them or dividing the monthly goal',()=>{
+   const data={macIOSGoals:{users:{u1:{'2026-11-21':{points:5},'2026-11':{points:300}}}}};
+   expect(rules.targets(data,'u1','2026-11-21','day')).toEqual({points:300});
+   rules.setTargets(data,'u1','2026-12-21','day',{points:400});
+   expect(data.macIOSGoals.users.u1['2026-11-21']).toEqual({points:5});
+   expect(rules.targets(data,'u1','2026-11-30','month')).toEqual({points:300});
+  });
  it('removes only the selected monthly schedule, preserving employees and sales',()=>{
   const data={employees:[{name:'Ana'}],sales:[{employee:'Ana',points:5}],schedules:[{employee:'Ana',date:'2026-11-21'},{employee:'Ana',date:'2026-12-21'},{employee:'Rui',date:'2026-11-21'}]};
   rules.removeFromMonth(data,'Ana','2026-11');
