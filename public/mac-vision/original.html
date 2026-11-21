@@ -4440,7 +4440,7 @@ async function start(){
     try{void macReceiveLocalChange(JSON.parse(event.newValue))}catch(_ignored){}
   });
   if(!window.XLSX){const hint=$('#page-imports .hint');if(hint)hint.title='Para ficheiros .xlsb ou .xlsx é preciso ligação à internet na importação.'}
- }finally{document.body.classList.remove('mac-starting')}
+ }catch(e){const d=document.createElement('div');d.id='macBootError';d.style.cssText='position:fixed;inset:0;z-index:99999;display:grid;place-items:center;background:#0b1422;color:#e8eef6;font:600 15px Arial,sans-serif;text-align:center;padding:20px';d.innerHTML='<div>Não foi possível iniciar o MAC Vision.<br><small style="opacity:.7">Verifica a ligação à internet.</small><br><br><button onclick="location.reload()" style="padding:11px 20px;border-radius:10px;border:0;background:#bad80a;color:#142017;font-weight:800;cursor:pointer">Tentar novamente</button></div>';document.body.appendChild(d);throw e}finally{document.body.classList.remove('mac-starting')}
 }
 /* MAC Vision V2 — harmonização de dados, painéis e formulários, sem serviços externos. */
 (function(){
