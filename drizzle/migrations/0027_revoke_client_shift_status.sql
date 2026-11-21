@@ -1,0 +1,2 @@
+REVOKE EXECUTE ON FUNCTION public.mac_shift_status(uuid, text, timestamptz) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.mac_shift_status(uuid, text, timestamptz) TO service_role;
