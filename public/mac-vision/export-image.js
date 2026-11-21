@@ -37,6 +37,20 @@
   await Promise.all([...main.querySelectorAll('#'+pageId+' img')].map(img=>img.complete?null:new Promise(r=>{img.addEventListener('load',r,{once:true});img.addEventListener('error',r,{once:true});setTimeout(r,8000);})));
   await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
   const capture=await loadRenderer();checkContext();
+  // Snapshot each avatar at exactly 2x its rendered size: the clone gets a sharp, correctly sized photo.
+  const avatarSnaps=new Map();
+  main.querySelectorAll('#'+pageId+' .employee-avatar img').forEach(img=>{
+   if(!img.complete||!img.naturalWidth||!img.naturalHeight)return;
+   const box=img.closest('.employee-avatar');
+   const shown=(box?.getBoundingClientRect().width)||img.clientWidth||28;
+   const px=Math.min(240,Math.max(56,Math.round(shown*2)));
+   const side=Math.min(img.naturalWidth,img.naturalHeight);
+   const c=document.createElement('canvas');c.width=px;c.height=px;
+   const ctx=c.getContext('2d');if(!ctx)return;
+   ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+   ctx.drawImage(img,(img.naturalWidth-side)/2,(img.naturalHeight-side)/2,side,side,0,0,px,px);
+   avatarSnaps.set(img.currentSrc||img.src,c.toDataURL('image/jpeg',0.85));
+  });
   const shop=E('storeSelect')?.selectedOptions[0]?.textContent?.trim()||currentStore()?.name||'Loja';
   const canvas=await capture(main,{
    scale:2,width:1360,windowWidth:1360,windowHeight:1800,
@@ -85,6 +99,10 @@
     root.querySelectorAll('.mac-ios-goal-caption').forEach(node=>node.remove());
     root.querySelectorAll('#macShareIOS,#macShareOverview').forEach(button=>{button.textContent='▲';button.disabled=false;});
     content.querySelectorAll('img').forEach(image=>{image.loading='eager';});
+    content.querySelectorAll('.employee-avatar img').forEach(image=>{
+     const snap=avatarSnaps.get(image.currentSrc||image.src);
+     if(snap){image.src=snap;image.removeAttribute('srcset');image.style.width='100%';image.style.height='100%';image.style.objectFit='cover';}
+    });
    }
   });
   checkContext();
