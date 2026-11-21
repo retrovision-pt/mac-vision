@@ -76,6 +76,11 @@
      #mainApp #page-ios #iosProducts,#mainApp #page-ios #iosProducts~*,#mainApp #page-ios .surface.card:has(#iosProducts),#mainApp #page-ios #iosCollaboratorSchedule{display:none!important}
      #mainApp [title]:hover::after{display:none!important}`;
     doc.head.appendChild(style);
+    // The app applies a user zoom to <html>; html2canvas cannot render CSS zoom, so the export stage always uses 1:1.
+    doc.documentElement.style.zoom='1';doc.body.style.zoom='1';
+    root.querySelectorAll('[style*="zoom"]').forEach(node=>{node.style.zoom='1';});
+    const keep=kind==='ios'?'macShareIOS':'macShareOverview';
+    root.querySelectorAll('#macShareIOS,#macShareOverview').forEach(button=>{if(button.id!==keep)button.style.setProperty('display','none','important');});
     root.querySelectorAll('.mac-ios-goal-caption').forEach(node=>node.remove());
     root.querySelectorAll('#macShareIOS,#macShareOverview').forEach(button=>{button.textContent='▲';button.disabled=false;});
     content.querySelectorAll('img').forEach(image=>{image.loading='eager';});
