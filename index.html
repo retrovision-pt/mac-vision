@@ -9296,13 +9296,36 @@ function macRenderManagerStores(){
   function stickerBody(sticker){return STICKER_PREFIX+sticker[0]+']] '+sticker[1]+' '+sticker[2];}
   function getSticker(body){const value=String(body??'');if(!value.startsWith(STICKER_PREFIX))return null;return CHAT_STICKERS.find(item=>stickerBody(item)===value)||null;}
   function stickerMarkup(sticker){return '<span class="mac-sticker-emoji" aria-hidden="true">'+escChat(sticker[1])+'</span><span class="mac-sticker-label">'+escChat(sticker[2])+'</span>';}
-  function closeStickers(){const panel=el('macChatStickers');if(panel)panel.hidden=true;el('macChatStickerButton')?.setAttribute('aria-expanded','false');}
+  // Visual transitions never change logical chat state or trigger Cloud reads.
+  const chatMenuMotion=new WeakMap();
+  function setChatMenuVisible(node,show,immediate=false){
+    if(!node)return;
+    show=!!show;
+    const previous=chatMenuMotion.get(node),main=node.id==='macChatPanel';
+    if(previous&&previous.show===show&&!immediate)return;
+    if(previous){previous.animation?.cancel();chatMenuMotion.delete(node);}
+    const state={show,animation:null};chatMenuMotion.set(node,state);
+    const finish=()=>{if(chatMenuMotion.get(node)!==state)return;node.hidden=!show;node.inert=!show;if(main)node.classList.toggle('mac-chat-manually-open',show);state.animation=null;};
+    if(!show&&node.contains(document.activeElement))document.activeElement?.blur();
+    node.inert=!show;
+    if(immediate||window.matchMedia('(prefers-reduced-motion: reduce)').matches||typeof node.animate!=='function'||(node.hidden&&!show)||(!previous&&node.hidden===!show)){finish();return;}
+    if(show){if(main)node.classList.add('mac-chat-manually-open');node.hidden=false;}
+    // Individual CSS translate/scale leaves transform free for Nudge.
+    const full={opacity:1,translate:'0 0',scale:'1'};
+    const compact={opacity:0,translate:main?'0 12px':'0 -5px',scale:main?'.97':'1'};
+    try{const animation=node.animate(show?[compact,full]:[full,compact],{duration:show?220:170,easing:show?'cubic-bezier(.2,.8,.2,1)':'ease-in',fill:'none'});state.animation=animation;animation.onfinish=finish;}catch{finish();}
+  }
+  function chatContentEnter(node){
+    if(!node||typeof node.animate!=='function'||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+    try{node.animate([{opacity:.45,translate:'0 5px'},{opacity:1,translate:'0 0'}],{duration:170,easing:'ease-out'});}catch{}
+  }
+  function closeStickers(immediate=false){const panel=el('macChatStickers');setChatMenuVisible(panel,false,immediate||!chatOpen||!session);el('macChatStickerButton')?.setAttribute('aria-expanded','false');}
   function updateStickerButton(){const btn=el('macChatStickerButton');if(!btn)return;btn.disabled=chatSending||!chatPermitted()||!hasChatTab();if(btn.disabled)closeStickers();}
   const stickerGrid=el('macChatStickerGrid');
   if(stickerGrid)stickerGrid.innerHTML=CHAT_STICKERS.map(sticker=>'<button type="button" data-sticker="'+escChat(sticker[0])+'" title="'+escChat(sticker[2])+'" aria-label="Enviar sticker: '+escChat(sticker[2])+'">'+stickerMarkup(sticker)+'</button>').join('');
-  el('macChatStickerButton')?.addEventListener('click',()=>{if(chatSending||!chatPermitted()||!hasChatTab())return;const panel=el('macChatStickers');if(!panel.hidden){closeStickers();return;}chatPeopleOpen=false;renderChatCloud();panel.hidden=false;el('macChatStickerButton').setAttribute('aria-expanded','true');});
+  el('macChatStickerButton')?.addEventListener('click',()=>{if(chatSending||!chatPermitted()||!hasChatTab())return;const panel=el('macChatStickers');if(el('macChatStickerButton').getAttribute('aria-expanded')==='true'){closeStickers();return;}chatPeopleOpen=false;renderChatCloud();setChatMenuVisible(panel,true);el('macChatStickerButton').setAttribute('aria-expanded','true');});
   el('macChatStickerClose')?.addEventListener('click',()=>{closeStickers();el('macChatStickerButton')?.focus();});
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!el('macChatStickers')?.hidden){closeStickers();el('macChatStickerButton')?.focus();}});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&el('macChatStickerButton')?.getAttribute('aria-expanded')==='true'){closeStickers();el('macChatStickerButton')?.focus();}});
   stickerGrid?.addEventListener('click',async e=>{
     const btn=e.target.closest('[data-sticker]');if(!btn||chatSending||!chatPermitted()||!hasChatTab())return;
     const sticker=CHAT_STICKERS.find(item=>item[0]===btn.dataset.sticker);if(!sticker)return;
@@ -9391,13 +9414,12 @@ function macRenderManagerStores(){
   function updateNudgeButton(){const btn=el('macChatNudge');if(!btn)return;btn.disabled=chatSending||!chatPermitted()||!hasChatTab()||chatRecipient===null||(nudgeCooldown.get(chatRecipient)||0)>Date.now();btn.title=chatRecipient===null?'Nudge disponível em conversas privadas':'Enviar Nudge (toque)';}
 
   // A visibilidade do painel depende exclusivamente da ação manual do utilizador.
-  function syncChatPanel(){
+  function syncChatPanel(immediate=false){
     const panel=el('macChatPanel'),bubble=el('macChatBubble');
     if(!panel)return;
     const open=!!session&&chatOpen===true;
-    panel.classList.toggle('mac-chat-manually-open',open);
-    panel.hidden=!open;
-    if(!open)closeStickers();
+    setChatMenuVisible(panel,open,immediate||!session);
+    if(!open){closeStickers(true);if(!session||immediate)setChatMenuVisible(el('macChatParticipants'),false,true);}
     bubble?.setAttribute('aria-expanded',String(open));
   }
   const chatUserName = () => session?.employee || session?.name || '';
@@ -9539,7 +9561,7 @@ function macRenderManagerStores(){
       const avatar=group?'<span class="employee-avatar mac-chat-group-avatar" aria-hidden="true">👥</span>':avatarFor(name,chatContactPhoto(id),'small');
       return '<div class="mac-chat-selected-chip '+(id===chatRecipient?'active':'')+'"><button type="button" class="mac-chat-tab-select" data-chat-tab="'+i+'" aria-pressed="'+(id===chatRecipient)+'" title="'+escChat(name)+'">'+avatar+'<span class="mac-chat-selected-name">'+escChat(name)+'</span><span class="mac-chat-selected-presence '+status+'" title="'+statusLabel+'" aria-label="'+statusLabel+'"></span>'+(count?'<span class="mac-chat-tab-count">'+Math.min(count,99)+'</span>':'')+'</button><button type="button" class="mac-chat-tab-close" data-chat-close="'+i+'" aria-label="Fechar conversa de '+escChat(name)+'" title="Fechar conversa">×</button></div>';
     }).join('');
-    slot.hidden=false;if(slot.dataset.markup!==markup||!slot.firstChild){slot.innerHTML=markup;slot.dataset.markup=markup;}
+    const wasHidden=slot.hidden;slot.hidden=false;if(slot.dataset.markup!==markup||!slot.firstChild){slot.innerHTML=markup;slot.dataset.markup=markup;}if(chatOpen&&wasHidden)chatContentEnter(slot);
   }
   function chatUnread(){return cloudMessages.filter(m=>chatIncoming(m)&&!cloudRead.has(m.id));}
   function markReadCloud(){
@@ -9600,12 +9622,13 @@ function macRenderManagerStores(){
       const changedConversation=history.dataset.conversation!==String(chatRecipient);
       history.innerHTML=historyMarkup;history.dataset.markup=historyMarkup;history.dataset.conversation=String(chatRecipient);
       if(chatOpen&&(nearBottom||changedConversation))history.scrollTop=history.scrollHeight;
+      if(chatOpen&&changedConversation)chatContentEnter(history);
     }
     el('macChatTitle').textContent='💬 Chat Vision';
     el('macChatCloudStatus').dataset.chatDate=chatToday();
     renderSelectedContact();
     const people=el('macChatPeople');if(people){people.setAttribute('aria-expanded',String(chatPeopleOpen));people.disabled=!cloudReady;}
-    if(all)all.hidden=!chatPeopleOpen;
+    if(all)setChatMenuVisible(all,chatPeopleOpen, !chatOpen||!session);
     const edit=el('macChatEditMode'),del=el('macChatDeleteConversation');
     if(edit){edit.hidden=!chatManager();edit.disabled=!hasChatTab();edit.setAttribute('aria-pressed',String(chatEditMode&&chatManager()));}
     if(del){del.hidden=!chatManager();del.disabled=!chatEditMode||!hasChatTab();}
@@ -9702,8 +9725,8 @@ function macRenderManagerStores(){
   if(saleChannel)saleChannel.onmessage=e=>{const m=e.data;if(!session||!m||m.from===String(session.id))return;const p=prefs();if(p.otherSales&&p.visual)toast('🔔 '+m.employee+' registou uma venda: '+m.product);if(p.otherSales&&p.otherSaleSound)soundSale(true)};
   const previousGo=go;go=function(){const value=previousGo.apply(this,arguments);if(session && cloudLastSession!==String(session.id)+'|'+chatStoreId())void connectChatCloud(true);renderChatCloud();return value;};
   const previousRender=render;render=function(){const value=previousRender.apply(this,arguments);if(chatOpen)renderChatCloud();return value;};
-  const previousLogin=loginToStore;loginToStore=async function(){const value=await previousLogin.apply(this,arguments);chatOpen=false;syncChatPanel();resetChatTabs();cloudLastSession='';await connectChatCloud(true);return value;};
-  const previousLogout=logout;logout=async function(){if(session&&cloudReady)await chatRPC('offline',{storeId:chatStoreId()}).catch(()=>{});const value=await previousLogout.apply(this,arguments);chatOpen=false;cloudReady=false;cloudUser=null;cloudMembers=[];cloudMessages=[];cloudRead.clear();cloudSeen.clear();chatReadPending.clear();chatLoadAgain=false;resetChatTabs();cloudLastSession='';syncChatPanel();renderChatCloud();return value;};
+  const previousLogin=loginToStore;loginToStore=async function(){const value=await previousLogin.apply(this,arguments);chatOpen=false;syncChatPanel(true);resetChatTabs();cloudLastSession='';await connectChatCloud(true);return value;};
+  const previousLogout=logout;logout=async function(){if(session&&cloudReady)await chatRPC('offline',{storeId:chatStoreId()}).catch(()=>{});const value=await previousLogout.apply(this,arguments);chatOpen=false;cloudReady=false;cloudUser=null;cloudMembers=[];cloudMessages=[];cloudRead.clear();cloudSeen.clear();chatReadPending.clear();chatLoadAgain=false;resetChatTabs();cloudLastSession='';syncChatPanel(true);renderChatCloud();return value;};
   const previousShowConfig=showConfigView;showConfigView=function(){const value=previousShowConfig.apply(this,arguments);if(arguments[0]==='appearance')refreshAudioUI();return value;};
   document.querySelectorAll('[data-appearance-target="audio"]').forEach(btn=>btn.addEventListener('click',()=>{
     const home=el('macAppearanceHome'),audio=el('macAppearanceAudio');if(home)home.hidden=true;
@@ -13879,7 +13902,12 @@ html[data-theme="uni"].mac-dark #mainApp #page-history .mac-history-title-action
 #macChatSelectedContact .mac-chat-tab-count{background:#dc3545;color:white;border-radius:99px;padding:1px 4px;font-size:10px;min-width:15px;text-align:center}
 </style>
 <style id="mac-chat-manual-open-only-20261125">
-/* Mesmo que outra regra de layout altere display, não há abertura sem o estado manual. */
+/* Mesmo que outra regra de layout altere display, não há abertura sem o estado manual.
+   A classe mantém-se apenas pelos 170ms da saída visual, com o painel inerte. */
+#macChatPanel{transform-origin:bottom right}
+#macChatPanel[inert],#macChatParticipants[inert],#macChatStickers[inert]{pointer-events:none!important}
+#macChatPanel .mac-chat-head-actions button,#macChatForm button,#macChatSelectedContact .mac-chat-selected-chip,#macChatParticipants .mac-chat-person,#macChatStickerGrid button{transition:background-color .16s ease,border-color .16s ease,box-shadow .16s ease,opacity .16s ease}
+@media(prefers-reduced-motion:reduce){#macChatPanel .mac-chat-head-actions button,#macChatForm button,#macChatSelectedContact .mac-chat-selected-chip,#macChatParticipants .mac-chat-person,#macChatStickerGrid button{transition:none!important}}
 #macChatPanel[hidden],#macChatPanel:not(.mac-chat-manually-open){display:none!important;visibility:hidden!important;pointer-events:none!important}
 </style>
 </body>
