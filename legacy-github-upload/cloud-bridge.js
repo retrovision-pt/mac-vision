@@ -59,6 +59,28 @@ mobileStatusBarStyle.textContent=`
 }
 `;
 document.head.appendChild(mobileStatusBarStyle);
+ // Keep in-app notices below the fixed mobile header, including top-layer popovers.
+ const mobileNoticeStyle=document.createElement('style');
+ mobileNoticeStyle.id='mac-mobile-safe-notifications';
+ mobileNoticeStyle.textContent=`
+ @media(max-width:900px){
+  html body:has(#mainApp:not(.is-locked)) .toast,
+  html body:has(#mainApp:not(.is-locked)) .toast.bad,
+  html body:has(#mainApp:not(.is-locked)) .toast[popover],
+  html body:has(#mainApp:not(.is-locked)) .toast[popover].show:popover-open{
+   top:max(calc(var(--mac-mobile-header-bottom,calc(70px + env(safe-area-inset-top,0px))) + 14px),var(--mac-toast-top,0px))!important;
+   bottom:auto!important;
+  }
+  html body:has(#mainApp:not(.is-locked)) #macChatNudgeNotice{
+   top:calc(var(--mac-mobile-header-bottom,calc(70px + env(safe-area-inset-top,0px))) + 14px)!important;
+   right:max(12px,env(safe-area-inset-right,0px))!important;
+   width:min(330px,calc(100vw - 24px))!important;
+   box-sizing:border-box!important;
+  }
+ }
+ `;
+ document.head.appendChild(mobileNoticeStyle);
+
 const cfg=window.MAC_CLOUD_CONFIG||{};
 const registryKey='rc-clean-install-20261110-registry-v2';
 const AUTH_CACHE='mac-vision-cloud-session-v1';
