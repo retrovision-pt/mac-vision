@@ -13490,5 +13490,23 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
  body:has(#mainApp:not(.is-locked))::before{content:none!important;display:none!important}
 }
 </style>
+<style id="mac-mobile-history-compact-actions-20261125">
+@media(max-width:600px){
+ #page-history .mac-history-head-fixed{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;align-items:center!important;gap:8px!important}
+ #page-history .mac-history-head-fixed>div:first-child{display:contents!important}
+ #page-history .mac-history-head-fixed h2{grid-column:1;grid-row:1;min-width:0;margin:0!important;font-size:16px!important;line-height:1.2!important;white-space:normal!important;overflow-wrap:normal}
+ #page-history .mac-history-head-fixed #historyHelp{grid-column:1/-1;grid-row:2;min-width:0;margin:0!important}
+ #page-history .mac-history-head-fixed .mac-history-title-actions{grid-column:2;grid-row:1;display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:6px!important;width:auto!important;max-width:none!important;min-width:0!important;margin:0!important}
+ #page-history .mac-history-title-actions #macHistoryAdminExport:not([hidden]){display:inline-flex!important;align-items:center;justify-content:center;width:36px!important;min-width:36px!important;max-width:36px!important;height:36px!important;min-height:36px!important;padding:0!important;border-radius:8px!important;font-size:12px!important;flex:0 0 36px!important}
+ #page-history .mac-history-title-actions .mac-new-sale-btn{width:auto!important;min-width:0!important;height:36px!important;min-height:36px!important;padding:0 9px!important;font-size:11px!important;letter-spacing:0!important;border-radius:8px!important;white-space:nowrap!important;flex:0 0 auto!important}
+ #page-history .mac-history-title-actions #macHistoryAdminExport[hidden]{display:none!important}
+}
+@media(max-width:350px){
+ #page-history .mac-history-head-fixed{grid-template-columns:minmax(0,1fr)!important}
+ #page-history .mac-history-head-fixed h2{grid-row:1;grid-column:1}
+ #page-history .mac-history-head-fixed #historyHelp{grid-row:2;grid-column:1}
+ #page-history .mac-history-head-fixed .mac-history-title-actions{grid-row:3;grid-column:1;justify-self:end}
+}
+</style>
 </body>
 </html>
