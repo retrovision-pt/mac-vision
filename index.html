@@ -9226,8 +9226,8 @@ function macRenderManagerStores(){
   let cloudReady = false, cloudConnecting = false, cloudReason = 'A ligar à Cloud…';
   let cloudUser = null, cloudMembers = [], cloudMessages = [], cloudRead = new Set(), cloudPresence = {}, cloudReceipts = {};
   let cloudSeen = new Set(), cloudInitialLoad = false;
-  let chatRecipient = null, chatEditMode = false, chatOpen = false, cloudCurrentStore = '', chatPeopleOpen=false;
-  let chatTabs=[null], chatDrafts=new Map();
+  let chatRecipient = undefined, chatEditMode = false, chatOpen = false, cloudCurrentStore = '', chatPeopleOpen=false;
+  let chatTabs=[], chatDrafts=new Map();
   const hasChatTab=()=>chatRecipient!==undefined&&chatTabs.includes(chatRecipient);
   function selectChatTab(id){
     const field=el('macChatText');
@@ -9241,7 +9241,7 @@ function macRenderManagerStores(){
     chatTabs.splice(i,1);
     if(chatRecipient===id)selectChatTab(chatTabs.length?chatTabs[Math.min(i,chatTabs.length-1)]:undefined);
   }
-  function resetChatTabs(){chatTabs=[null];chatDrafts.clear();chatRecipient=null;chatEditMode=false;chatPeopleOpen=false;const field=el('macChatText');if(field)field.value='';}
+  function resetChatTabs(){chatTabs=[];chatDrafts.clear();chatRecipient=undefined;chatEditMode=false;chatPeopleOpen=false;const field=el('macChatText');if(field)field.value='';}
   let chatReqId = 0, cloudLastLoad = 0, chatPending = new Map(), cloudLastSession = '';
   let chatRefreshTimer = 0, chatLoadAgain=false, chatSending=false;
   const chatReadPending=new Set();
@@ -9316,7 +9316,8 @@ function macRenderManagerStores(){
       const incoming=cloudMessages.filter(m=>chatIncoming(m)&&!cloudRead.has(m.id)&&!cloudSeen.has(m.id)&&(cloudInitialLoad||chatGroupMessage(m)));
       if(incoming.length){
         const m=incoming[incoming.length-1],p=prefs();
-        for(const message of incoming){const id=chatGroupMessage(message)?null:message.sender_id;if(!chatTabs.includes(id))chatTabs.push(id);}
+        // Todos só abre por escolha manual, mesmo após refresh ou novas mensagens.
+        for(const message of incoming){if(chatGroupMessage(message))continue;const id=message.sender_id;if(!chatTabs.includes(id))chatTabs.push(id);}
         // A receção de mensagens nunca abre o painel nem muda a conversa selecionada.
         // O utilizador abre o Chat Vision manualmente; os avisos e o contador mantêm-se.
         if(p.chatNotify&&p.visual)toast('💬 '+(chatGroupMessage(m)?'Todos · ':'Nova mensagem de ')+memberName(m.sender_id));
