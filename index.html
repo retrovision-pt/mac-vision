@@ -5146,6 +5146,25 @@ function macSessionProfileLabel(){
 }
 function macIsAreaSession(){const st=currentStore();const user=st?.users.find(u=>u.id===session?.id&&u.role==='gestor');return !!(session?.role==='gestor'&&session.accessKind==='administrador'&&user&&macIsAreaUser(user));}
 function macCanAdministerStore(id){return !!(session?.role==='gestor'&&(macIsAreaSession()|| (session.managerAccess?.[id]&&shopRegistry.some(st=>st.id===id&&st.users.some(u=>u.role==='gestor'&&!u.adminOnly&&u.id===session.managerAccess[id])))));}
+// Permission guard shared by sales, imports and settings. Cloud access is authoritative.
+function macCan(permission,shopId=currentShopId){
+ if(!session||!shopId||typeof permission!=='string')return false;
+ const cloud=window.macCloud;
+ const readOnly=permission.endsWith('.view');
+ if(cloud?.session){
+   const profile=cloud.profile;
+   if(!profile)return false;
+   if(profile.role==='admin')return session.role==='gestor';
+   const grant=cloud.access.find(a=>String(a.shop_id)===String(shopId));
+   if(!grant||(!readOnly&&grant.can_write!==true))return false;
+   if(profile.role==='gestor'&&session.role==='gestor')return macCanAdministerStore(shopId);
+   if(profile.role!=='colaborador'||session.role!=='colaborador')return false;
+ }else if(session.role==='gestor')return macCanAdministerStore(shopId);
+ if(session.role==='colaborador'&&String(shopId)===String(currentShopId)){
+   return permission==='imports.moviik';
+ }
+ return false;
+}
 function macAreaOnly(){if(macIsAreaSession())return true;toast('Apenas o Gestor de Área pode alterar lojas e os acessos de gestores.',true);return false;}
 function macShowModal(id){const d=$(id);if(d&&typeof d.showModal==='function'&&!d.open)d.showModal()}
 document.addEventListener('click',e=>{const btn=e.target.closest('[data-close]');if(btn)$(btn.dataset.close)?.close()});
@@ -12744,8 +12763,12 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
      data.weights.excelCatalogValues={products:{},mobiles:{}};
      data.weights.macCommissionSourceName=file.name;
      data.weights.macCommissionAppliedTo=shops.length;
-     if(shop.id===currentShopId)if(!await persist())throw Error('Não foi possível guardar localmente. Confirma o espaço disponível e tenta novamente.');
-     else{await writeKey('store:'+shop.id,data);if(typeof signalMacLocalChange==='function')signalMacLocalChange('store',shop.id);}
+     if(shop.id===currentShopId){
+       if(!await persist())throw Error('Não foi possível guardar as ponderações na Cloud. Tenta novamente.');
+     }else{
+       await writeKey('store:'+shop.id,data);
+       if(typeof signalMacLocalChange==='function')signalMacLocalChange('store',shop.id);
+     }
     }
     document.dispatchEvent(new Event('mac-catalog-updated'));
     if(typeof renderConfig==='function')renderConfig();
