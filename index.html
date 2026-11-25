@@ -5351,6 +5351,7 @@ async function macAreaOverview(){const panel=$('macAreaOverview');if(!panel)retu
  const rows=snapshots.map(({shop,data})=>{const sales=(data.sales||[]).filter(s=>period==='month'?String(s.date).startsWith(date.slice(0,7)):s.date===date);
   const tickets=(data.tickets||[]).filter(t=>period==='month'?String(t.date).startsWith(date.slice(0,7)):t.date===date);
   return {name:shop.name,points:sales.reduce((a,s)=>a+num(s.points),0),sales:sales.length,tickets:tickets.length,employees:(data.employees||[]).length};});
+ rows.sort((a,b)=>b.points-a.points||a.name.localeCompare(b.name,'pt-PT',{sensitivity:'base'}));
  const staffRows=snapshots.flatMap(({shop,data})=>{
  const sales=(data.sales||[]).filter(s=>period==='month'?String(s.date).startsWith(date.slice(0,7)):s.date===date);
  const by=new Map();for(const emp of data.employees||[])by.set(norm(emp.name),{name:emp.name,points:0});
