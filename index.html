@@ -9306,7 +9306,8 @@ function macRenderManagerStores(){
       if(incoming.length){
         const m=incoming[incoming.length-1],p=prefs();
         for(const message of incoming){const id=chatGroupMessage(message)?null:message.sender_id;if(!chatTabs.includes(id))chatTabs.push(id);}
-        if(!chatOpen||!hasChatTab()){selectChatTab(chatGroupMessage(m)?null:m.sender_id);chatOpen=true;el('macChatPanel').hidden=false;}
+        // A receção de mensagens nunca abre o painel nem muda a conversa selecionada.
+        // O utilizador abre o Chat Vision manualmente; os avisos e o contador mantêm-se.
         if(p.chatNotify&&p.visual)toast('💬 '+(chatGroupMessage(m)?'Todos · ':'Nova mensagem de ')+memberName(m.sender_id));
         if(p.chatSound)softAlert();
       }
