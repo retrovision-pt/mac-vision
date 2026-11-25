@@ -9309,8 +9309,15 @@ function macRenderManagerStores(){
     for(const m of cloudMembers){
       if(m.user_id===cloudUser.id || !m.active || !ownIds.has(m.store_id))continue;
       const role=currentUserMember()?.role;
-      if(role!=='admin' && m.role!=='colaborador')continue;
-      if(role==='colaborador' && m.store_id!==chatStoreId())continue;
+      if(role==='colaborador'){
+        // Um colaborador pode conversar com colegas e gestores efetivos da sua própria loja.
+        if(m.store_id!==chatStoreId())continue;
+        if(m.role==='gestor'){
+          const shop=shopRegistry.find(s=>s.id===m.store_id);
+          const manager=shop?.users?.find(u=>String(u.id)===String(m.user_id)&&u.role==='gestor'&&u.active!==false&&!u.adminOnly);
+          if(!manager)continue;
+        }else if(m.role!=='colaborador')continue;
+      }else if(role!=='admin' && m.role!=='colaborador')continue;
       
       const prev=list.get(m.user_id);
       if(!prev || m.store_id===chatStoreId())list.set(m.user_id,m);
