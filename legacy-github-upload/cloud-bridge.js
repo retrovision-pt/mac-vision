@@ -17,6 +17,25 @@ function shared(key){return key===registryKey||/^store:[^:]+$/.test(String(key))
 function hasConfig(){return /^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(endpoint)&&String(cfg.publishableKey||'').startsWith('sb_publishable_');}
 function errorFrom(body,status){return new Error(body?.message||body?.msg||body?.error_description||body?.error||`Erro do servidor (${status}).`)}
 let selectedCloudShop='';
+function beginTransition(message='A entrar no MAC Vision…'){
+ document.body.classList.add('mac-cloud-transition');
+ let layer=document.getElementById('macCloudTransition');
+ if(!layer){
+   layer=document.createElement('div');layer.id='macCloudTransition';layer.setAttribute('role','status');layer.setAttribute('aria-live','polite');
+   layer.style.cssText='position:fixed;inset:0;z-index:100000;display:grid;place-content:center;justify-items:center;gap:16px;background:var(--bg,#111827);color:var(--text,#e5e7eb);font:inherit;text-align:center;padding:24px';
+   const logo=document.createElement('span');logo.className='brand-mark';logo.textContent='MAC';
+   const caption=document.createElement('span');caption.id='macCloudTransitionText';
+   layer.append(logo,caption);document.body.append(layer);
+   const style=document.createElement('style');style.id='macCloudTransitionStyle';style.textContent='body.mac-cloud-transition #authScreen,body.mac-cloud-transition #mainApp{visibility:hidden!important}';document.head.append(style);
+ }
+ document.getElementById('macCloudTransitionText').textContent=message;
+}
+function endTransition(){
+ document.getElementById('macCloudTransition')?.remove();
+ document.getElementById('macCloudTransitionStyle')?.remove();
+ document.body.classList.remove('mac-cloud-transition');
+}
+
 function gate(){
  let el=document.getElementById('macCloudGate');if(el)return el;
  const screen=document.getElementById('authScreen'),card=screen?.querySelector('.auth-card');
@@ -219,7 +238,7 @@ function loadGate(){
   nameInput.addEventListener('change',()=>{document.getElementById('macCloudPassword').value='';syncLoginButton();});
   retry.addEventListener('click',()=>void loadUsers());
   syncLoginButton();
-  const finish=()=>{el.restoreOriginal();resolve();};
+  const finish=()=>{beginTransition();el.restoreOriginal();resolve();};
   async function chooseShop(){
     // Administradores e gestores entram diretamente; a loja inicial é resolvida em autoLogin.
     if(profile?.role==='admin'||profile?.role==='gestor'){selectedCloudShop='';finish();return;}
@@ -257,7 +276,7 @@ async function autoLogin(){
  if(!profile)throw Error('Sem perfil Cloud.');
  const accountId=profile.app_user_id;
  if(!accountId){
-  if(profile.role==='admin' && !shopRegistry.some(s=>(s.users||[]).length)){return;}
+  if(profile.role==='admin' && !shopRegistry.some(s=>(s.users||[]).length)){endTransition();return;}
   if(profile.role==='admin'){
    const matches=shopRegistry.flatMap(st=>(st.users||[]).filter(u=>u.isAreaMaster&&String(u.name||'').trim().toLowerCase()===String(profile.display_name||'').trim().toLowerCase()));
    const unique=[...new Map(matches.map(u=>[u.id,u])).values()];
@@ -272,6 +291,7 @@ async function autoLogin(){
  if(!shop||!account)throw Error('Conta Cloud sem loja ou utilizador MAC Vision associado. Confirma as permissões no Supabase.');
  const mgr={};if(account.role==='gestor')for(const st of allowed){if(st.users.some(u=>u.id===account.id))mgr[st.id]=account.id;}
  await loginToStore(shop,account,mgr,profile.role==='admin'?'administrador':'gestor');
+ endTransition();
 }
 async function bindIdentity(id){
  if(profile?.role!=='admin')throw Error('Só um administrador pode associar esta conta.');
@@ -279,6 +299,7 @@ async function bindIdentity(id){
  if(!data.length)throw Error('Falha ao associar o administrador.');profile=data[0];
 }
 async function signOut(){
+ beginTransition('A terminar sessão…');
  try{if(tokens?.access_token)await authRequest('/auth/v1/logout',{method:'POST'})}catch(e){console.warn('Logout remoto:',e)}
  sessionSave(null);profile=null;access=[];versions.clear();bases.clear();
  location.reload();
@@ -299,7 +320,7 @@ async function removeAttachment(id,shopId){
  const r=await fetch(endpoint+'/storage/v1/object/mac-vision-attachments/'+path,{method:'DELETE',headers:{apikey:cfg.publishableKey,Authorization:'Bearer '+tokens.access_token}});
  if(!r.ok&&r.status!==404)throw errorFrom(await r.json().catch(()=>({})),r.status);
 }
-window.macCloud={shared,get,put,remove,loadGate,autoLogin,bindIdentity,signOut,uploadAttachment,downloadAttachment,removeAttachment,
+window.macCloud={shared,get,put,remove,loadGate,autoLogin,bindIdentity,signOut,beginTransition,endTransition,uploadAttachment,downloadAttachment,removeAttachment,
  get profile(){return profile},get access(){return access},get session(){return tokens},get lastCloudError(){return lastCloudError}
 };
 })();
