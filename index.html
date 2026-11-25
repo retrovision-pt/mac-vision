@@ -9586,7 +9586,7 @@ function macRenderManagerStores(){
     }
     const history=el('macChatMessages');
     const current=visibleChatMessages();
-    const historyMarkup=cloudReady ? (!hasChatTab()?'<div class="smalltext muted" style="align-self:stretch;flex:1;display:grid;place-items:center;text-align:center;padding:12px">Seleciona 👥 para abrir uma conversa.</div>':current.length?current.map(m=>{
+    const historyMarkup=cloudReady ? (!hasChatTab()?'<div class="smalltext muted mac-chat-empty-state">Seleciona 👥 para abrir uma conversa.</div>':current.length?current.map(m=>{
       const name=memberName(m.sender_id),mine=m.sender_id===cloudUser.id,sticker=getSticker(m.body);
       const groupStore=chatGroupMessage(m)&&m.store_id!==chatStoreId()?(shopRegistry.find(s=>s.id===m.store_id)?.name||m.store_id):'';
       const time=new Date(m.created_at).toLocaleString('pt-PT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
@@ -9594,7 +9594,7 @@ function macRenderManagerStores(){
       const read=mine&&m.recipient_id&&cloudReceipts[m.id]?.includes(m.recipient_id);
       const status=mine&&m.recipient_id?'<span class="mac-chat-receipt '+(read?'is-read':'is-delivered')+'"> · '+(read?'✓✓ Lida':'✓ Enviada')+'</span>':'';
       return '<div class="mac-chat-message '+(mine?'own':'')+(isNudge(m)?' mac-chat-nudge-message':'')+(sticker?' mac-chat-sticker-message':'')+'" data-msg-id="'+escChat(m.id)+'" data-sender-id="'+escChat(m.sender_id)+'"><div class="mac-chat-message-head">'+avatarFor(name,chatContactPhoto(m.sender_id),'small')+'<strong>'+escChat(name)+'</strong>'+actions+'</div>'+(groupStore?'<small>'+escChat(groupStore)+'</small>':'')+'<div class="mac-chat-message-body">'+(sticker?stickerMarkup(sticker):isNudge(m)?(mine?'👋 Enviaste um Nudge!':'👋 Recebeste um Nudge!'):escChat(m.body))+'</div><small>'+time+(m.edited_at?' · editada':'')+status+'</small></div>';
-    }).join(''):'<div class="smalltext muted">Ainda não existem mensagens nesta conversa.</div>'):'<div class="smalltext muted">Não foi possível consultar as mensagens na Cloud.</div>';
+    }).join(''):'<div class="smalltext muted mac-chat-empty-state">Ainda não existem mensagens nesta conversa.</div>'):'<div class="smalltext muted mac-chat-empty-state">Não foi possível consultar as mensagens na Cloud.</div>';
     if(history&&history.dataset.markup!==historyMarkup){
       const nearBottom=history.scrollHeight-history.scrollTop-history.clientHeight<70;
       const changedConversation=history.dataset.conversation!==String(chatRecipient);
@@ -10099,6 +10099,7 @@ const importLog=$('importLog');if(importLog){
  -webkit-overflow-scrolling:touch;
 }
 #macChatPanel .mac-chat-message {max-width:86%;min-width:0;overflow-wrap:anywhere;word-break:break-word;}
+#macChatPanel .mac-chat-empty-state{box-sizing:border-box;flex:1 1 auto;align-self:stretch;display:grid;place-items:center;text-align:center;padding:12px;min-height:0;width:100%;}
 #macChatForm.mac-chat-send {
  display:flex!important; flex-wrap:nowrap!important;align-items:center!important;
  width:100%!important;max-width:100%!important;min-width:0!important;
