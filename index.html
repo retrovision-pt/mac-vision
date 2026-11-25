@@ -2204,8 +2204,19 @@ html:is([data-theme="claro"],[data-theme="nos"],[data-theme="sand"]) #configPane
 <div class="field wide"><label for="newEmployeePhoto">Fotografia para identificação (opcional)</label><div class="photo-form-row"><div id="employeePhotoPreview" class="photo-preview"></div><input id="newEmployeePhoto" type="file" accept="image/jpeg,image/png,image/webp"><span class="photo-help">JPG, PNG ou WebP · até 8 MB. A imagem é reduzida e guardada localmente.</span></div></div>
 <div class="field wide"><button type="submit" class="btn primary">＋ Adicionar colaborador à loja</button></div>
 </form></div></div>
+
+<dialog id="macWeightsEditDialog" aria-labelledby="macWeightsEditTitle">
+ <div class="mac-weights-edit-head"><h2 id="macWeightsEditTitle">✏️ Editar Ponderação e Comissionamento</h2><button type="button" class="btn small ghost" id="macWeightsEditClose" aria-label="Fechar">✕</button></div>
+ <p class="muted smalltext">Carrega o ficheiro e seleciona as lojas que o devem utilizar.</p>
+ <div class="field"><label for="macWeightsEditFile">Ficheiro de ponderação e comissionamento</label><input type="file" id="macWeightsEditFile" accept=".xlsx,.xls,.xlsb,.csv,.json"></div>
+ <div class="mac-weights-edit-head"><strong>Lojas</strong><span class="smalltext muted" id="macWeightsEditCount"></span></div>
+ <label class="mac-weights-edit-store mac-weights-edit-all"><input type="checkbox" id="macWeightsEditAll"><strong>Selecionar todas</strong></label>
+ <div id="macWeightsEditStores"></div>
+ <div id="macWeightsEditStatus" aria-live="polite" role="status"></div>
+ <div class="mac-weights-edit-footer"><button type="button" class="btn ghost" id="macWeightsEditCancel">Cancelar</button><button type="button" class="btn primary" id="macWeightsEditApply" disabled>Guardar e aplicar</button></div>
+</dialog>
  <div class="config-subview" id="configPanelWeights" hidden><button class="btn ghost config-back" type="button" data-config-back>← Voltar às Definições</button>
- <div class="surface card"><div class="section-head mac-weights-head"><div><h2>⚖️ Ponderação e Comissionamento</h2><p class="smalltext muted" style="margin:7px 0 0">As folhas PRODUTOS e MOVEIS e os valores de comissionamento são exclusivos da loja selecionada.</p></div><div class="mac-weights-actions"><button type="button" class="btn small primary" id="weightsUploadBtn" title="Carregar ficheiro Excel, CSV ou JSON" aria-label="▲ Importar ponderações">▲</button><button type="button" class="btn small danger" id="weightsDeleteBtn" title="Eliminar o catálogo desta loja" aria-label="🗑️ Eliminar catálogo desta loja">🗑️</button><input id="weightsWorkbookFile" type="file" accept=".xlsx,.xls,.xlsb,.csv,.json" hidden></div></div><div class="mac-weights-context" id="macWeightsStoreDateBar" aria-label="Loja e data de referência">
+ <div class="surface card"><div class="section-head mac-weights-head"><div><h2>⚖️ Ponderação e Comissionamento</h2><p class="smalltext muted" style="margin:7px 0 0">As folhas PRODUTOS e MOVEIS e os valores de comissionamento são exclusivos da loja selecionada.</p></div><div class="mac-weights-actions"><button type="button" class="btn small ghost" id="macWeightsEditBtn" title="Editar ficheiro e escolher lojas" aria-label="Editar ponderações e escolher lojas" aria-haspopup="dialog" hidden>✏️</button><button type="button" class="btn small primary" id="weightsUploadBtn" title="Carregar ficheiro Excel, CSV ou JSON" aria-label="▲ Importar ponderações">▲</button><button type="button" class="btn small danger" id="weightsDeleteBtn" title="Eliminar o catálogo desta loja" aria-label="🗑️ Eliminar catálogo desta loja">🗑️</button><input id="weightsWorkbookFile" type="file" accept=".xlsx,.xls,.xlsb,.csv,.json" hidden></div></div><div class="mac-weights-context" id="macWeightsStoreDateBar" aria-label="Loja e data de referência">
   <div class="field"><label for="macWeightsStoreSelect">Loja</label><select id="macWeightsStoreSelect" aria-label="Selecionar loja"></select></div>
   <div class="field"><label for="macWeightsDateSelect">Data</label><input id="macWeightsDateSelect" type="date" lang="pt-PT" aria-label="Data"></div>
  </div>
@@ -12482,6 +12493,8 @@ html[data-theme="uni"].mac-dark #configPanelWeights #weightsUploadBtn {
   const grid=document.getElementById('weightsGrid'),del=document.getElementById('weightsDeleteBtn');
   if(grid)grid.hidden=allSelected;
   if(del)del.disabled=allSelected||storeField.dataset.importBusy==='true'||!macCan('weights.manage');
+  const edit=document.getElementById('macWeightsEditBtn');
+  if(edit){edit.hidden=!(session.role==='gestor'&&list.some(st=>macCanAdministerStore(st.id)&&macCan('weights.manage',st.id)));edit.disabled=storeField.dataset.importBusy==='true'||!window.macCloud?.session;}
   if(allSelected){const status=document.getElementById('macSharedCommissionStatus');if(status)status.textContent='Todos · Importar catálogo para '+list.filter(st=>macCan('weights.manage',st.id)).length+' loja(s) autorizada(s). Seleciona uma loja para consultar ou editar os seus valores.';}
   else if(typeof macCommissionShowStatus==='function')macCommissionShowStatus();
   const chosenDate=(typeof state!=='undefined'&&state?.selectedDate)||'';
@@ -12737,7 +12750,7 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
   const text=E('macNightShiftToggle')?.closest('label')?.querySelector('span');if(text)text.remove();
   E('macMoviikPendingImportsPanel')?.remove();
   E('macWeightsShareBtn')?.remove(); // Um ficheiro atualiza diretamente todas as lojas autorizadas.
-  const note=E('configPanelWeights')?.querySelector('.mac-weights-head p');if(note)note.textContent='Seleciona uma loja ou «Todos» e carrega o ficheiro PRODUTOS e MOVEIS. O catálogo é aplicado apenas ao destino selecionado, preservando as vendas já registadas.';
+  const note=E('configPanelWeights')?.querySelector('.mac-weights-head p');if(note)note.textContent='Seleciona uma loja ou «Todos» para importar com ▲, ou usa ✏️ para escolher várias lojas. O catálogo é aplicado apenas aos destinos selecionados.';
   const menu=E('macWeightsShareDialog');if(menu)menu.remove();
  };
  direct();
@@ -12839,20 +12852,22 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
  void (async()=>{try{const saved=await readKey(MARK_KEY);if(typeof saved==='string'&&/^[A-Z0-9]{2,6}$/.test(saved))logoMark=saved;
   else logoMark='';window.rcRefreshBrand?.();}
   catch(err){console.warn('Sigla do ícone:',err);}})();
- // Uma só importação de Ponderação e Comissionamento para todas as lojas autorizadas.
+ // Importação direta e importação personalizada usam a mesma validação e gravação Cloud.
  const weights=E('weightsWorkbookFile');
- document.addEventListener('change',event=>{
-  if(event.target!==weights)return;
-  event.stopImmediatePropagation();event.stopPropagation(); // não executar a importação antiga, só para a loja atual
-  const file=weights.files?.[0];weights.value='';if(!file)return;
-  void (async()=>{
+ function weightDestinations(){
+  return (typeof accessibleManagerStores==='function'?accessibleManagerStores():[]).filter(st=>st&&macCanAdministerStore(st.id)&&macCan('weights.manage',st.id));
+ }
+ async function importWeightsToStores(file,targetIds=null){
    const picker=E('macWeightsStoreSelect'),btn=E('weightsUploadBtn');
    if(picker?.dataset.importBusy==='true')throw Error('Já existe uma importação em curso.');
    if(!session||session.role!=='gestor'||!window.macCloud?.session)throw Error('É necessária uma sessão de gestor ligada à Cloud.');
    const owner=session,selected=picker?.value||currentShopId,all=selected==='__mac_weights_all__';
-   const shops=(typeof accessibleManagerStores==='function'?accessibleManagerStores():[]).filter(st=>st&&macCanAdministerStore(st.id)&&macCan('weights.manage',st.id)&&(all||st.id===selected));
+   const allowed=weightDestinations();
+   const requested=targetIds===null?null:new Set(targetIds);
+   const shops=allowed.filter(st=>requested?requested.has(st.id):(all||st.id===selected));
+   if(requested&&shops.length!==requested.size)throw Error('Uma ou mais lojas deixaram de estar autorizadas. Reabre o popup.');
    if(!shops.length)throw Error('Não há lojas autorizadas para receber o catálogo.');
-   if(!all&&selected!==currentShopId)throw Error('Aguarda que a loja selecionada termine de carregar.');
+   if(targetIds===null&&!all&&selected!==currentShopId)throw Error('Aguarda que a loja selecionada termine de carregar.');
    if(picker)picker.dataset.importBusy='true';if(btn)btn.disabled=true;window.macWeightsSyncStore?.();
    const completed=[],failures=[];
    try{
@@ -12867,8 +12882,10 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
     prepared.push({shop,next});}
     for(const {shop,next} of prepared){
      try{
-     if(session!==owner||!window.macCloud?.session||!macCan('weights.manage',shop.id))throw Error('Sessão ou autorização alterada.');
-     const data=await dataForStore(shop.id);data.weights||={};
+     if(session!==owner||!window.macCloud?.session||!macCanAdministerStore(shop.id)||!macCan('weights.manage',shop.id))throw Error('Sessão ou autorização alterada.');
+     const data=await dataForStore(shop.id);
+     if(session!==owner||!window.macCloud?.session||!macCanAdministerStore(shop.id)||!macCan('weights.manage',shop.id))throw Error('Sessão ou autorização alterada.');
+     data.weights||={};
      data.weights.importedCatalog=typeof structuredClone==='function'?structuredClone(next):JSON.parse(JSON.stringify(next));
      data.weights.excelCatalogValues={products:{},mobiles:{}};
      data.weights.macCommissionSourceName=file.name;
@@ -12886,9 +12903,67 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
     if(typeof renderConfig==='function'&&session===owner)renderConfig();
     if(failures.length){toast('Catálogo guardado em '+completed.length+'/'+shops.length+' lojas. Falhas: '+failures.join('; '),true);}
     else toast('Catálogo «'+file.name+'» aplicado a '+completed.length+(completed.length===1?' loja':' lojas')+' autorizadas. Vendas anteriores preservadas.');
+    return {completed,failures,total:shops.length};
    }finally{if(picker)delete picker.dataset.importBusy;if(btn)btn.disabled=false;window.macWeightsSyncStore?.();}
-  })().catch(error=>toast('Erro ao importar as ponderações: '+(error?.message||error),true));
+ }
+ document.addEventListener('change',event=>{
+  if(event.target!==weights)return;
+  event.stopImmediatePropagation();event.stopPropagation();
+  const file=weights.files?.[0];weights.value='';if(!file)return;
+  void importWeightsToStores(file).catch(error=>toast('Erro ao importar as ponderações: '+(error?.message||error),true));
  },true);
+ const edit=E('macWeightsEditBtn'),dialog=E('macWeightsEditDialog'),fileInput=E('macWeightsEditFile'),
+       list=E('macWeightsEditStores'),allBox=E('macWeightsEditAll'),apply=E('macWeightsEditApply'),
+       cancel=E('macWeightsEditCancel'),close=E('macWeightsEditClose'),status=E('macWeightsEditStatus'),count=E('macWeightsEditCount');
+ if(edit&&dialog&&fileInput&&list&&allBox&&apply&&cancel&&close&&status&&count){
+  let popupOwner=null,popupBusy=false;
+  const boxes=()=>Array.from(list.querySelectorAll('input[type=checkbox]'));
+  const chosen=()=>boxes().filter(x=>x.checked).map(x=>x.value);
+  function refreshPopup(){
+   const n=chosen().length,total=boxes().length;
+   allBox.checked=total>0&&n===total;allBox.indeterminate=n>0&&n<total;
+   count.textContent=n+' de '+total+' lojas selecionadas';
+   apply.disabled=popupBusy||!n||!fileInput.files?.length;
+   for(const x of boxes())x.disabled=popupBusy;
+   allBox.disabled=popupBusy;fileInput.disabled=popupBusy;cancel.disabled=popupBusy;close.disabled=popupBusy;
+  }
+  function closePopup(){if(!popupBusy&&dialog.open)dialog.close();}
+  edit.addEventListener('click',()=>{
+   if(!session||session.role!=='gestor'||!window.macCloud?.session||E('macWeightsStoreSelect')?.dataset.importBusy==='true')return;
+   const available=weightDestinations();
+   if(!available.length){toast('Não há lojas autorizadas para receber o catálogo.',true);return;}
+   popupOwner=session;fileInput.value='';status.textContent='';list.replaceChildren();
+   const selected=E('macWeightsStoreSelect')?.value||currentShopId;
+   for(const st of available){
+    const label=document.createElement('label');label.className='mac-weights-edit-store';
+    const checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.value=st.id;
+    checkbox.checked=selected==='__mac_weights_all__'||st.id===selected;
+    const name=document.createElement('span');name.textContent=st.name;
+    label.append(checkbox,name);list.append(label);
+   }
+   refreshPopup();dialog.showModal();
+  });
+  list.addEventListener('change',refreshPopup);
+  allBox.addEventListener('change',()=>{for(const x of boxes())x.checked=allBox.checked;refreshPopup();});
+  fileInput.addEventListener('change',()=>{status.textContent='';refreshPopup();});
+  cancel.addEventListener('click',closePopup);close.addEventListener('click',closePopup);
+  dialog.addEventListener('cancel',event=>{if(popupBusy)event.preventDefault();});
+  dialog.addEventListener('close',()=>{fileInput.value='';popupOwner=null;edit.focus();});
+  apply.addEventListener('click',async()=>{
+   if(popupBusy||!dialog.open)return;
+   const file=fileInput.files?.[0],ids=chosen();
+   if(!file||!ids.length)return;
+   if(session!==popupOwner){status.textContent='A sessão mudou. Fecha e reabre o popup.';return;}
+   popupBusy=true;status.textContent='A importar para '+ids.length+' loja(s)…';refreshPopup();
+   try{
+    const result=await importWeightsToStores(file,ids);
+    fileInput.value='';
+    if(result.failures.length){status.textContent='Atualizadas '+result.completed.length+'/'+result.total+' lojas. Falhas: '+result.failures.join('; ');}
+    else{popupBusy=false;dialog.close();}
+   }catch(error){status.textContent='Erro: '+(error?.message||error);}
+   finally{popupBusy=false;refreshPopup();}
+  });
+ }
  // Log de Acesso: eliminar o log completo das lojas autorizadas, não a vista filtrada.
  document.addEventListener('click',event=>{
   if(event.target?.closest('#macAuditDelete')==null)return;
@@ -13269,5 +13344,22 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
 }
 </style>
 <style id="mac-weights-all-destination-20261125">#configPanelWeights #weightsGrid[hidden]{display:none!important}#configPanelWeights #weightsDeleteBtn:disabled{opacity:.45;cursor:not-allowed}</style>
+<style id="mac-weights-edit-popup-20261125">
+#macWeightsEditBtn[hidden]{display:none!important}
+#macWeightsEditDialog{width:min(540px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:22px;box-shadow:0 18px 70px #0006}
+#macWeightsEditDialog::backdrop{background:rgba(0,0,0,.58)}
+#macWeightsEditDialog .field{margin:16px 0}
+#macWeightsEditDialog input[type=file]{width:100%;max-width:100%}
+#macWeightsEditDialog .mac-weights-edit-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+#macWeightsEditDialog h2{font-size:17px;margin:0}
+#macWeightsEditDialog .mac-weights-edit-store{display:flex;align-items:center;gap:10px;padding:11px 12px;margin:0;cursor:pointer;color:var(--text)}
+#macWeightsEditDialog .mac-weights-edit-store input{flex:none;width:17px;height:17px;margin:0}
+#macWeightsEditDialog .mac-weights-edit-store span{overflow-wrap:anywhere}
+#macWeightsEditDialog .mac-weights-edit-all{background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin:10px 0 6px}
+#macWeightsEditStores{max-height: min(280px,32vh);overflow:auto;border:1px solid var(--border);border-radius:10px}
+#macWeightsEditStores label+label{border-top:1px solid var(--border)}
+#macWeightsEditStatus{font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:12px;color:var(--muted)}
+#macWeightsEditDialog .mac-weights-edit-footer{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin-top:14px}
+</style>
 </body>
 </html>
