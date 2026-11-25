@@ -9341,7 +9341,12 @@ function macRenderManagerStores(){
   }
   function renderSelectedContact(){
     const slot=el('macChatSelectedContact');if(!slot)return;
-    if(!session||!cloudReady||chatRecipient===null){slot.hidden=true;slot.replaceChildren();return;}
+    if(!session||!cloudReady){slot.hidden=true;slot.replaceChildren();return;}
+    if(chatRecipient===null){
+      slot.hidden=false;
+      slot.innerHTML='<div class="mac-chat-selected-chip"><span class="employee-avatar mac-chat-group-avatar" aria-hidden="true">👥</span><span class="mac-chat-selected-name" title="Todos">Todos</span><span class="mac-chat-selected-presence online" title="Conversa de grupo" aria-label="Conversa de grupo"></span></div>';
+      return;
+    }
     const name=memberName(chatRecipient),seen=cloudPresence[chatRecipient],age=seen?Date.now()-new Date(seen).getTime():Infinity;
     const status=age<60000?'online':age<300000?'away':'offline';
     const statusLabel=status==='online'?'Online':status==='away'?'Ausente':'Offline';
