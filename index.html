@@ -9114,7 +9114,7 @@ function macRenderManagerStores(){
 </script>
 <button type="button" id="macChatBubble" aria-label="Abrir Chat MAC Vision" title="Chat MAC Vision" hidden>💬</button>
 <section id="macChatPanel" role="dialog" aria-label="Chat MAC Vision" aria-modal="false" hidden>
- <div class="mac-chat-head"><div><strong id="macChatTitle">💬 Chat MAC Vision</strong><div id="macChatCloudStatus" style="font-size:10px;line-height:1.3;margin-top:3px">● Cloud · inicia sessão</div></div><div class="mac-chat-head-actions"><button type="button" class="btn small mac-chat-action" id="macChatPeople" title="Utilizadores disponíveis" aria-label="Utilizadores disponíveis" aria-controls="macChatParticipants" aria-expanded="false">👥</button><button type="button" class="btn small mac-chat-action" id="macChatEditMode" title="Gerir mensagens deste utilizador" aria-label="Editar conversas" aria-pressed="false" hidden>✏️</button><button type="button" class="btn small mac-chat-action mac-chat-danger" id="macChatDeleteConversation" title="Apagar conversas do utilizador" aria-label="Apagar conversas" hidden>🗑️</button><button type="button" class="btn small" id="macChatClose" title="Fechar chat">✕</button></div></div>
+ <div class="mac-chat-head"><div><strong id="macChatTitle">💬 Chat MAC Vision</strong><div id="macChatCloudStatus" style="font-size:10px;line-height:1.3;margin-top:3px">● Cloud · inicia sessão</div><div id="macChatSelectedContact" hidden></div></div><div class="mac-chat-head-actions"><button type="button" class="btn small mac-chat-action" id="macChatPeople" title="Utilizadores disponíveis" aria-label="Utilizadores disponíveis" aria-controls="macChatParticipants" aria-expanded="false">👥</button><button type="button" class="btn small mac-chat-action" id="macChatEditMode" title="Gerir mensagens deste utilizador" aria-label="Editar conversas" aria-pressed="false" hidden>✏️</button><button type="button" class="btn small mac-chat-action mac-chat-danger" id="macChatDeleteConversation" title="Apagar conversas do utilizador" aria-label="Apagar conversas" hidden>🗑️</button><button type="button" class="btn small" id="macChatClose" title="Fechar chat">✕</button></div></div>
  <div id="macChatParticipants" class="mac-chat-participants" aria-label="Utilizadores disponíveis" hidden></div>
  <div id="macChatMessages" class="mac-chat-log" aria-live="polite"></div>
  <form id="macChatForm" class="mac-chat-send"><input id="macChatText" placeholder="Escrever mensagem…" maxlength="1000" autocomplete="off" aria-label="Mensagem"><button class="btn primary" type="submit" aria-label="Enviar mensagem">➤</button></form>
@@ -9217,7 +9217,7 @@ function macRenderManagerStores(){
       if(cloudInitialLoad){
         for(const m of cloudMessages){
           if(!cloudSeen.has(m.id) && !m.deleted_at && m.sender_id!==cloudUser.id && (m.recipient_id===cloudUser.id || (m.recipient_id===null&&m.store_id===chatStoreId()))){
-            if(!chatOpen){chatRecipient=m.recipient_id===null?null:m.sender_id;chatOpen=true;el('macChatPanel').hidden=false;}
+            if(!chatOpen){chatRecipient=m.recipient_id===null?null:m.sender_id;chatPeopleOpen=false;chatEditMode=false;chatOpen=true;el('macChatPanel').hidden=false;}
             const p=prefs();if(p.chatNotify&&p.visual)toast('💬 Nova mensagem de '+memberName(m.sender_id));
             if(p.chatSound)softAlert();
           }
@@ -9263,6 +9263,21 @@ function macRenderManagerStores(){
       chatEditMode&&chatManager()&&(m.sender_id===chatRecipient||m.recipient_id===chatRecipient)));
   }
   function memberName(id){return cloudMembers.find(m=>m.user_id===id)?.display_name || 'Utilizador';}
+  function chatContactPhoto(id){
+    const members=cloudMembers.filter(m=>m.user_id===id);
+    const stores=[...members].sort((a,b)=>Number(b.store_id===chatStoreId())-Number(a.store_id===chatStoreId()));
+    for(const member of stores){const shop=shopRegistry.find(s=>s.id===member.store_id);const user=shop?.users?.find(u=>String(u.id)===String(id));if(user?.photo)return user.photo;if(shop?.id===currentShopId){const photo=employeePhotoIn(state,member.display_name);if(photo)return photo;}}
+    return '';
+  }
+  function renderSelectedContact(){
+    const slot=el('macChatSelectedContact');if(!slot)return;
+    if(!session||!cloudReady||chatRecipient===null){slot.hidden=true;slot.replaceChildren();return;}
+    const name=memberName(chatRecipient),seen=cloudPresence[chatRecipient],age=seen?Date.now()-new Date(seen).getTime():Infinity;
+    const status=age<60000?'online':age<300000?'away':'offline';
+    const statusLabel=status==='online'?'Online':status==='away'?'Ausente':'Offline';
+    slot.hidden=false;
+    slot.innerHTML='<div class="mac-chat-selected-chip">'+avatarFor(name,chatContactPhoto(chatRecipient),'small')+'<span class="mac-chat-selected-name" title="'+escChat(name)+'">'+escChat(name)+'</span><span class="mac-chat-selected-presence '+status+'" title="'+statusLabel+'" aria-label="'+statusLabel+'"></span><button type="button" id="macChatClearContact" title="Voltar a Todos" aria-label="Fechar conversa de '+escChat(name)+'">×</button></div>';
+  }
   function chatUnread(){return cloudMessages.filter(m=>!m.deleted_at&&m.sender_id!==cloudUser?.id&&
     (m.recipient_id===cloudUser?.id||m.recipient_id===null) && !cloudRead.has(m.id));}
   function markReadCloud(){
@@ -9305,6 +9320,7 @@ function macRenderManagerStores(){
     if(chatOpen&&history)history.scrollTop=history.scrollHeight;
     el('macChatTitle').textContent='💬 Chat Vision';
     el('macChatCloudStatus').dataset.chatDate=chatToday();
+    renderSelectedContact();
     const people=el('macChatPeople');if(people){people.setAttribute('aria-expanded',String(chatPeopleOpen));people.disabled=!cloudReady;}
     if(all)all.hidden=!chatPeopleOpen;
     const edit=el('macChatEditMode'),del=el('macChatDeleteConversation');
@@ -9321,9 +9337,10 @@ function macRenderManagerStores(){
   });
   el('macChatClose')?.addEventListener('click',()=>{chatOpen=false;chatPeopleOpen=false;el('macChatPanel').hidden=true;});
   el('macChatPeople')?.addEventListener('click',()=>{chatPeopleOpen=!chatPeopleOpen;renderChatCloud();});
+  el('macChatSelectedContact')?.addEventListener('click',e=>{if(!e.target.closest('#macChatClearContact'))return;chatRecipient=null;chatPeopleOpen=false;chatEditMode=false;renderChatCloud();});
   el('macChatParticipants')?.addEventListener('click',e=>{
     const btn=e.target.closest('[data-cloud-person]'); if(!btn)return;
-    chatRecipient=btn.dataset.cloudPerson==='todos'?null:btn.dataset.cloudPerson;chatPeopleOpen=false;renderChatCloud();
+    chatRecipient=btn.dataset.cloudPerson==='todos'?null:btn.dataset.cloudPerson;chatPeopleOpen=false;chatEditMode=false;renderChatCloud();
   });
   el('macChatForm')?.addEventListener('submit',async e=>{
     e.preventDefault();
@@ -13125,6 +13142,19 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
 #saleForm[inert]{opacity:.55;pointer-events:none}
 #macSalesAllNote[hidden]{display:none!important}
 #macSalesAllNote:not([hidden]){display:block!important;padding:9px 11px;border:1px solid var(--border);border-radius:8px;margin-bottom:10px}
+</style>
+<style id="mac-chat-selected-contact-20261125">
+#macChatSelectedContact[hidden]{display:none!important}
+#macChatPanel .mac-chat-head{align-items:flex-start!important}
+#macChatSelectedContact{margin-top:5px;max-width:100%;min-width:0}
+#macChatSelectedContact .mac-chat-selected-chip{display:inline-flex;max-width:100%;min-width:0;align-items:center;gap:5px;background:#e9f1ca;border:1px solid #81b800;border-radius:999px;padding:3px 7px 3px 4px;color:#24301c;font-size:11px;line-height:1.2;vertical-align:middle}
+#macChatSelectedContact .employee-avatar{flex:0 0 24px!important;width:24px!important;height:24px!important;min-width:24px!important;min-height:24px!important;max-width:24px!important;max-height:24px!important;border-radius:50%!important;overflow:hidden!important;display:inline-grid!important;place-items:center!important;background:#64784d;color:white;font-size:10px}
+#macChatSelectedContact .employee-avatar img{width:100%;height:100%;object-fit:cover}
+#macChatSelectedContact .mac-chat-selected-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+#macChatSelectedContact .mac-chat-selected-presence{width:8px;height:8px;border-radius:50%;flex:0 0 8px;background:#df464e}
+#macChatSelectedContact .mac-chat-selected-presence.online{background:#10b981}
+#macChatSelectedContact .mac-chat-selected-presence.away{background:#eab308}
+#macChatPanel #macChatClearContact{display:inline-grid;place-items:center;flex:0 0 15px;width:15px!important;height:18px!important;min-width:15px!important;min-height:18px!important;padding:0!important;border:0!important;background:transparent!important;color:#677c47!important;font-size:17px!important;line-height:1;cursor:pointer}
 </style>
 </body>
 </html>
