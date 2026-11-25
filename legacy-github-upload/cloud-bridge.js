@@ -27,10 +27,10 @@ function gate(){
  el=document.createElement('div');el.id='macCloudGate';el.className='auth-block';
  el.innerHTML=`
  <div class="auth-header"><div class="brand-mark">MAC</div><div><strong style="font-size:19px">MAC Vision</strong><div class="smalltext muted">Mapa de Acompanhamento Comercial</div></div></div>
- <div><h1 class="auth-title">Bem-vindo</h1><p class="auth-subtitle">Seleciona o acesso e introduz o nome de utilizador e a palavra-passe.</p></div>
+ <div><h1 class="auth-title">Bem-vindo</h1><p class="auth-subtitle">Seleciona o acesso, o utilizador e introduz a palavra-passe.</p></div>
  <form id="macCloudAuthForm" class="auth-block" autocomplete="on">
  <div class="auth-step"><label for="macCloudRole">Acesso</label><select id="macCloudRole" required><option value="">Selecionar acesso</option><option value="admin">👑 Administrador</option><option value="gestor">🔐 Gestor</option><option value="colaborador">👤 Colaborador</option></select></div>
- <div class="auth-step"><label for="macCloudName">Utilizador</label><input type="text" id="macCloudName" required maxlength="160" autocomplete="username" placeholder="Nome do utilizador"></div>
+ <div class="auth-step"><label for="macCloudName">Utilizador</label><select id="macCloudName" required disabled><option value="">Selecionar utilizador</option></select><button type="button" id="macCloudRetry" class="btn ghost" hidden>Tentar novamente</button></div>
  <div class="auth-step"><label for="macCloudPassword">Password</label><input type="password" id="macCloudPassword" required autocomplete="current-password" placeholder="Introduzir palavra-passe"></div>
  <button type="submit" class="btn primary auth-btn" id="macCloudAuthButton">ENTRAR NO MAC VISION →</button>
  </form>
@@ -172,6 +172,35 @@ function loadGate(){
   const el=gate();
   if(!hasConfig()){status('A configuração da ligação está incompleta.');return;}
   const form=document.getElementById('macCloudAuthForm'),shopForm=document.getElementById('macCloudShopForm');
+  const roleInput=document.getElementById('macCloudRole'),nameInput=document.getElementById('macCloudName'),retry=document.getElementById('macCloudRetry'),loginButton=document.getElementById('macCloudAuthButton');
+  let listRequest=0;
+  function syncLoginButton(){loginButton.disabled=!roleInput.value||nameInput.disabled||!nameInput.value;}
+  async function loadUsers(){
+    const role=roleInput.value,req=++listRequest;
+    nameInput.disabled=true;
+    retry.hidden=true;
+    status('');
+    nameInput.replaceChildren(new Option(role?'A carregar utilizadores…':'Selecionar utilizador',''));
+    syncLoginButton();
+    if(!role)return;
+    try{
+      const result=await raw('/functions/v1/mac-vision-login-list',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role})});
+      if(req!==listRequest||role!==roleInput.value)return;
+      if(!Array.isArray(result?.names))throw Error('Resposta inválida.');
+      const names=result.names.filter(n=>typeof n==='string'&&n.trim());
+      nameInput.replaceChildren(new Option(names.length?'Selecionar utilizador':'Sem utilizadores registados',''),...names.map(n=>new Option(n,n)));
+      nameInput.disabled=!names.length;
+    }catch(err){
+      if(req!==listRequest||role!==roleInput.value)return;
+      nameInput.replaceChildren(new Option('Lista indisponível',''));
+      retry.hidden=false;
+      status('Não foi possível carregar os utilizadores. '+err.message);
+    }finally{if(req===listRequest)syncLoginButton();}
+  }
+  roleInput.addEventListener('change',()=>{document.getElementById('macCloudPassword').value='';void loadUsers();});
+  nameInput.addEventListener('change',()=>{document.getElementById('macCloudPassword').value='';syncLoginButton();});
+  retry.addEventListener('click',()=>void loadUsers());
+  syncLoginButton();
   const finish=()=>{el.restoreOriginal();resolve();};
   async function chooseShop(){
     const rows=await authRequest('/rest/v1/mac_vision_directory?select=shop_id,data&order=shop_id.asc');
@@ -182,7 +211,7 @@ function loadGate(){
     form.hidden=true;shopForm.hidden=false;select.focus();
   }
   shopForm.addEventListener('submit',e=>{e.preventDefault();const shop=document.getElementById('macCloudShop').value;if(!shop)return;selectedCloudShop=shop;finish();});
-  document.getElementById('macCloudBack').addEventListener('click',async()=>{try{await authRequest('/auth/v1/logout',{method:'POST'})}catch{}sessionSave(null);profile=null;access=[];selectedCloudShop='';shopForm.hidden=true;form.hidden=false;status('');});
+  document.getElementById('macCloudBack').addEventListener('click',async()=>{try{await authRequest('/auth/v1/logout',{method:'POST'})}catch{}sessionSave(null);profile=null;access=[];selectedCloudShop='';shopForm.hidden=true;form.hidden=false;void loadUsers();});
   form.addEventListener('submit',async e=>{
    e.preventDefault();const button=document.getElementById('macCloudAuthButton');button.disabled=true;status('');
    const pw=document.getElementById('macCloudPassword');
@@ -190,7 +219,7 @@ function loadGate(){
     const name=document.getElementById('macCloudName').value.trim(),role=document.getElementById('macCloudRole').value;
     const t=await raw('/functions/v1/mac-vision-name-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,role,password:pw.value})});
     sessionSave(t);await loadProfile();await chooseShop();
-   }catch(err){sessionSave(null);profile=null;access=[];status('Não foi possível entrar: '+err.message);}finally{pw.value='';button.disabled=false;}
+   }catch(err){sessionSave(null);profile=null;access=[];status('Não foi possível entrar: '+err.message);}finally{pw.value='';syncLoginButton();}
   });
   (async()=>{
    const cached=sessionGet();if(!cached?.access_token)return;
