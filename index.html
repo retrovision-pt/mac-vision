@@ -13508,5 +13508,14 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
  #page-history .mac-history-head-fixed .mac-history-title-actions{grid-row:3;grid-column:1;justify-self:end}
 }
 </style>
+<style id="mac-mobile-sale-quick-entry-alignment-20261125">
+@media(max-width:600px){
+ #page-sales .section-head:has(>#saleFormHeading),#page-sales .section-head:has(>div>#saleFormHeading){display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;align-items:center!important;gap:8px!important}
+ #page-sales .section-head:has(>div>#saleFormHeading)>div:first-child{display:contents!important}
+ #page-sales #saleFormHeading{grid-column:1;grid-row:1;min-width:0;margin:0!important;font-size:clamp(14px,3.8vw,17px)!important;line-height:1.2!important;white-space:normal!important}
+ #page-sales .section-head:has(>div>#saleFormHeading)>div>p{grid-column:1/-1;grid-row:2;min-width:0;margin:0!important}
+ #page-sales .section-head:has(>div>#saleFormHeading)>.tag.ok{grid-column:2;grid-row:1;align-self:center!important;justify-self:end;margin:0!important;font-size:10px!important;line-height:1.2!important;padding:6px 8px!important;white-space:nowrap!important;border-radius:7px}
+}
+</style>
 </body>
 </html>
