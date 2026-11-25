@@ -17,7 +17,7 @@ function shared(key){return key===registryKey||/^store:[^:]+$/.test(String(key))
 function hasConfig(){return /^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(endpoint)&&String(cfg.publishableKey||'').startsWith('sb_publishable_');}
 function errorFrom(body,status){return new Error(body?.message||body?.msg||body?.error_description||body?.error||`Erro do servidor (${status}).`)}
 let selectedCloudShop='';
-function beginTransition(message='A entrar no MAC Vision…'){
+function beginTransition(message='Loading'){
  document.body.classList.add('mac-cloud-transition');
  let layer=document.getElementById('macCloudTransition');
  if(!layer){
