@@ -13034,5 +13034,97 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
 #macChatPeople[aria-expanded=true],#macChatEditMode[aria-pressed=true]{border-color:var(--accent)!important}
 #macChatPanel .mac-chat-log{padding:10px!important}
 </style>
+<script id="mac-all-store-sales-ios-20261125">
+(function(){
+ 'use strict';
+ const E=id=>document.getElementById(id), select=E('storeSelect'), ALL='__mac_all_section_stores__';
+ if(!select)return;
+ const pages=new Set(['sales','ios','history','imports']);
+ const stores=()=>session?.role==='gestor'?accessibleManagerStores():[];
+ const modes={sales:false,ios:false};
+ let sequence=0, cache=null, loading=null, scopeOwner='';
+ const filter=()=>page==='history'?E('macHistoryStoreFilter'):page==='imports'?E('macImportsStoreFilter'):null;
+ function active(){return !!(pages.has(page)&&stores().length);}
+ function isAll(){return active()&&(page==='sales'||page==='ios'?modes[page]:filter()?.value==='__all__');}
+ const note=document.createElement('p');note.id='macSalesAllNote';note.className='smalltext muted';note.textContent='Seleciona uma loja no filtro acima para registar uma venda. A consulta abaixo reúne todas as lojas autorizadas.';note.hidden=true;E('saleForm')?.before(note);
+ function formMode(){
+  const on=page==='sales'&&isAll(),form=E('saleForm');
+  if(form)form.inert=on;
+  if(note)note.hidden=!on;
+ }
+ function options(){
+  const old=Array.from(select.options).find(o=>o.value===ALL);
+  if(!active()){old?.remove();formMode();return;}
+  if(!old)select.add(new Option('Todas',ALL),0);
+  else if(old!==select.firstElementChild)select.insertBefore(old,select.firstChild);
+  select.disabled=false;
+  select.value=isAll()?ALL:currentShopId;
+  formMode();
+ }
+ function fingerprint(){return String(session?.id||'')+'|'+stores().map(s=>s.id).join('|')+'|'+currentShopId;}
+ async function collect(force=false){
+  const owner=fingerprint();
+  if(!force&&cache&&scopeOwner===owner&&Date.now()-cache.at<15000)return cache.rows;
+  if(loading&&loading.owner===owner)return loading.promise;
+  const seq=++sequence;
+  const promise=Promise.all(stores().map(async shop=>({shop,data:await dataForStore(shop.id)}))).then(rows=>{
+   if(seq!==sequence||owner!==fingerprint())return null;
+   cache={rows,at:Date.now()};scopeOwner=owner;return rows;
+  });
+  loading={owner,promise};
+  try{return await promise;}finally{if(loading?.promise===promise)loading=null;}
+ }
+ const priorSummary=renderSaleSummary, priorIOS=renderIOS;
+ function allSales(rows){
+  const date=E('saleDate')?.value||state.selectedDate;
+  const sales=rows.flatMap(({shop,data})=>(data.sales||[]).filter(s=>s.date===date).map(s=>({...s,shopName:shop.name}))).sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+  E('saleSummary').innerHTML='<div class="metrics" style="grid-template-columns:repeat(2,minmax(0,1fr));margin:5px 0"><div><div class="smalltext muted">Registos no dia · Todas</div><div class="value" style="font-size:29px;font-weight:850">'+sales.length+'</div></div><div><div class="smalltext muted">Pontos no dia</div><div class="value green" style="font-size:29px;font-weight:850">'+h(nf(sales.reduce((n,s)=>n+num(s.points),0)))+'</div></div></div>';
+  E('recentSales').innerHTML=sales.length?sales.map(s=>'<div class="sale-latest-row"><div style="flex:1;min-width:0"><strong>'+h(s.employee)+'</strong><div class="smalltext">'+h(s.shopName)+' · '+h(s.label)+' · '+h(nf(s.qty,0))+'</div><div class="smalltext muted">'+h(saleCreationTime(s)||'')+'</div></div><strong>'+h(nf(s.points))+'</strong></div>').join(''):'<div class="empty">Sem vendas nas lojas autorizadas nesta data.</div>';
+ }
+ function allIOS(rows){
+  const original=state,combined={...original,store:'Todas as lojas',sales:[],tickets:[],employees:[],schedules:[]};
+  for(const {shop,data} of rows){
+   const canonical=name=>{const person=(data.employees||[]).find(e=>norm(e.name)===norm(name)||(e.alias&&norm(e.alias)===norm(name)));return (person?.name||name||'Sem atribuição')+' · '+shop.name;};
+   combined.sales.push(...(data.sales||[]).map(s=>({...s,employee:canonical(s.employee)})));
+   combined.tickets.push(...(data.tickets||[]).map(s=>({...s,employee:canonical(s.employee)})));
+   combined.employees.push(...(data.employees||[]).map(e=>({...e,name:canonical(e.name),alias:''})));
+   combined.schedules.push(...(data.schedules||[]).map(s=>({...s,employee:canonical(s.employee)})));
+  }
+  try{state=combined;priorIOS();}finally{state=original;}
+  const title=E('macIosTopGrid')?.querySelector('.mac-ios-shopname');if(title){title.textContent='Todas as lojas';title.title='Todas as lojas';}
+  const label=E('iosScopeLabel');if(label)label.textContent='Todas as lojas · '+(period==='day'?datePT(original.selectedDate):original.selectedDate.slice(0,7));
+ }
+ function renderCombined(which,force=false){
+  const owner=fingerprint();
+  const output=which==='sales'?E('recentSales'):E('iosTable');
+  if(!cache||scopeOwner!==owner||force){if(output)output.innerHTML='<div class="empty">A carregar todas as lojas…</div>';}
+  void collect(force).then(rows=>{if(!rows||page!==which||!isAll()||owner!==fingerprint())return;if(which==='sales')allSales(rows);else allIOS(rows);}).catch(e=>{if(page===which&&isAll()&&output)output.innerHTML='<div class="empty">Não foi possível carregar todas as lojas. Seleciona uma loja ou tenta novamente.</div>';console.warn('Consolidação de lojas:',e);});
+ }
+ renderSaleSummary=function(...args){if(page==='sales'&&isAll()){formMode();renderCombined('sales');return;}return priorSummary.apply(this,args);};
+ renderIOS=function(...args){if(page==='ios'&&isAll()){renderCombined('ios');return;}return priorIOS.apply(this,args);};
+ const beforeOptions=renderOptions;renderOptions=function(...args){const result=beforeOptions.apply(this,args);options();return result;};
+ const beforeGo=go;go=function(...args){const before=page;const result=beforeGo.apply(this,args);if(before!==page){cache=null;sequence++;loading=null;}options();if(page==='sales'&&isAll())renderSaleSummary();if(page==='ios'&&isAll())renderIOS();return result;};
+ document.addEventListener('change',event=>{
+  if(event.target!==select||!active())return;
+  const value=select.value;
+  if(value!==ALL&&!stores().some(s=>s.id===value))return;
+  if(page==='history'||page==='imports'){
+   const f=filter();if(!f)return;
+   event.stopImmediatePropagation();event.preventDefault();f.value=value===ALL?'__all__':value;
+   f.dispatchEvent(new Event('change',{bubbles:true}));options();return;
+  }
+  if(value===ALL){event.stopImmediatePropagation();event.preventDefault();modes[page]=true;options();renderCombined(page,true);return;}
+  if(modes[page]){modes[page]=false;cache=null;sequence++;loading=null;formMode();if(value===currentShopId){event.stopImmediatePropagation();render();options();}}
+ },true);
+ for(const id of ['macHistoryStoreFilter','macImportsStoreFilter'])E(id)?.addEventListener('change',()=>queueMicrotask(options));
+ document.addEventListener('submit',event=>{if(event.target===E('saleForm')&&page==='sales'&&isAll()){event.preventDefault();event.stopImmediatePropagation();toast('Seleciona a loja onde pretendes registar a venda.',true);}},true);
+ setInterval(()=>{if(!document.hidden&&['sales','ios'].includes(page)&&isAll())renderCombined(page,true);},60000);
+})();
+</script>
+<style id="mac-all-store-forms-20261125">
+#saleForm[inert]{opacity:.55;pointer-events:none}
+#macSalesAllNote[hidden]{display:none!important}
+#macSalesAllNote:not([hidden]){display:block!important;padding:9px 11px;border:1px solid var(--border);border-radius:8px;margin-bottom:10px}
+</style>
 </body>
 </html>
