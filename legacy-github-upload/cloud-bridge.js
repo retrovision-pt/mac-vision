@@ -4,6 +4,15 @@
  */
 (function(){
 'use strict';
+// Match the existing employee selector typography on the sale form, including its mobile breakpoints.
+const saleFontStyle=document.createElement('style');
+saleFontStyle.id='mac-sale-uniform-field-font';
+saleFontStyle.textContent=`
+#page-sales #saleForm :is(#saleKind,#saleLabel,#saleQuantity,#saleCatalogValue,#saleUnitPoints){font-size:16px!important}
+@media(max-width:600px){#page-sales #saleForm :is(#saleKind,#saleLabel,#saleQuantity,#saleCatalogValue,#saleUnitPoints){font-size:clamp(13px,3.4vw,16px)!important}}
+@media(max-width:560px){#page-sales #saleForm :is(#saleKind,#saleLabel,#saleQuantity,#saleCatalogValue,#saleUnitPoints){font-size:13px!important}}
+`;
+document.head.appendChild(saleFontStyle);
 const cfg=window.MAC_CLOUD_CONFIG||{};
 const registryKey='rc-clean-install-20261110-registry-v2';
 const AUTH_CACHE='mac-vision-cloud-session-v1';
