@@ -2497,8 +2497,9 @@ async function restoreLocalSession(){
 }
 
 const legacyShopId='forum-coimbra';
+function macCompareStores(a,b){const name=x=>String(typeof x==='string'?x:x?.name||'').trim();const x=name(a),y=name(b);return Number(/^P-/i.test(y))-Number(/^P-/i.test(x))||x.localeCompare(y,'pt-PT',{sensitivity:'base',numeric:true});}
 function currentStore(){return shopRegistry.find(x=>x.id===currentShopId)||null}
-function storeOptions(selectId,preferred=currentShopId){const el=$(selectId);if(!el)return;const prior=el.value||preferred||currentShopId;el.innerHTML=shopRegistry.slice().sort((a,b)=>a.name.localeCompare(b.name,'pt-PT',{sensitivity:'base'})).map(s=>`<option value="${h(s.id)}">${h(s.name)}</option>`).join('');el.value=shopRegistry.some(s=>s.id===prior)?prior:currentShopId;}
+function storeOptions(selectId,preferred=currentShopId){const el=$(selectId);if(!el)return;const prior=el.value||preferred||currentShopId;el.innerHTML=shopRegistry.slice().sort(macCompareStores).map(s=>`<option value="${h(s.id)}">${h(s.name)}</option>`).join('');el.value=shopRegistry.some(s=>s.id===prior)?prior:currentShopId;}
 function initials(name){return clean(name).split(/\s+/).slice(0,2).map(x=>x[0]||'').join('').toUpperCase()||'👤'}
 function avatarFor(name,photo,size=''){const valid=typeof photo==='string'&&/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(photo)&&photo.length<220000;return `<span class="employee-avatar ${size}" aria-label="Fotografia de ${h(name)}">${valid?`<img src="${photo}" alt="">`:h(initials(name))}</span>`}
 async function dataForStore(shopId){if(shopId===currentShopId)return state;const shop=shopRegistry.find(s=>s.id===shopId);if(!shop)throw Error('A loja escolhida não existe.');const saved=await readKey('store:'+shopId);return saved?shape(saved):shape(shopId===legacyShopId?clone(START_DATA):blankStoreData(shop))}
@@ -2634,7 +2635,7 @@ async function macReceiveLocalChange(msg){
  if(msg.kind==='store'&&msg.shopId===currentShopId)await macRefreshLocalState();
  if(msg.kind==='registry'){
   const reg=await readKey(REGISTRY_KEY);
-  if(Array.isArray(reg)){shopRegistry=reg;
+  if(Array.isArray(reg)){shopRegistry=reg.slice().sort(macCompareStores);
    if(!session)renderLogin();
    else if(page==='config'&&configView==='home')renderAccess();
   }
@@ -2764,7 +2765,7 @@ async function clearAllAccessAccountsOnce(){
  await writeKey(MAC_ACCOUNTS_CLEAN_VERSION,true);
 }
 async function loadRegistry(){
- const saved=await readKey(REGISTRY_KEY);shopRegistry=Array.isArray(saved)?saved:[];
+ const saved=await readKey(REGISTRY_KEY);shopRegistry=Array.isArray(saved)?saved.slice().sort(macCompareStores):[];
  for(const store of shopRegistry){store.users ||= [];store.excelCode ||= '';}
  // Acesso administrativo só por atribuição explícita; nunca por nome próprio.
  // Administradores também têm acesso a todas as lojas locais. As cópias sem
@@ -2780,6 +2781,7 @@ async function loadRegistry(){
  if(!window.macCloud?.session)await saveRegistry();
 }
 async function saveRegistry(){
+ shopRegistry.sort(macCompareStores);
  await writeKey(REGISTRY_KEY,shopRegistry);
  signalMacLocalChange('registry','');
 }
@@ -2861,7 +2863,7 @@ let loginCandidates=new Map();
 function buildLoginCandidates(role){
  const found=new Map();
  if(!['gestor','colaborador','administrador'].includes(role))return found;
- const stores=shopRegistry.slice().sort((a,b)=>macLoginCollator.compare(a.name,b.name));
+ const stores=shopRegistry.slice().sort(macCompareStores);
  for(const store of stores){
   for(const user of store.users||[]){
    if(role==='administrador' ? !macIsAreaUser(user) : user.role!==role || (role==='gestor' && user.adminOnly===true))continue;
@@ -2886,7 +2888,7 @@ function selectedLoginAccount(){
 function renderLoginStores(){
  const select=$('loginStore'),selected=select.value;
  const choice=loginCandidates.get($('loginUser').value);
- const stores=choice?shopRegistry.filter(s=>choice.stores.has(s.id)).sort((a,b)=>macLoginCollator.compare(a.name,b.name)):[];
+ const stores=choice?shopRegistry.filter(s=>choice.stores.has(s.id)).sort(macCompareStores):[];
  const singleCollaboratorStore=$('loginRole').value==='colaborador'&&stores.length===1;
  select.innerHTML=(singleCollaboratorStore?'':'<option value="">Selecionar loja</option>')+stores.map(s=>`<option value="${h(s.id)}">${h(s.name)}</option>`).join('');
  select.value=stores.some(s=>s.id===selected)?selected:(stores.length===1?stores[0].id:'');
@@ -2970,8 +2972,8 @@ function renderPendingAreaSetup(){
  $('setupStoresStage').hidden=inManagers;
  $('setupManagersStage').hidden=!inManagers;
  macUpdateSetupHeading();
- $('setupManagerStoreChoices').innerHTML=draft.stores.map(st=>`<label class="mac-setup-check"><input type="checkbox" name="setupManagerStore" value="${h(st.id)}"><span>${h(st.name)}</span></label>`).join('');
- $('setupDraftStores').innerHTML=draft.stores.length?draft.stores.map(st=>{
+ $('setupManagerStoreChoices').innerHTML=draft.stores.slice().sort(macCompareStores).map(st=>`<label class="mac-setup-check"><input type="checkbox" name="setupManagerStore" value="${h(st.id)}"><span>${h(st.name)}</span></label>`).join('');
+ $('setupDraftStores').innerHTML=draft.stores.length?draft.stores.slice().sort(macCompareStores).map(st=>{
   const managers=draft.managers.filter(u=>(u.assignedStoreIds||[]).includes(st.id));
   const existing=shopRegistry.some(sh=>sh.id===st.id);
   return `<div class="mac-setup-store-entry"><div class="mac-setup-store-heading"><strong>🏬 ${h(st.name)}</strong>${existing?'<span class="tag">Loja existente</span>':`<button type="button" class="btn small danger" data-setup-remove-store="${h(st.id)}" aria-label="Remover loja ${h(st.name)}">✕</button>`}</div>${managers.length?`<div class="mac-setup-pills">${managers.map(u=>`<span class="tag ok">${h(u.name)}</span>`).join('')}</div>`:''}</div>`;
@@ -3063,7 +3065,7 @@ function managerAccountForStore(shopId){
  const userId=session.managerAccess?.[shopId];
  return userId?shopRegistry.find(s=>s.id===shopId)?.users.find(u=>u.id===userId&&u.role==='gestor'&&(macIsAreaSession()||!u.adminOnly))||null:null;
 }
-function accessibleManagerStores(){return session?.role==='gestor'?(macIsAreaSession()?shopRegistry.slice():shopRegistry.filter(s=>managerAccountForStore(s.id))).sort((a,b)=>macLoginCollator.compare(a.name,b.name)):[]}
+function accessibleManagerStores(){return session?.role==='gestor'?(macIsAreaSession()?shopRegistry.slice():shopRegistry.filter(s=>managerAccountForStore(s.id))).sort(macCompareStores):[]}
 function renderSessionPhoto(){
  if(!session)return;
  const shop=currentStore();
@@ -4900,7 +4902,7 @@ async function start(){
    groups.sort((a,b)=>macLoginCollator.compare(a.user.name,b.user.name));
    $id('managerProfiles').innerHTML=groups.length?groups.map(group=>{
     const u=group.user,p=profileFields(u,null),st=group.primary;
-    const shops=group.shops.slice().sort((a,b)=>macLoginCollator.compare(a.name,b.name));
+    const shops=group.shops.slice().sort(macCompareStores);
     const linked=shops.map(shop=>`<button type="button" class="mac-manager-shop-chip" data-manage-store="${h(shop.id)}" title="Ver esta loja">${h(shop.name)}</button>`).join('');
     return `<div class="mac-user-profile mac-manager-all-card">
       <div class="mac-user-heading">${avatarFor(u.name,u.photo||'')}<div><strong>${h(u.name)}</strong><div class="mac-user-role"><span class="mac-user-cargo">${h(p.cargo||'Gestor de Loja')}</span></div></div></div>
@@ -5220,7 +5222,7 @@ function macPrepareAdminCreation(){
  const previouslySelected=select.value;
  const available=macEligibleManagerAccounts();
  select.innerHTML='<option value="">Selecionar gestor existente</option>'+available.map(([id,info])=>
-  `<option value="${h(id)}">${h(info.user.name)} · ${h([...info.shops].sort((a,b)=>macLoginCollator.compare(a,b)).join(', '))}</option>`).join('');
+  `<option value="${h(id)}">${h(info.user.name)} · ${h([...info.shops].sort(macCompareStores).join(', '))}</option>`).join('');
  if(available.some(([id])=>id===previouslySelected))select.value=previouslySelected;
  const mode=$('macAdminSource').value==='existing'?'existing':'new';
  $('macAdminExistingFields').hidden=mode!=='existing';
@@ -5933,7 +5935,7 @@ window.macCloud.loadGate()
  const node=()=>document.getElementById('storeSelect');
  const isOverview=()=>page==='dashboard'&&!!document.querySelector('#page-dashboard.active');
  const isArea=()=>!!session&&session.role==='gestor';
- const permitted=()=>isArea()&&isOverview()&&allowedStores().length>1;
+ const permitted=()=>isArea()&&isOverview()&&(allowedStores().length>1||(macIsAreaSession()&&allowedStores().length>0));
  const allowedStores=()=>typeof accessibleManagerStores==='function'?accessibleManagerStores():[];
 
  function showSelector(){
@@ -5944,10 +5946,10 @@ window.macCloud.loadGate()
      if(select.value===ALL_ID)select.value=currentShopId;
      return;
    }
-   if(!old&&allowedStores().length>1){
+   if(!old){
      const option=document.createElement('option');option.value=ALL_ID;option.textContent='Todas as Lojas';
      select.insertBefore(option,select.firstChild);
-   }
+   }else if(old!==select.firstElementChild){select.insertBefore(old,select.firstChild);}
    select.disabled=false;
    select.value=allSelected&&select.querySelector('option[value="'+ALL_ID+'"]')?ALL_ID:currentShopId;
  }
@@ -8793,7 +8795,7 @@ function macRenderAdminDirectory(){
  const list=[...groups.values()].sort((a,b)=>macLoginCollator.compare(a.user.name,b.user.name));
  area.innerHTML=list.length?list.map(({user,shops})=>`<article class="mac-admin-profile">
   <div class="person-line">${avatarFor(user.name,user.photo||'')}<div class="mac-admin-info"><strong>${h(user.name)}</strong><span>${h(macAdministratorLabel(user))}</span></div></div>
-  <div class="mac-admin-assigned"><b>Lojas:</b> ${shops.sort((a,b)=>macLoginCollator.compare(a.name,b.name)).map(s=>`<span class="mac-store-label">${h(s.name)}</span>`).join('')}</div>
+  <div class="mac-admin-assigned"><b>Lojas:</b> ${shops.slice().sort(macCompareStores).map(s=>`<span class="mac-store-label">${h(s.name)}</span>`).join('')}</div>
   ${macIsAreaSession()?`<div class="mac-admin-actions" aria-label="Gerir administrador ${h(user.name)}">
    <button type="button" class="btn small mac-icon-action" data-mac-admin-edit="${h(user.id)}" aria-label="Editar ${h(user.name)}" title="Editar">✏️</button>
    <button type="button" class="btn small mac-icon-action" data-mac-admin-password="${h(user.id)}" aria-label="Alterar password de ${h(user.name)}" title="Password">🔑</button>
