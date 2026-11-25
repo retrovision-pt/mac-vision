@@ -9165,6 +9165,7 @@ function macRenderManagerStores(){
   const chatStoreId = () => String(currentShopId || '');
   const chatManager = () => !!cloudMembers.find(m => m.user_id === cloudUser?.id && m.store_id === chatStoreId() && ['gestor','admin','ga'].includes(m.role));
   const currentUserMember = () => cloudMembers.find(m => m.user_id === cloudUser?.id && m.store_id === chatStoreId());
+  const chatCanModerate = m => !!m && chatManager() && (m.sender_id===cloudUser?.id || (currentUserMember()?.role==='admin' && (!m.recipient_id || m.recipient_id===cloudUser?.id))) && cloudMembers.some(u=>u.user_id===cloudUser?.id&&u.store_id===m.store_id);
   const currentStoreEnabled = () => window.__macChatStoreEnabled !== false;
   const chatPermitted = () => cloudReady && !!session && !!currentUserMember() && (currentStoreEnabled() || chatManager());
   const chatCloudStatus = document.getElementById('macChatCloudStatus');
@@ -9294,14 +9295,14 @@ function macRenderManagerStores(){
     if(history)history.innerHTML=cloudReady ? (current.length?current.map(m=>{
       const name=memberName(m.sender_id),mine=m.sender_id===cloudUser.id;
       const time=new Date(m.created_at).toLocaleString('pt-PT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
-      const actions=mine&&chatEditMode?'<span class="mac-chat-message-actions"><button type="button" data-cloud-edit="'+escChat(m.id)+'">✏️</button><button type="button" data-cloud-delete="'+escChat(m.id)+'">🗑️</button></span>':'';
+      const actions=chatEditMode&&chatCanModerate(m)?'<span class="mac-chat-message-actions"><button type="button" data-cloud-edit="'+escChat(m.id)+'">✏️</button><button type="button" data-cloud-delete="'+escChat(m.id)+'">🗑️</button></span>':'';
       const status=mine&&m.recipient_id?(cloudReceipts[m.id]?.includes(m.recipient_id)?' · ✓✓ Lida':' · ✓ Enviada'):'';
       return '<div class="mac-chat-message '+(mine?'own':'')+'" data-msg-id="'+escChat(m.id)+'" data-sender-id="'+escChat(m.sender_id)+'"><div class="mac-chat-message-head"><span class="mac-chat-message-avatar-fallback">'+escChat(name.slice(0,1))+'</span><strong>'+escChat(name)+'</strong>'+actions+'</div><div class="mac-chat-message-body">'+escChat(m.body)+'</div><small>'+time+(m.edited_at?' · editada':'')+status+'</small></div>';
     }).join(''):'<div class="smalltext muted">Ainda não existem mensagens nesta conversa.</div>'):'<div class="smalltext muted">Não foi possível consultar as mensagens na Cloud.</div>';
     if(chatOpen&&history)history.scrollTop=history.scrollHeight;
     el('macChatTitle').textContent='💬 Chat Vision · '+chatToday();
     const edit=el('macChatEditMode'),del=el('macChatDeleteConversation');
-    if(edit)edit.hidden=!chatManager();
+    if(edit){edit.hidden=!chatManager();edit.setAttribute('aria-pressed',String(chatEditMode&&chatManager()));}
     if(del){del.hidden=!chatManager();del.disabled=!chatEditMode;}
     if(el('macChatStoreEnabled')){el('macChatStoreEnabled').checked=currentStoreEnabled();el('macChatStoreEnabled').disabled=!chatManager()||!cloudReady;}
     markReadCloud();setChatStatus(cloudReady?'● Cloud · ligado':cloudReason,cloudReady);
@@ -9332,14 +9333,14 @@ function macRenderManagerStores(){
   el('macChatMessages')?.addEventListener('click',async e=>{
     const btn=e.target.closest('[data-cloud-edit],[data-cloud-delete]');if(!btn||!chatManager())return;
     const id=btn.dataset.cloudEdit||btn.dataset.cloudDelete;
-    const msg=cloudMessages.find(m=>m.id===id);if(!msg)return;
+    const msg=cloudMessages.find(m=>m.id===id);if(!chatCanModerate(msg))return;
     if(btn.dataset.cloudDelete){if(!confirm('Apagar esta mensagem para todos?'))return;
-      try{await chatRPC('moderate',{messageId:id,body:null});await loadChatCloud()}catch(err){toast(err.message,true);}return;
+      try{await chatRPC('moderate',{messageId:id,body:null});cloudMessages=cloudMessages.filter(m=>m.id!==id);renderChatCloud();await loadChatCloud()}catch(err){toast(err.message,true);}return;
     }
     const body=prompt('Editar mensagem:',msg.body);
     if(body===null)return;
     if(!body.trim())return toast('A mensagem não pode ficar vazia.',true);
-    try{await chatRPC('moderate',{messageId:id,body:body.trim().slice(0,1000)});await loadChatCloud()}catch(err){toast(err.message,true);}
+    try{const value=body.trim().slice(0,1000);await chatRPC('moderate',{messageId:id,body:value});cloudMessages=cloudMessages.map(m=>m.id===id?{...m,body:value,edited_at:new Date().toISOString()}:m);renderChatCloud();await loadChatCloud()}catch(err){toast(err.message,true);}
   });
   el('macChatDeleteConversation')?.addEventListener('click',async()=>{
     if(!chatManager() || !chatEditMode)return;
