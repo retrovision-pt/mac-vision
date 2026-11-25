@@ -203,6 +203,8 @@ function loadGate(){
   syncLoginButton();
   const finish=()=>{el.restoreOriginal();resolve();};
   async function chooseShop(){
+    // Administradores e gestores entram diretamente; a loja inicial é resolvida em autoLogin.
+    if(profile?.role==='admin'||profile?.role==='gestor'){selectedCloudShop='';finish();return;}
     const rows=await authRequest('/rest/v1/mac_vision_directory?select=shop_id,data&order=shop_id.asc');
     const choices=rows.filter(x=>(x.data?.users||[]).some(u=>String(u.id)===String(profile.app_user_id)));
     if(choices.length<2){selectedCloudShop=choices[0]?.shop_id||'';finish();return;}
@@ -247,7 +249,7 @@ async function autoLogin(){
  }
  const allowed=profile.role==='admin'?shopRegistry:shopRegistry.filter(st=>access.some(a=>a.shop_id===st.id));
  let shop=null,account=null;
- for(const st of [...allowed].sort((a,b)=>Number(b.id===selectedCloudShop)-Number(a.id===selectedCloudShop))){const u=(st.users||[]).find(x=>String(x.id)===String(accountId));
+ for(const st of [...allowed].sort((a,b)=>Number(b.id===selectedCloudShop)-Number(a.id===selectedCloudShop)||String(a.name||'').localeCompare(String(b.name||''),'pt-PT',{sensitivity:'base',numeric:true}))){const u=(st.users||[]).find(x=>String(x.id)===String(accountId));
   if(u && (profile.role==='admin' ? u.role==='gestor' : profile.role===u.role)){shop=st;account=u;break;}}
  if(!shop||!account)throw Error('Conta Cloud sem loja ou utilizador MAC Vision associado. Confirma as permissões no Supabase.');
  const mgr={};if(account.role==='gestor')for(const st of allowed){if(st.users.some(u=>u.id===account.id))mgr[st.id]=account.id;}
