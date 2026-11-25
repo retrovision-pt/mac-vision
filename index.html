@@ -12111,7 +12111,7 @@ body.mac-import-multishop #macImportsStoreFilter[hidden]{display:none!important}
  // Descrição do importador: identifica automaticamente a coluna D para todas as lojas.
  for(const heading of document.querySelectorAll('#page-imports .surface.card p.muted,#page-imports .upload-box p')){
   if(/loja atual|seleciona um ou vários ficheiros/i.test(heading.textContent||'')){
-   heading.textContent='O ficheiro MOVIIK é distribuído automaticamente pelas lojas reconhecidas na coluna D, desde que estejam associadas nas definições de Lojas. Registos sem loja reconhecida não são atribuídos.';
+   heading.textContent='';heading.hidden=true;
   }
  }
 })();
