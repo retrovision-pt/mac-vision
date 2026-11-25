@@ -56,7 +56,8 @@ function gate(){
  const welcome=copy('macSetupWelcomeRow',{macSetupWelcomeRow:'macCloudWelcome',authTitle:'macCloudTitle',authSubtitle:'macCloudSubtitle'});
  welcome.querySelector('.rc-setup-hero-logo')?.setAttribute('hidden','');
  welcome.querySelector('#macCloudTitle').textContent='Bem-vindo';
- welcome.querySelector('#macCloudSubtitle').textContent='Seleciona o acesso, o user e introduz a password. A loja é detetada automaticamente.';
+ welcome.querySelector('#macCloudSubtitle').textContent='';
+ welcome.querySelector('#macCloudSubtitle').style.display='none';
  const form=copy('loginForm',{loginForm:'macCloudAuthForm',loginRole:'macCloudRole',loginUser:'macCloudName',loginUserPhoto:'macCloudUserPhoto',macLoginStoreField:'macCloudOriginalStoreField',loginStore:'macCloudOriginalStore',loginPassword:'macCloudPassword',rcLoginButton:'macCloudAuthButton'});
  form.setAttribute('autocomplete','on');
  const role=form.querySelector('#macCloudRole');role.querySelector('option[value="administrador"]').value='admin';role.value='';
