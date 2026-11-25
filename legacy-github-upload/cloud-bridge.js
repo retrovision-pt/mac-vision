@@ -386,7 +386,10 @@ async function removeAttachment(id,shopId){
  const r=await fetch(endpoint+'/storage/v1/object/mac-vision-attachments/'+path,{method:'DELETE',headers:{apikey:cfg.publishableKey,Authorization:'Bearer '+tokens.access_token}});
  if(!r.ok&&r.status!==404)throw errorFrom(await r.json().catch(()=>({})),r.status);
 }
-window.macCloud={shared,get,put,remove,loadGate,autoLogin,bindIdentity,signOut,beginTransition,endTransition,uploadAttachment,downloadAttachment,removeAttachment,
+async function chat(action,args={}){
+ return authRequest('/rest/v1/rpc/mac_vision_chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({p_action:action,p_args:args})});
+}
+window.macCloud={shared,get,put,remove,loadGate,autoLogin,bindIdentity,signOut,chat,beginTransition,endTransition,uploadAttachment,downloadAttachment,removeAttachment,
  get profile(){return profile},get access(){return access},get session(){return tokens},get lastCloudError(){return lastCloudError}
 };
 })();
