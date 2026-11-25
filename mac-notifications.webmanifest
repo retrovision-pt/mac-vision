@@ -1,0 +1,23 @@
+{
+  "id": "./",
+  "name": "MAC Vision",
+  "short_name": "MAC Vision",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#BAD80A",
+  "icons": [
+    {
+      "src": "./public/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "./public/maskable-icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
