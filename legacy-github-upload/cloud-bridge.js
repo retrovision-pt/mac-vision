@@ -56,7 +56,7 @@ function gate(){
  const welcome=copy('macSetupWelcomeRow',{macSetupWelcomeRow:'macCloudWelcome',authTitle:'macCloudTitle',authSubtitle:'macCloudSubtitle'});
  welcome.querySelector('.rc-setup-hero-logo')?.setAttribute('hidden','');
  welcome.querySelector('#macCloudTitle').textContent='Bem-vindo';
- welcome.querySelector('#macCloudSubtitle').textContent='Seleciona o acesso, o user e a password.';
+ welcome.querySelector('#macCloudSubtitle').textContent='Seleciona o acesso, o user e introduz a password. A loja é detetada automaticamente.';
  const form=copy('loginForm',{loginForm:'macCloudAuthForm',loginRole:'macCloudRole',loginUser:'macCloudName',loginUserPhoto:'macCloudUserPhoto',macLoginStoreField:'macCloudOriginalStoreField',loginStore:'macCloudOriginalStore',loginPassword:'macCloudPassword',rcLoginButton:'macCloudAuthButton'});
  form.setAttribute('autocomplete','on');
  const role=form.querySelector('#macCloudRole');role.querySelector('option[value="administrador"]').value='admin';role.value='';
@@ -229,10 +229,57 @@ function loadGate(){
   if(!hasConfig()){status('A configuração da ligação está incompleta.');return;}
   const form=document.getElementById('macCloudAuthForm'),shopForm=document.getElementById('macCloudShopForm');
   const roleInput=document.getElementById('macCloudRole'),nameInput=document.getElementById('macCloudName'),retry=document.getElementById('macCloudRetry'),loginButton=document.getElementById('macCloudAuthButton');
-  let listRequest=0;
+  let listRequest=0,photoRequest=0;
+  const photoBox=document.getElementById('macCloudUserPhoto');
+  photoBox.style.cssText='margin-top:17px;display:flex;justify-content:center;align-items:center;gap:12px;text-align:left;min-width:0';
+  function clearUserPreview(){
+    photoRequest++;
+    photoBox.replaceChildren();
+    photoBox.hidden=true;
+    photoBox.style.display='none';
+  }
+  function drawUserPreview(name,cargo,photo){
+    photoBox.replaceChildren();
+    photoBox.hidden=false;
+    photoBox.style.display='flex';
+    const avatar=document.createElement('span');
+    avatar.className='employee-avatar login';
+    avatar.setAttribute('aria-label','Fotografia de '+name);
+    const pieces=name.trim().split(/\s+/).filter(Boolean);
+    const initials=((pieces[0]?.[0]||'')+(pieces.length>1?pieces[pieces.length-1][0]:'' )).toUpperCase();
+    if(typeof photo==='string'&&photo.length<220000&&/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(photo)){
+      const img=document.createElement('img');
+      img.alt='';img.src=photo;
+      img.addEventListener('error',()=>{avatar.textContent=initials;},{once:true});
+      avatar.append(img);
+    }else avatar.textContent=initials;
+    const info=document.createElement('div');
+    info.style.cssText='min-width:0;display:flex;flex-direction:column;gap:2px;line-height:1.25';
+    const title=document.createElement('strong');
+    title.style.cssText='font-size:15px;overflow-wrap:anywhere';
+    title.textContent=name;
+    const sub=document.createElement('span');
+    sub.className='photo-hint';sub.style.fontSize='12px';sub.textContent=cargo;
+    info.append(title,sub);photoBox.append(avatar,info);
+  }
+  async function loadUserPreview(){
+    clearUserPreview();
+    const req=photoRequest,name=nameInput.value,role=roleInput.value;
+    if(!name||!role)return;
+    const fallback=role==='admin'?'Administrador':role==='gestor'?'Gestor de Loja':'Colaborador';
+    drawUserPreview(name,fallback,'');
+    try{
+      const result=await raw('/functions/v1/mac-vision-login-list',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role,name})});
+      if(req!==photoRequest||name!==nameInput.value||role!==roleInput.value)return;
+      const p=result?.profile;
+      if(p&&typeof p.name==='string')drawUserPreview(p.name,typeof p.cargo==='string'&&p.cargo?p.cargo:fallback,p.photo);
+    }catch(e){console.warn('Pré-visualização do perfil indisponível.');}
+  }
+  clearUserPreview();
   function syncLoginButton(){loginButton.disabled=!roleInput.value||nameInput.disabled||!nameInput.value;}
   async function loadUsers(){
     const role=roleInput.value,req=++listRequest;
+    clearUserPreview();
     nameInput.disabled=true;
     retry.hidden=true;
     status('');
@@ -254,7 +301,7 @@ function loadGate(){
     }finally{if(req===listRequest)syncLoginButton();}
   }
   roleInput.addEventListener('change',()=>{document.getElementById('macCloudPassword').value='';void loadUsers();});
-  nameInput.addEventListener('change',()=>{document.getElementById('macCloudPassword').value='';syncLoginButton();});
+  nameInput.addEventListener('change',()=>{document.getElementById('macCloudPassword').value='';syncLoginButton();void loadUserPreview();});
   retry.addEventListener('click',()=>void loadUsers());
   syncLoginButton();
   const finish=()=>{beginTransition();el.restoreOriginal();resolve();};
