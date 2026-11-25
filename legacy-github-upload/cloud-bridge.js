@@ -80,6 +80,49 @@ document.head.appendChild(mobileStatusBarStyle);
  }
  `;
  document.head.appendChild(mobileNoticeStyle);
+ // Match the mobile browser toolbar and overscroll background to the open drawer.
+ const mobileDrawerChromeStyle=document.createElement('style');
+ mobileDrawerChromeStyle.id='mac-mobile-drawer-chrome';
+ mobileDrawerChromeStyle.textContent=`
+ @media(max-width:900px){
+  html:has(#mainApp:not(.is-locked) .sidebar.mobile-open),
+  html body:has(#mainApp:not(.is-locked) .sidebar.mobile-open){
+   background:#292932!important;overscroll-behavior:none;
+   overflow:hidden!important;
+  }
+  #mainApp:not(.is-locked) .sidebar.mobile-open #macMobileDrawer{
+   bottom:0!important;max-height:none!important;
+   overscroll-behavior:contain;
+  }
+  #mainApp .sidebar.mobile-open #macMobileDrawer .nav{
+   scrollbar-width:none;overscroll-behavior:contain;
+  }
+  #mainApp .sidebar.mobile-open #macMobileDrawer .nav::-webkit-scrollbar{display:none}
+ }
+ `;
+ document.head.appendChild(mobileDrawerChromeStyle);
+ function syncMobileDrawerChrome(){
+  const sidebar=document.querySelector('#mainApp .sidebar'),app=document.getElementById('mainApp'),meta=document.querySelector('meta[name="theme-color"]');
+  if(!sidebar||!app||!meta)return;
+  const mobile=window.matchMedia('(max-width:900px)');
+  let previous=null;
+  function update(){
+   const open=mobile.matches&&!app.classList.contains('is-locked')&&sidebar.classList.contains('mobile-open');
+   if(open){
+    if(previous===null)previous=meta.content;
+    if(meta.content!=='#292932')meta.content='#292932';
+   }else if(previous!==null){
+    const color=previous;previous=null;meta.content=color;
+   }
+  }
+  const observer=new MutationObserver(update);
+  observer.observe(sidebar,{attributes:true,attributeFilter:['class']});
+  observer.observe(app,{attributes:true,attributeFilter:['class']});
+  if(mobile.addEventListener)mobile.addEventListener('change',update);else mobile.addListener(update);
+  update();
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',syncMobileDrawerChrome,{once:true});else syncMobileDrawerChrome();
+
 
 const cfg=window.MAC_CLOUD_CONFIG||{};
 const registryKey='rc-clean-install-20261110-registry-v2';
