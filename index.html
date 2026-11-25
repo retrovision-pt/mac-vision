@@ -1816,8 +1816,19 @@ html:is([data-theme="claro"],[data-theme="nos"],[data-theme="sand"]) #configPane
 #macChatPanel .mac-chat-head>div:first-child{min-width:0}
 #macChatPanel .mac-chat-head #macChatTitle{display:block}
 </style>
+<style id="mac-startup-loading-20261125">
+#macStartupLoading{display:none}
+body.mac-starting #authScreen,body.mac-starting #mainApp{visibility:hidden!important}
+body.mac-starting:not(.mac-cloud-transition) #macStartupLoading{position:fixed;inset:0;z-index:100000;display:grid;place-content:center;justify-items:center;gap:16px;background:var(--bg,#111827);color:var(--text,#e5e7eb);padding:24px}
+#macStartupLoading .mac-loading-logo,#macCloudTransition .mac-loading-logo{width:72px!important;height:72px!important;border-radius:20px!important;font-size:22px!important}
+.mac-loading-spinner{display:block;width:26px;height:26px;border:3px solid var(--border,#4b5563);border-top-color:var(--accent,#bad80a);border-radius:50%;animation:macStartupSpin .8s linear infinite}
+@keyframes macStartupSpin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.mac-loading-spinner{animation-duration:2s}}
+#macCloudTransitionText[hidden]{display:none!important}
+</style>
 </head>
 <body class="mac-starting">
+<div id="macStartupLoading" role="status" aria-label="A carregar MAC Vision"><span class="brand-mark mac-loading-logo" aria-hidden="true">MAC</span><span class="mac-loading-spinner" aria-hidden="true"></span></div>
 <dialog id="macNameEditDialog" class="mac-name-dialog"><form method="dialog" id="macNameEditForm"><h2 id="macNameEditHeading">Editar designação</h2><p class="smalltext muted">O nome visível é alterado sem modificar os códigos internos das vendas anteriores.</p><div class="field"><label for="macEditVisibleName">Nome do produto / venda</label><input id="macEditVisibleName" maxlength="180" required></div><div class="form-footer"><button type="button" class="btn" id="macNameEditCancel">Cancelar</button><button type="submit" class="btn primary">Guardar nome</button></div></form></dialog>
 <div id="authScreen" class="auth-screen">
   <div class="auth-card">
@@ -5527,7 +5538,7 @@ async function macRPC(action,args={}){
 }
 </script>
 <script src="./legacy-github-upload/cloud-config.js"></script>
-<script src="./legacy-github-upload/cloud-bridge.js"></script>
+<script src="./legacy-github-upload/cloud-bridge.js?v=20261125-loading"></script>
 <script>
 window.macCloud.loadGate()
  .then(()=>start())
