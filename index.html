@@ -13616,32 +13616,19 @@ html[data-theme="uni"].mac-dark #mainApp #page-history .mac-history-title-action
  margin:0 0 12px!important;overflow-wrap:break-word;white-space:normal;
 }
 </style>
-<style id="mac-overview-header-alignment-20261125">
-/* Visão Geral: título e filtros no mesmo nível, com espaço reservado para ambos. */
-@media(min-width:760px){
- #mainApp>.main:has(>#page-dashboard.active)>.topbar{
-  display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,auto)!important;
-  align-items:center!important;gap:12px!important;flex-wrap:nowrap!important;
+<style id="mac-shared-header-alignment-20261125">
+/* Cabeçalho comum: mesmas posições e dimensões em todas as páginas.
+   Os módulos sem partilha continuam a ocultar o respetivo botão. */
+@media(min-width:901px){
+ #mainApp .main>.topbar{
+  flex-wrap:nowrap!important;align-items:flex-start!important;
  }
- #mainApp>.main:has(>#page-dashboard.active)>.topbar>div:first-child{
-  width:auto!important;min-width:0!important;max-width:100%!important;
+ #mainApp .main>.topbar>div:first-child{
+  flex:1 1 0!important;width:auto!important;min-width:0!important;
  }
- #mainApp>.main:has(>#page-dashboard.active)>.topbar>.top-controls{
-  display:flex!important;flex-wrap:nowrap!important;align-items:center!important;justify-content:flex-end!important;
-  width:clamp(350px,43vw,460px)!important;min-width:0!important;max-width:100%!important;
-  align-self:center!important;margin:0!important;gap:8px!important;
- }
- #mainApp>.main:has(>#page-dashboard.active)>.topbar>.top-controls>#storeSelect{
-  flex:1 1 0!important;width:0!important;min-width:0!important;max-width:none!important;
-  height:46px!important;min-height:46px!important;box-sizing:border-box!important;
- }
- #mainApp>.main:has(>#page-dashboard.active)>.topbar>.top-controls>.date-share-group{
-  display:flex!important;flex:0 0 auto!important;align-items:center!important;gap:8px!important;
-  width:auto!important;max-width:none!important;min-width:0!important;
- }
- #mainApp>.main:has(>#page-dashboard.active)>.topbar>.top-controls .date-pt-wrap{
-  flex:0 0 clamp(142px,16vw,182px)!important;width:clamp(142px,16vw,182px)!important;
-  min-width:0!important;max-width:none!important;height:46px!important;min-height:46px!important;box-sizing:border-box!important;
+ #mainApp .main>.topbar>.top-controls{
+  flex:0 0 auto!important;width:auto!important;max-width:100%!important;
+  margin-left:auto!important;margin-right:0!important;align-self:flex-start!important;
  }
 }
 </style>
