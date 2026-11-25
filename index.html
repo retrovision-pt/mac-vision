@@ -13209,5 +13209,39 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
  };
 })();
 </script>
+<style id="mac-desktop-layout-alignment-20261125">
+/* Uma única largura efetiva para a navegação; sem faixa duplicada no fundo. */
+@media(min-width:901px){
+ body:has(#mainApp:not(.is-locked))::before{content:none!important;display:none!important}
+ #mainApp:not(.is-locked){display:flex!important;align-items:stretch!important;gap:0!important;width:100%!important;max-width:100%!important;min-width:0!important;margin:0!important;min-height:100dvh}
+ #mainApp:not(.is-locked)>.sidebar{flex:0 0 var(--mac-sidebar-width,247px)!important;width:var(--mac-sidebar-width,247px)!important;min-width:0!important;max-width:38vw!important;box-sizing:border-box!important;margin:0!important;height:100dvh!important;min-height:0!important;position:sticky!important;top:0!important;align-self:flex-start!important;overflow-x:hidden!important}
+ #mainApp.mac-sidebar-collapsed:not(.is-locked)>.sidebar{flex:0 0 88px!important;width:88px!important;min-width:88px!important;max-width:88px!important;padding:22px 10px 18px!important;gap:14px!important}
+ #mainApp:not(.is-locked)>.main{flex:1 1 0!important;width:auto!important;min-width:0!important;max-width:none!important;margin:0!important;box-sizing:border-box!important;padding:24px clamp(18px,2.2vw,34px) 40px!important;background:var(--bg)}
+ #mainApp.mac-sidebar-collapsed .sidebar .sidebar-user,#mainApp.mac-sidebar-collapsed .sidebar .nav,#mainApp.mac-sidebar-collapsed #macSidebarFooterRow{width:100%!important;max-width:100%!important;min-width:0!important;margin-left:0!important;margin-right:0!important;box-sizing:border-box!important}
+ #mainApp.mac-sidebar-collapsed .sidebar .nav button,#mainApp.mac-sidebar-collapsed .sidebar #logoutBtn{display:flex!important;width:100%!important;justify-content:center!important;align-items:center!important;padding:10px 4px!important;gap:0!important;min-height:46px!important;box-sizing:border-box!important}
+ #mainApp.mac-sidebar-collapsed #macSidebarFooterRow{margin-top:auto!important}
+ #mainApp.mac-sidebar-collapsed #macSidebarFooterRow .local-health-time{font-size:12px!important;letter-spacing:0!important}
+ #mainApp.mac-sidebar-collapsed #macSidebarFooterRow .local-health-date{font-size:10px!important;letter-spacing:0!important}
+ #mainApp .topbar{margin-bottom:22px!important}
+ #mainApp #page-ios.active{content-visibility:visible!important;contain-intrinsic-size:none!important}
+ #mainApp #page-ios>.surface.card{width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important;padding:20px!important;margin-left:0!important;margin-right:0!important}
+ #mainApp #page-ios .section-head{margin-bottom:14px!important;min-width:0!important;align-items:center!important}
+ #mainApp #page-ios #iosKpis,#mainApp #page-ios #iosTable{width:100%!important;max-width:100%!important;min-width:0!important;margin:0!important;padding:0!important;overflow:visible!important}
+ #mainApp #page-ios .mac-ios-scroll{width:100%!important;max-width:100%!important;min-width:0!important;overflow-x:auto!important;overflow-y:hidden!important;padding:0 0 4px!important}
+ #mainApp #page-ios .mac-ios-table{--mac-ios-template:minmax(180px,2.2fr) repeat(12,minmax(64px,1fr))!important}
+ #mainApp #page-ios .mac-ios-row{grid-template-columns:var(--mac-ios-template)!important;width:100%!important;min-width:984px!important;gap:3px!important}
+ #mainApp #page-ios .mac-ios-row .mac-ios-label{min-width:0!important}
+ #mainApp #page-ios .mac-ios-row.mac-ios-table-header>div{height:56px!important;min-height:56px!important;max-height:56px!important}
+ #mainApp #page-ios .mac-ios-row:not(.mac-ios-table-header)>div{height:42px!important;min-height:42px!important;max-height:42px!important}
+ #mainApp #page-ios .mac-ios-heading-label{font-size:10px!important;line-height:1.15!important;overflow-wrap:normal!important}
+ #mainApp #page-ios .mac-ios-no-people{display:none!important}
+}
+@media(min-width:901px) and (max-height:760px){
+ #mainApp.mac-sidebar-collapsed:not(.is-locked)>.sidebar{padding-top:12px!important;padding-bottom:12px!important;gap:8px!important}
+ #mainApp.mac-sidebar-collapsed .sidebar .nav{min-height:0!important;overflow-y:auto!important;overflow-x:hidden!important}
+ #mainApp.mac-sidebar-collapsed .sidebar .nav button{min-height:40px!important;padding:7px 4px!important}
+ #mainApp.mac-sidebar-collapsed #macSidebarFooterRow{flex-shrink:0!important}
+}
+</style>
 </body>
 </html>
