@@ -1919,7 +1919,7 @@ html:is([data-theme="claro"],[data-theme="nos"],[data-theme="sand"]) #configPane
 <div class="app is-locked" id="mainApp">
 <aside class="sidebar">
  <div class="brand"><div class="brand-mark">MAC</div><div><strong>MAC Vision</strong><span>Mapa de Acompanhamento Comercial</span></div></div>
-<button type="button" class="mobile-menu-toggle" id="mobileMenuToggle" aria-label="Abrir menu principal" aria-controls="nav" aria-expanded="false"><span class="mobile-menu-bars" aria-hidden="true"><i></i><i></i><i></i></span><span class="mobile-menu-label">Menu</span></button>
+<button type="button" class="mobile-menu-toggle" id="mobileMenuToggle" aria-label="Abrir menu principal" aria-controls="nav" aria-expanded="false"><span class="mobile-menu-bars" aria-hidden="true"><i></i><i></i><i></i></span></button>
  <div class="auth-profile sidebar-user" id="sessionInfo"><div class="person-line"><div id="activeUserPhoto"></div><div style="min-width:0"><strong id="activeUserName">Sem sessão</strong><div class="tiny" id="activeUserCargo">Cargo não definido</div><div class="tiny" id="activeStoreName">Loja</div></div></div></div>
  <nav class="nav" id="nav" aria-label="Menu principal">
   <div class="sidebar-caption mac-nav-heading" id="macMainMenuHeading">MENU PRINCIPAL</div>
@@ -13483,7 +13483,9 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
  #mainApp:not(.is-locked)>.sidebar{position:fixed!important;top:0!important;left:0!important;right:0!important;bottom:auto!important;align-self:auto!important;z-index:150!important;isolation:isolate}
  /* Keep the iPhone status-bar region dark and separate from the green navigation. */
  #mainApp:not(.is-locked)>.sidebar::before{content:"";position:absolute;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:#0b111c;pointer-events:none}
- #mainApp .sidebar #mobileMenuToggle{touch-action:manipulation;pointer-events:auto}
+ #mainApp .sidebar #mobileMenuToggle{touch-action:manipulation;pointer-events:auto;width:44px!important;min-width:44px!important;max-width:44px!important;padding:0!important;justify-content:center!important;gap:0!important}
+ #mainApp .sidebar #mobileMenuToggle .mobile-menu-bars{width:20px;flex-basis:20px}
+ #mainApp .sidebar .brand{max-width:calc(100% - 54px)!important}
  #macMobileBackdrop:not(.is-open){pointer-events:none}
  body:has(#mainApp:not(.is-locked))::before{content:none!important;display:none!important}
 }
