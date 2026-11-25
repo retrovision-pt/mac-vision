@@ -13478,8 +13478,14 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
 </style>
 <style id="mac-ios-mobile-safe-area-20261125">
 @media(max-width:900px){
+ /* Fixed header: reserve its height in the document; only the content scrolls. */
+ #mainApp:not(.is-locked){padding-top:calc(70px + env(safe-area-inset-top,0px))!important;min-height:100dvh;box-sizing:border-box}
+ #mainApp:not(.is-locked)>.sidebar{position:fixed!important;top:0!important;left:0!important;right:0!important;bottom:auto!important;align-self:auto!important;z-index:150!important;isolation:isolate}
+ /* Keep the iPhone status-bar region dark and separate from the green navigation. */
+ #mainApp:not(.is-locked)>.sidebar::before{content:"";position:absolute;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:#0b111c;pointer-events:none}
  #mainApp .sidebar #mobileMenuToggle{touch-action:manipulation;pointer-events:auto}
  #macMobileBackdrop:not(.is-open){pointer-events:none}
+ body:has(#mainApp:not(.is-locked))::before{content:none!important;display:none!important}
 }
 </style>
 </body>
