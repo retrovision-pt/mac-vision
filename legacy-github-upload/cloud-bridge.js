@@ -47,6 +47,18 @@ mobileMotionStyle.textContent=`
 }
 `;
 document.head.appendChild(mobileMotionStyle);
+// Match the iPhone safe-area / status-bar background to the fixed green header.
+const mobileStatusBarStyle=document.createElement('style');
+mobileStatusBarStyle.id='mac-mobile-green-status-bar';
+mobileStatusBarStyle.textContent=`
+@media(max-width:900px){
+ html[data-theme="uni"] body #mainApp:not(.is-locked)>.sidebar::before{
+  background:inherit!important;
+  box-shadow:none!important;
+ }
+}
+`;
+document.head.appendChild(mobileStatusBarStyle);
 const cfg=window.MAC_CLOUD_CONFIG||{};
 const registryKey='rc-clean-install-20261110-registry-v2';
 const AUTH_CACHE='mac-vision-cloud-session-v1';
