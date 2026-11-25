@@ -13392,7 +13392,7 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
  #mainApp.mac-sidebar-collapsed:not(.is-locked)>.sidebar{min-width:0!important;max-width:38vw!important}
  #mainApp:not(.is-locked)>.sidebar{transition:none!important}
  #mainApp.mac-sidebar-animating:not(.is-locked)>.sidebar{
-  transition:width 300ms cubic-bezier(.22,.61,.36,1),flex-basis 300ms cubic-bezier(.22,.61,.36,1),padding-left 300ms ease,padding-right 300ms ease,gap 300ms ease!important;
+  transition:width 300ms cubic-bezier(.22,.61,.36,1),flex-basis 300ms cubic-bezier(.22,.61,.36,1)!important;
  }
  #mainApp.mac-sidebar-animating:not(.mac-sidebar-collapsed):not(.is-locked)>.sidebar .brand,
  #mainApp.mac-sidebar-animating:not(.mac-sidebar-collapsed):not(.is-locked)>.sidebar .sidebar-caption,
@@ -13407,6 +13407,38 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
 @media(prefers-reduced-motion:reduce){
  #mainApp.mac-sidebar-animating:not(.is-locked)>.sidebar{transition:none!important}
  #mainApp.mac-sidebar-animating .sidebar *{animation:none!important}
+}
+</style>
+<style id="mac-sidebar-stable-layout-20261125">
+@media(min-width:901px){
+ /* The scrollable navigation must not consume the width of the logo or profile. */
+ #mainApp:not(.is-locked)>.sidebar{overflow-x:hidden!important;overflow-y:auto!important;scrollbar-width:none!important}
+ #mainApp:not(.is-locked)>.sidebar::-webkit-scrollbar,
+ #mainApp:not(.is-locked)>.sidebar #nav::-webkit-scrollbar{display:none;width:0;height:0}
+ #mainApp:not(.is-locked)>.sidebar .brand,
+ #mainApp:not(.is-locked)>.sidebar #sessionInfo,
+ #mainApp:not(.is-locked)>.sidebar #macSidebarFooterRow{flex-shrink:0!important}
+ #mainApp:not(.is-locked)>.sidebar #nav{flex:1 1 auto!important;min-height:0!important;overflow-x:hidden!important;overflow-y:auto!important;scrollbar-width:none!important}
+ #mainApp:not(.is-locked)>.sidebar #nav button{flex-shrink:0!important}
+ #mainApp:not(.mac-sidebar-collapsed):not(.is-locked)>.sidebar .brand{padding:0 0 0 11px!important;gap:12px!important;min-height:42px}
+ #mainApp:not(.mac-sidebar-collapsed):not(.is-locked)>.sidebar .brand>div:last-child{flex:1 1 auto;min-width:0;overflow:hidden}
+ #mainApp:not(.mac-sidebar-collapsed):not(.is-locked)>.sidebar .brand strong,
+ #mainApp:not(.mac-sidebar-collapsed):not(.is-locked)>.sidebar #activeUserName,
+ #mainApp:not(.mac-sidebar-collapsed):not(.is-locked)>.sidebar #activeUserCargo,
+ #mainApp:not(.mac-sidebar-collapsed):not(.is-locked)>.sidebar .mac-nav-label{display:block;white-space:nowrap!important;overflow:hidden;text-overflow:ellipsis;min-width:0}
+ #mainApp:not(.mac-sidebar-collapsed):not(.is-locked)>.sidebar .brand span{overflow-wrap:normal!important;word-break:normal!important}
+ #mainApp:not(.mac-sidebar-collapsed):not(.is-locked)>.sidebar #sessionInfo{padding-left:9px!important;padding-right:7px!important}
+ #mainApp:not(.mac-sidebar-collapsed):not(.is-locked)>.sidebar #sessionInfo .person-line{gap:9px!important}
+ #mainApp:not(.is-locked)>.sidebar #macSidebarFooterRow{margin-top:auto!important}
+ /* Do not reflow the subtitle into extra lines while the sidebar grows. */
+ #mainApp.mac-sidebar-animating:not(.mac-sidebar-collapsed):not(.is-locked)>.sidebar .brand>div:last-child{
+  min-width:max(90px,calc(var(--mac-sidebar-width,247px) - 100px));flex-shrink:0
+ }
+}
+@media(min-width:901px) and (max-height:820px){
+ #mainApp:not(.mac-sidebar-collapsed):not(.is-locked)>.sidebar{padding-top:18px!important;padding-bottom:15px!important;gap:12px!important}
+ #mainApp:not(.mac-sidebar-collapsed):not(.is-locked)>.sidebar #nav{gap:3px!important}
+ #mainApp:not(.mac-sidebar-collapsed):not(.is-locked)>.sidebar #nav button{padding-top:10px!important;padding-bottom:10px!important}
 }
 </style>
 </body>
