@@ -2521,6 +2521,13 @@ async function restoreLocalSession(){
 const legacyShopId='forum-coimbra';
 function macCompareStores(a,b){const name=x=>String(typeof x==='string'?x:x?.name||'').trim();const x=name(a),y=name(b);return Number(/^P-/i.test(y))-Number(/^P-/i.test(x))||x.localeCompare(y,'pt-PT',{sensitivity:'base',numeric:true});}
 function currentStore(){return shopRegistry.find(x=>x.id===currentShopId)||null}
+// Acesso exclusivo dos colaboradores autenticados das duas lojas indicadas.
+function macIsCommissionScheduleStore(shop){return ['PCOIMBRAFORUMCOIMBRA','PCOIMBRAALMASHOPPING','FORUMCOIMBRA','COIMBRAFORUMCOIMBRA','ALMASHOPPING','COIMBRAALMASHOPPING'].includes(norm(shop?.name||''));}
+function macTargetCollaborator(shopId=currentShopId){
+ if(session?.role!=='colaborador'||String(shopId)!==String(currentShopId))return false;
+ const shop=currentStore();if(!macIsCommissionScheduleStore(shop)||!shop?.users?.some(u=>String(u.id)===String(session.id)&&u.role==='colaborador'))return false;
+ const cloud=window.macCloud;return !cloud?.session||(cloud.profile?.role==='colaborador'&&cloud.access.some(a=>String(a.shop_id)===String(shopId)));
+}
 function storeOptions(selectId,preferred=currentShopId){const el=$(selectId);if(!el)return;const prior=el.value||preferred||currentShopId;el.innerHTML=shopRegistry.slice().sort(macCompareStores).map(s=>`<option value="${h(s.id)}">${h(s.name)}</option>`).join('');el.value=shopRegistry.some(s=>s.id===prior)?prior:currentShopId;}
 function initials(name){return clean(name).split(/\s+/).slice(0,2).map(x=>x[0]||'').join('').toUpperCase()||'👤'}
 function avatarFor(name,photo,size=''){const valid=typeof photo==='string'&&/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(photo)&&photo.length<220000;return `<span class="employee-avatar ${size}" aria-label="Fotografia de ${h(name)}">${valid?`<img src="${photo}" alt="">`:h(initials(name))}</span>`}
@@ -5206,7 +5213,7 @@ function macCan(permission,shopId=currentShopId){
    if(profile.role!=='colaborador'||session.role!=='colaborador')return false;
  }else if(session.role==='gestor')return macCanAdministerStore(shopId);
  if(session.role==='colaborador'&&String(shopId)===String(currentShopId)){
-   return permission==='imports.moviik';
+   return permission==='imports.moviik'||(['schedule.view','commission.view'].includes(permission)&&macTargetCollaborator(shopId));
  }
  return false;
 }
@@ -7319,7 +7326,7 @@ html[data-theme="uni"] #page-history .mac-history-commission-total{background:#f
    byId('saleUnitPoints').value=String(x.unitPoints||0);
    byId('salePreview').textContent=pts(x.totalPoints);
    const out=byId('saleCommissionPreview');
-   out.textContent=euro(x.totalCommission);out.classList.toggle('is-unmatched',x.totalCommission===null);
+   out.textContent=macTargetCollaborator()?euro(x.totalCommission):'—';out.classList.toggle('is-unmatched',x.totalCommission===null);
    const hint=byId('saleCatalogHint');
    if(usesMobilePackage()){
      if(x.mobileRow){hint.textContent=`✓ Pacote e tarifário identificados.`;hint.className='mac-catalog-hint ok';}
@@ -7365,7 +7372,7 @@ html[data-theme="uni"] #page-history .mac-history-commission-total{background:#f
    syncPromoHint();renderSaleSummary();renderHistory();
    if(i<0){macPlaySaleNotification();window.macSaleBroadcast?.(record);}
    const commissionPending=mobile&&x.unitCommission===null;
-   toast(i>=0?(commissionPending?'Venda atualizada: ponderação guardada; comissão por associar.':'Venda atualizada com comissão e ponderação.'):(commissionPending?'Venda registada: ponderação guardada; comissão por associar.':'Venda registada com comissão e ponderação.'));
+   toast(macTargetCollaborator()?(i>=0?(commissionPending?'Venda atualizada: ponderação guardada; comissão por associar.':'Venda atualizada com comissão e ponderação.'):(commissionPending?'Venda registada: ponderação guardada; comissão por associar.':'Venda registada com comissão e ponderação.')):(i>=0?'Venda atualizada com sucesso.':'Venda registada com sucesso.'));
  }
  byId('saleForm').addEventListener('submit',e=>{
    if(pendingLegacyEdit)return;
@@ -7415,7 +7422,9 @@ html[data-theme="uni"] #page-history .mac-history-commission-total{background:#f
    if(!panel){panel=document.createElement('div');panel.className='mac-history-commission-total';panel.id='macHistoryCommissionTotal';panel.innerHTML='<span>Total Comissão</span><strong id="macHistoryCommissionValue">—</strong>';}
    const parent=byId('historyTotalPoints')?.closest('.mac-history-totals')||byId('historyTotalPoints')?.parentElement?.parentElement;
    if(parent&&!panel.isConnected)parent.appendChild(panel);
-   byId('macHistoryCommissionValue').textContent=known.length?euro(sum):'—';
+   const showCommission=macTargetCollaborator();
+   panel.hidden=!showCommission;
+   byId('macHistoryCommissionValue').textContent=showCommission&&known.length?euro(sum):'—';
    byId('historyTotalPoints').textContent=pts(sales.reduce((a,s)=>a+Number(s.points||0),0));
    if(!table)return;
    const ths=[...table.querySelectorAll('thead th')];
@@ -7423,18 +7432,17 @@ html[data-theme="uni"] #page-history .mac-history-commission-total{background:#f
    const productIdx=ths.findIndex(x=>x.textContent.trim()==='Produto / Ação');
    const ponderIdx=ths.findIndex(x=>x.textContent.trim()==='Pond.');
    if(manageIdx>=0){
-     
+     if(showCommission){const col=document.createElement('th');col.className='mac-sale-hist-money';col.textContent='Comissão';ths[manageIdx].before(col);}
      [...table.querySelectorAll('tbody tr')].forEach(tr=>{
        const btn=tr.querySelector('[data-delete-sale]');const record=state.sales.find(s=>s.id===btn?.dataset.deleteSale);
        if(!record)return;
-       const money=document.createElement('td');money.className='mac-sale-hist-money';money.textContent=euro(record.meta?.catalogCommissionTotal);
-       
        if(ponderIdx>=0)tr.cells[ponderIdx].textContent=pts(record.points);
        if(productIdx>=0&&record.meta?.catalogProduct){
          // No histórico, mostrar só o nome do produto (ex.: PM_Móvel_30GB e 3500 MIN/SMS_A_36).
          // Valor, pacote e tarifário continuam preservados no registo para edição e cálculos.
          tr.cells[productIdx].textContent=String(record.meta.catalogProduct);
        }
+       if(showCommission){const money=document.createElement('td');money.className='mac-sale-hist-money';money.textContent=euro(record.meta?.catalogCommissionTotal);tr.cells[manageIdx]?.before(money);}
      });
    }
  };
@@ -7559,7 +7567,7 @@ html[data-theme="uni"] #macCollapseSidebar{background:#34353e!important;color:#f
  const perms=()=>{state.macPagePermissions??={};return state.macPagePermissions};
  const canShow=(key,role=session?.role,preview=false)=>{
   if(!session)return false;
-  if(key==='schedule')return !preview&&role==='gestor'&&macSessionProfileLabel()==='Gestor MAC Vision';
+  if(key==='schedule')return !preview&&((role==='gestor'&&macSessionProfileLabel()==='Gestor MAC Vision')||(role==='colaborador'&&macCan('schedule.view')));
   // Todos os módulos são acessíveis a Gestores de Loja e de Área.
   // Mesmo as regras antigas guardadas como false não restringem o Gestor.
   if(role==='gestor'||key==='sales')return true;
@@ -7580,6 +7588,7 @@ html[data-theme="uni"] #macCollapseSidebar{background:#34353e!important;color:#f
  function updateNav(){if(!session)return;
   oldNavigation();
   el('mainApp')?.classList.toggle('mac-schedule-enabled',canShow('schedule'));
+  el('mainApp')?.classList.toggle('mac-commission-enabled',macCan('commission.view')&&macTargetCollaborator());
   document.querySelectorAll('#nav button[data-go]').forEach(b=>{b.hidden=!canShow(b.dataset.go)});
   const panel=el('configHome')?.querySelector('[data-config-target="vision"]');if(panel)panel.hidden=!isAdmin();
   if(!canShow(page)){
@@ -13176,8 +13185,9 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
 })();
 </script>
 <style id="mac-no-schedule-no-commission">
-#mainApp:not(.mac-schedule-enabled) #nav [data-go="schedule"],#mainApp:not(.mac-schedule-enabled) #page-schedule,[data-go="schedule"]:not(#nav [data-go="schedule"]),#iosCollaboratorSchedule,.dash-three>.surface.card:has(#todaySchedule),.mac-schedule-access-row,#macShareSchedule,#page-sales .mac-commission-preview,#page-history #macHistoryCommissionTotal,#page-history .mac-sale-hist-money{display:none!important}
-#page-sales .mac-sale-preview-grid{grid-template-columns:minmax(0,1fr)!important}
+#mainApp:not(.mac-schedule-enabled) #nav [data-go="schedule"],#mainApp:not(.mac-schedule-enabled) #page-schedule,[data-go="schedule"]:not(#nav [data-go="schedule"]),#iosCollaboratorSchedule,.dash-three>.surface.card:has(#todaySchedule),.mac-schedule-access-row,#macShareSchedule,#mainApp:not(.mac-commission-enabled) #page-sales .mac-commission-preview,#mainApp:not(.mac-commission-enabled) #page-history #macHistoryCommissionTotal,#mainApp:not(.mac-commission-enabled) #page-history .mac-sale-hist-money{display:none!important}
+#mainApp:not(.mac-commission-enabled) #page-sales .mac-sale-preview-grid{grid-template-columns:minmax(0,1fr)!important}
+#mainApp.mac-commission-enabled #page-schedule .mac-shift-small-actions{display:none!important}
 #page-dashboard .dash-three{grid-template-columns:repeat(2,minmax(0,1fr))}
 @media(max-width:900px){#page-dashboard .dash-three{grid-template-columns:1fr}}
 </style>
