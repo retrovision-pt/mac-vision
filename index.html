@@ -1700,10 +1700,10 @@ input.mac-calendar-only[type="datetime-local"]{
 .mac-chat-settings-card{margin:15px 0;padding:17px;border:1px solid var(--border);border-radius:15px;background:var(--surface2);display:grid;gap:12px}
 #macChatSettingsPanel{display:grid;gap:10px}
 #macChatSettingsPanel[hidden]{display:none}
-#macChatBubble{position:fixed;right:max(18px,env(safe-area-inset-right));bottom:max(20px,env(safe-area-inset-bottom));z-index:80;width:58px;height:58px;border:1px solid var(--accent);border-radius:50%;box-shadow:0 10px 25px rgba(0,0,0,.27);background:var(--accent);color:#122226;font-size:24px;display:grid;place-items:center}
+#macChatBubble{position:fixed;right:max(18px,env(safe-area-inset-right));bottom:max(20px,env(safe-area-inset-bottom));z-index:80;width:58px;height:58px;border:1px solid var(--accent);border-radius:50%;box-shadow:0 3px 8px rgba(0,0,0,.16),0 1px 2px rgba(0,0,0,.08);background:var(--accent);color:#122226;font-size:24px;display:grid;place-items:center}
 #macChatBubble[hidden]{display:none}
 /* Chat: alerta de mensagens ainda não abertas, respeitando acessibilidade. */
-#macChatBubble.mac-chat-unread{animation:macChatPulse 1.25s ease-in-out infinite;box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 55%,transparent),0 10px 25px rgba(0,0,0,.27)}
+#macChatBubble.mac-chat-unread{animation:macChatPulse 1.25s ease-in-out infinite;box-shadow:0 3px 8px rgba(0,0,0,.16),0 1px 2px rgba(0,0,0,.08)}
 #macChatBubble.mac-chat-unread::after{content:attr(data-unread);position:absolute;top:-7px;right:-5px;min-width:21px;height:21px;border-radius:15px;background:#dc3545;color:white;font-size:11px;font-weight:800;display:grid;place-items:center;padding:0 4px;box-shadow:0 2px 5px #0005}
 @keyframes macChatPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.085)}}
 @media (prefers-reduced-motion:reduce){#macChatBubble.mac-chat-unread{animation:none;outline:3px solid #dc3545;outline-offset:3px}}
