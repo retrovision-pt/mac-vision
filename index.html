@@ -2632,6 +2632,7 @@ async function macRefreshLocalState(){
 }
 async function macReceiveLocalChange(msg){
  if(!msg||msg.from===MAC_LOCAL_INSTANCE_ID)return;
+ if(msg.kind==='factory-reset'){clearTimeout(saveTimer);saveTimer=null;session=null;macStateDirty=false;forgetLocalSession();window.location.reload();return;}
  if(msg.kind==='store'&&msg.shopId===currentShopId)await macRefreshLocalState();
  if(msg.kind==='registry'){
   const reg=await readKey(REGISTRY_KEY);
@@ -10510,9 +10511,9 @@ window.macRefreshWalletLabel=function(){const el=document.getElementById('profil
 </style>
 <dialog id="rcFullResetDialog" aria-labelledby="rcFullResetTitle">
  <form id="rcFullResetForm" autocomplete="off">
-  <h2 id="rcFullResetTitle">🗑️ Repor dados locais</h2>
-  <p>Esta ação limpa o armazenamento deste navegador e termina a sessão. Os dados partilhados no Supabase permanecem intactos.</p>
-  <div class="rc-reset-warning"><strong>Atenção: Eliminação Irreversível!</strong> Serão removidos os dados locais, cache e definições guardados neste navegador.<br><strong>As lojas, utilizadores, vendas e restantes dados partilhados no Supabase não serão eliminados.</strong></div>
+  <h2 id="rcFullResetTitle">🗑️ Apagar todos os dados</h2>
+  <p>Esta ação repõe o MAC Vision na configuração inicial, incluindo a base de dados partilhada no Supabase.</p>
+  <div class="rc-reset-warning"><strong>Atenção: Eliminação Irreversível!</strong> Serão eliminadas todas as lojas, contas MAC Vision, vendas, escalas, senhas MOVIIK, importações, conversas e anexos na Cloud e neste navegador.<br><strong>Esta ação é irreversível. Apenas o acesso técnico de configuração inicial é preservado.</strong></div>
   <label for="rcFullResetText">Para confirmar, escreve <strong>APAGAR TUDO</strong>:</label>
   <input id="rcFullResetText" placeholder="APAGAR TUDO" spellcheck="false" autocapitalize="characters" aria-required="true" required>
   <p id="rcFullResetError" role="alert" hidden></p>
@@ -10642,7 +10643,7 @@ window.macRefreshWalletLabel=function(){const el=document.getElementById('profil
  // Reposição completa: apenas sessão de administrador pode confirmar.
  const resetDialog=el('rcFullResetDialog'),resetForm=el('rcFullResetForm'),resetInput=el('rcFullResetText'),resetConfirm=el('rcFullResetConfirm'),resetError=el('rcFullResetError');
  let clearing=false;
- const canReset=()=>!!session&&typeof macIsAreaSession==='function'&&macIsAreaSession();
+ const canReset=()=>!!session&&typeof macIsAreaSession==='function'&&macIsAreaSession()&&window.macCloud?.profile?.role==='admin';
  const showError=message=>{resetError.hidden=false;resetError.textContent=message;};
  function resetClose(){if(!clearing&&resetDialog?.open)resetDialog.close();}
  el('rcFullResetCancel')?.addEventListener('click',resetClose);
@@ -10683,11 +10684,17 @@ window.macRefreshWalletLabel=function(){const el=document.getElementById('profil
   try{
    clearTimeout(saveTimer);saveTimer=null;
    // Não usar logout(): esse método guardaria de novo o estado que se quer eliminar.
-   await clearOwnedStorage();
+   await macSaveQueue.catch(()=>false);
+   if(!window.macCloud?.session||typeof window.macCloud.factoryReset!=='function')throw Error('A ligação Cloud é necessária para a reposição completa.');
+   const result=await window.macCloud.factoryReset(resetInput.value.trim().toUpperCase());
    session=null;shopRegistry=[];currentShopId=null;pendingSetupManager=null;pendingSetupWorkspace={managers:[],stores:[]};
+   const warnings=[...(result.warnings||[])];
+   try{await clearOwnedStorage();}catch(e){warnings.push('Não foi possível limpar todos os dados locais: '+e.message);}
    resetDialog.close();
-   if(window.macCloud?.session)await window.macCloud.signOut();
-   else window.location.reload();
+   signalMacLocalChange('factory-reset','');
+   if(warnings.length)alert('Reposição Cloud concluída, com avisos: '+warnings.join(' '));
+   // Manter a sessão técnica Cloud para entrar diretamente no assistente inicial.
+   window.location.reload();
   }catch(error){
    clearing=false;el('rcFullResetCancel').disabled=false;resetConfirm.textContent='Apagar todos os dados';
    resetConfirm.disabled=false;showError('Não foi possível terminar a limpeza: '+(error?.message||error));
