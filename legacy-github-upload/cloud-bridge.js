@@ -488,8 +488,85 @@ async function removeAttachment(id,shopId){
  const r=await fetch(endpoint+'/storage/v1/object/mac-vision-attachments/'+path,{method:'DELETE',headers:{apikey:cfg.publishableKey,Authorization:'Bearer '+tokens.access_token}});
  if(!r.ok&&r.status!==404)throw errorFrom(await r.json().catch(()=>({})),r.status);
 }
+// Native notification display for incoming Cloud chat messages while the page is running.
+const notificationBase=new URL('../',document.currentScript?.src||location.href);
+let notificationRegistration=null,notificationOwner='',notificationMembers=[],notificationSeen=new Set(),notificationBaselined=false;
+const notificationSupported=()=>window.isSecureContext&&'serviceWorker' in navigator&&'Notification' in window;
+const notificationKey=()=>notificationOwner?'mac-chat-native-notifications:'+notificationOwner:'';
+function nativeEnabled(){try{return !!notificationKey()&&localStorage.getItem(notificationKey())==='1';}catch{return false}}
+function nativePreference(on){try{if(notificationKey())localStorage.setItem(notificationKey(),on?'1':'0');}catch{}}
+function syncNativeButton(){
+ for(const b of document.querySelectorAll('[data-mac-native-notifications]')){
+  const on=notificationSupported()&&Notification.permission==='granted'&&nativeEnabled();
+  b.setAttribute('aria-pressed',String(on));b.textContent=on?'🔔 Notificações do dispositivo · ON':'🔔 Ativar notificações do dispositivo';
+ }
+}
+function notificationFeedback(message){if(typeof toast==='function')toast(message);else alert(message);}
+async function nativeRegistration(){
+ if(!notificationSupported())throw Error('Notificações indisponíveis neste navegador.');
+ if(!notificationRegistration)notificationRegistration=navigator.serviceWorker.register(new URL('mac-notifications-sw.js',notificationBase),{scope:notificationBase.href}).then(()=>navigator.serviceWorker.ready).catch(e=>{notificationRegistration=null;throw e;});
+ return notificationRegistration;
+}
+function installNativeNotificationControls(){
+ if(!document.querySelector('link[rel="manifest"]')){
+  const link=document.createElement('link');link.rel='manifest';link.href=new URL('mac-notifications.webmanifest',notificationBase).href;document.head.append(link);
+ }
+ if(!document.querySelector('link[rel="apple-touch-icon"]')){
+  const link=document.createElement('link');link.rel='apple-touch-icon';link.href=new URL('public/apple-touch-icon.png',notificationBase).href;document.head.append(link);
+ }
+ if(notificationSupported())void nativeRegistration().catch(()=>{});
+ const panel=document.getElementById('macChatPanel'),head=panel?.querySelector('.mac-chat-head');
+ const settings=document.querySelector('.mac-chat-settings-card');
+ for(const target of [head,settings]){
+  if(!target||target.parentElement?.querySelector('[data-mac-native-notifications]')&&target===head||target.querySelector('[data-mac-native-notifications]'))continue;
+  const button=document.createElement('button');button.type='button';button.className='btn small';button.dataset.macNativeNotifications='1';button.style.cssText='font-size:12px;min-height:32px;max-width:100%;white-space:normal;align-self:center;flex-shrink:0;margin:4px 0';
+  button.addEventListener('click',async()=>{
+   if(!notificationOwner){notificationFeedback('Inicia sessão e aguarda a ligação ao Chat Vision.');return;}
+   if(!notificationSupported()){notificationFeedback('No iPhone, adiciona o MAC Vision ao ecrã principal pelo Safari e abre-o a partir do ícone. No Android, utiliza o Chrome.');return;}
+   if(nativeEnabled()&&Notification.permission==='granted'){nativePreference(false);syncNativeButton();return;}
+   try{
+    // Call the permission prompt directly from the click, before waiting on registration.
+    const permission=Notification.permission==='granted'?'granted':await Notification.requestPermission();
+    if(permission!=='granted'){notificationFeedback('Autoriza as notificações nas definições do dispositivo ou do navegador.');return;}
+    const reg=await nativeRegistration();nativePreference(true);syncNativeButton();
+    await reg.showNotification('MAC Vision · Chat Vision',{body:'Notificações do dispositivo ativadas.',icon:new URL('public/apple-touch-icon.png',notificationBase).href,tag:'mac-chat-notification-test'});
+   }catch(e){nativePreference(false);syncNativeButton();notificationFeedback('Não foi possível ativar as notificações. '+e.message);}
+  });
+  if(target===head)head.after(button);else target.append(button);
+ }
+ syncNativeButton();
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',installNativeNotificationControls,{once:true});else installNativeNotificationControls();
+function observeNativeChat(action,args,result){
+ if(!tokens||!profile)return;
+ if(action==='hello'){
+  const owner=String(result?.user?.id||'');
+  if(owner!==notificationOwner){notificationOwner=owner;notificationSeen.clear();notificationBaselined=false;}
+  notificationMembers=Array.isArray(result?.members)?result.members:[];syncNativeButton();
+  return;
+ }
+ if(action!=='load'||!notificationOwner||!Array.isArray(result?.messages))return;
+ if(Array.isArray(result.members))notificationMembers=result.members;
+ const read=new Set(result.readIds||[]),memberships=new Set(notificationMembers.filter(m=>String(m.user_id)===notificationOwner&&m.active!==false).map(m=>String(m.store_id)));
+ const incoming=result.messages.filter(m=>m.id!=null&&!m.deleted_at&&String(m.sender_id)!==notificationOwner&&!read.has(m.id)&&!notificationSeen.has(m.id)&&(String(m.recipient_id)===notificationOwner||m.recipient_id==null&&memberships.has(String(m.store_id))));
+ for(const m of result.messages)notificationSeen.add(m.id);
+ if(notificationSeen.size>4000)notificationSeen=new Set(result.messages.map(m=>m.id));
+ if(!notificationBaselined){notificationBaselined=true;return;}
+ if(!incoming.length||!notificationSupported()||Notification.permission!=='granted'||!nativeEnabled())return;
+ const ownMember=notificationMembers.find(m=>String(m.user_id)===notificationOwner&&String(m.store_id)===String(args.storeId));
+ if(result.settings?.[args.storeId]===false&&ownMember?.role==='colaborador')return;
+ const chatPanel=document.getElementById('macChatPanel');
+ if(!document.hidden&&chatPanel?.classList.contains('mac-chat-manually-open')&&!chatPanel.hidden)return;
+ const latest=incoming[incoming.length-1],owner=notificationOwner;
+ void nativeRegistration().then(reg=>{
+  if(!tokens||owner!==notificationOwner||!nativeEnabled())return;
+  return reg.showNotification('MAC Vision · Chat Vision',{body:incoming.length===1?'Recebeste uma nova mensagem.':'Recebeste '+incoming.length+' novas mensagens.',icon:new URL('public/apple-touch-icon.png',notificationBase).href,tag:'mac-chat-'+String(latest.id)});
+ }).catch(()=>{});
+}
 async function chat(action,args={}){
- return authRequest('/rest/v1/rpc/mac_vision_chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({p_action:action,p_args:args})});
+ const result=await authRequest('/rest/v1/rpc/mac_vision_chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({p_action:action,p_args:args})});
+ try{observeNativeChat(action,args,result);}catch(e){console.warn('Notificações do dispositivo indisponíveis.');}
+ return result;
 }
 window.macCloud={shared,get,put,remove,readBrand,loadGate,autoLogin,bindIdentity,signOut,factoryReset,chat,beginTransition,endTransition,uploadAttachment,downloadAttachment,removeAttachment,
  get profile(){return profile},get access(){return access},get session(){return tokens},get lastCloudError(){return lastCloudError}
