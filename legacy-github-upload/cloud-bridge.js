@@ -25,10 +25,12 @@ function beginTransition(message='Loading'){
    layer.style.cssText='position:fixed;inset:0;z-index:100000;display:grid;place-content:center;justify-items:center;gap:16px;background:var(--bg,#111827);color:var(--text,#e5e7eb);font:inherit;text-align:center;padding:24px';
    const logo=document.createElement('span');logo.className='brand-mark';logo.textContent='MAC';
    const caption=document.createElement('span');caption.id='macCloudTransitionText';
-   layer.append(logo,caption);document.body.append(layer);
+   const spinner=document.createElement('span');spinner.className='mac-loading-spinner';spinner.setAttribute('aria-hidden','true');
+   logo.classList.add('mac-loading-logo');layer.append(logo,spinner,caption);document.body.append(layer);
    const style=document.createElement('style');style.id='macCloudTransitionStyle';style.textContent='body.mac-cloud-transition #authScreen,body.mac-cloud-transition #mainApp{visibility:hidden!important}';document.head.append(style);
  }
- document.getElementById('macCloudTransitionText').textContent=message;
+ const caption=document.getElementById('macCloudTransitionText');caption.textContent=message;caption.hidden=!message;
+ document.getElementById('macCloudTransition').setAttribute('aria-label',message||'A carregar MAC Vision');
 }
 function endTransition(){
  document.getElementById('macCloudTransition')?.remove();
@@ -307,7 +309,7 @@ function loadGate(){
   nameInput.addEventListener('change',()=>{document.getElementById('macCloudPassword').value='';syncLoginButton();void loadUserPreview();});
   retry.addEventListener('click',()=>void loadUsers());
   syncLoginButton();
-  const finish=()=>{beginTransition();el.restoreOriginal();resolve();};
+  const finish=()=>{beginTransition('');el.restoreOriginal();resolve();};
   document.getElementById('macCloudRecovery').addEventListener('submit',async e=>{
    e.preventDefault();const button=e.currentTarget.querySelector('button'),pw=document.getElementById('macCloudRecoveryPassword');button.disabled=true;status('');
    try{const t=await raw('/auth/v1/token?grant_type=password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('macCloudRecoveryEmail').value.trim(),password:pw.value})});sessionSave(t);await loadProfile();if(profile?.role!=='admin'||profile.app_user_id)throw Error('Conta sem autorização de configuração inicial.');const rows=await authRequest('/rest/v1/mac_vision_directory?select=shop_id&limit=1');if(rows.length)throw Error('A aplicação já está configurada.');finish();}catch(e){sessionSave(null);profile=null;access=[];status('Não foi possível recuperar a configuração: '+e.message);}finally{pw.value='';button.disabled=false;}
@@ -335,7 +337,8 @@ function loadGate(){
   });
   (async()=>{
    const cached=sessionGet();if(!cached?.access_token)return;
-   try{sessionSave(cached);await loadProfile();finish()}catch(e){sessionSave(null);profile=null;access=[];status('A sessão anterior terminou. Entra novamente.');}
+   beginTransition('');
+   try{sessionSave(cached);await loadProfile();finish()}catch(e){sessionSave(null);profile=null;access=[];status('A sessão anterior terminou. Entra novamente.');endTransition();}
   })();
  });
 }
