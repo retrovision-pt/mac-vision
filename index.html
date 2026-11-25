@@ -7745,7 +7745,16 @@ html[data-theme="uni"] #macCollapseSidebar{background:#34353e!important;color:#f
   const b=document.createElement('button');b.id='macCollapseSidebar';b.type='button';b.title='Alternar menu completo e apenas ícones';b.setAttribute('aria-label','Alternar menu lateral completo ou compacto');
   sidebar.insertBefore(b,sidebar.querySelector('.local-health'));
   const storageKey='rc-clean-install-20261110-sidebar-compact-v1';
-  function compact(v,persistChoice=true){el('mainApp').classList.toggle('mac-sidebar-collapsed',v);b.textContent=v?'❯':'❮';b.setAttribute('aria-expanded',String(!v));if(persistChoice)try{localStorage.setItem(storageKey,v?'1':'0')}catch{}}
+  let compactAnimationTimer;
+  function compact(v,persistChoice=true){
+   const app=el('mainApp');
+   if(persistChoice&&window.matchMedia('(min-width:901px)').matches&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    clearTimeout(compactAnimationTimer);app.classList.add('mac-sidebar-animating');
+    compactAnimationTimer=setTimeout(()=>app.classList.remove('mac-sidebar-animating'),360);
+   }
+   app.classList.toggle('mac-sidebar-collapsed',v);b.textContent=v?'❯':'❮';b.setAttribute('aria-expanded',String(!v));
+   if(persistChoice)try{localStorage.setItem(storageKey,v?'1':'0')}catch{}
+  }
   b.addEventListener('click',()=>{compact(!el('mainApp').classList.contains('mac-sidebar-collapsed'));audit('Aparência','Menu lateral compacto alternado')});
   let initial=false;try{initial=localStorage.getItem(storageKey)==='1'}catch{}
   compact(initial,false);
@@ -13376,6 +13385,29 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
 #page-dashboard #displayPeriodDate,#page-dashboard #displayPeriodStore{line-height:1.2}
 #page-dashboard #displayPeriodStore:empty{display:none}
 #page-dashboard #periodTabs{flex:0 0 auto;margin-left:auto}
+</style>
+<style id="mac-sidebar-motion-20261125">
+@media(min-width:901px){
+ /* Keep identical min/max constraints in both states so width and flex-basis can interpolate. */
+ #mainApp.mac-sidebar-collapsed:not(.is-locked)>.sidebar{min-width:0!important;max-width:38vw!important}
+ #mainApp:not(.is-locked)>.sidebar{transition:none!important}
+ #mainApp.mac-sidebar-animating:not(.is-locked)>.sidebar{
+  transition:width 300ms cubic-bezier(.22,.61,.36,1),flex-basis 300ms cubic-bezier(.22,.61,.36,1),padding-left 300ms ease,padding-right 300ms ease,gap 300ms ease!important;
+ }
+ #mainApp.mac-sidebar-animating:not(.mac-sidebar-collapsed):not(.is-locked)>.sidebar .brand,
+ #mainApp.mac-sidebar-animating:not(.mac-sidebar-collapsed):not(.is-locked)>.sidebar .sidebar-caption,
+ #mainApp.mac-sidebar-animating:not(.mac-sidebar-collapsed):not(.is-locked)>.sidebar #macMainMenuHeading,
+ #mainApp.mac-sidebar-animating:not(.mac-sidebar-collapsed):not(.is-locked)>.sidebar .sidebar-user .person-line>div:last-child,
+ #mainApp.mac-sidebar-animating:not(.mac-sidebar-collapsed):not(.is-locked)>.sidebar .mac-nav-label{
+  animation:macSidebarReveal 220ms ease-out 70ms both;
+ }
+ #mainApp.mac-sidebar-animating .sidebar .mac-nav-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+}
+@keyframes macSidebarReveal{from{opacity:0;transform:translateX(-7px)}to{opacity:1;transform:translateX(0)}}
+@media(prefers-reduced-motion:reduce){
+ #mainApp.mac-sidebar-animating:not(.is-locked)>.sidebar{transition:none!important}
+ #mainApp.mac-sidebar-animating .sidebar *{animation:none!important}
+}
 </style>
 </body>
 </html>
