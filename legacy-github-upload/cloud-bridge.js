@@ -36,6 +36,9 @@ mobileMotionStyle.textContent=`
  #mainApp .sidebar #mobileMenuToggle .mobile-menu-bars i{transition:transform 240ms ease,opacity 180ms ease}
  #mainApp .sidebar #mobileMenuToggle{transition:background-color 180ms ease,transform 120ms ease}
  #mainApp .sidebar #mobileMenuToggle:active{transform:scale(.94)}
+ /* Keep the chat launcher out of the open navigation drawer without changing unread state. */
+ body:has(#mainApp .sidebar.mobile-open) #macChatBubble{visibility:hidden!important;pointer-events:none!important;opacity:0!important}
+ body:has(#mainApp .sidebar.mobile-open) #macChatPanel{visibility:hidden!important;pointer-events:none!important;opacity:0!important}
 }
 @media(max-width:900px) and (prefers-reduced-motion:reduce){
  #mainApp .sidebar #macMobileDrawer,#mainApp .sidebar.mobile-open #macMobileDrawer,html body #macMobileBackdrop,html body #macMobileBackdrop.is-open,#mainApp .sidebar #mobileMenuToggle,#mainApp .sidebar #mobileMenuToggle .mobile-menu-bars i{transition:none!important;transform:none}
