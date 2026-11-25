@@ -3106,6 +3106,7 @@ async function logout(){
    return;
   }
  }
+ if(window.macCloud?.session)window.macCloud.beginTransition?.('A terminar sessão…');
  forgetLocalSession();
  session=null;currentShopId=null;accessViewedStoreId=null;authFailures=0;
  setLanguageForSession('pt');
@@ -5491,7 +5492,7 @@ window.macCloud.loadGate()
  .then(()=>start())
  .then(()=>window.macCloud.autoLogin())
  .then(()=>{setInterval(()=>{if(session && !document.hidden)void macRefreshLocalState()},12000)})
- .catch(err=>{console.error('MAC Cloud:',err);alert('MAC Vision: '+err.message)});
+ .catch(async err=>{console.error('MAC Cloud:',err);alert('MAC Vision: '+err.message);if(window.macCloud?.session){await window.macCloud.signOut();}else{window.macCloud?.endTransition?.();}});
 
 </script>
 
