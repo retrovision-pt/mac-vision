@@ -64,7 +64,7 @@ function gate(){
  form.setAttribute('autocomplete','on');
  const role=form.querySelector('#macCloudRole');role.querySelector('option[value="administrador"]').value='admin';role.value='';
  const names=form.querySelector('#macCloudName');names.replaceChildren(new Option('Selecionar user',''));names.disabled=true;
- const storeField=form.querySelector('#macCloudOriginalStoreField');storeField.hidden=true;const store=form.querySelector('#macCloudOriginalStore');store.required=false;store.disabled=true;
+ const storeField=form.querySelector('#macCloudOriginalStoreField');storeField.hidden=true;const store=form.querySelector('#macCloudOriginalStore');store.required=false;store.disabled=true;names.closest('.auth-step').before(storeField);store.replaceChildren(new Option('Selecionar loja',''));
  const retry=document.createElement('button');retry.type='button';retry.id='macCloudRetry';retry.className='btn ghost';retry.hidden=true;retry.textContent='Tentar novamente';names.after(retry);
  const button=form.querySelector('#macCloudAuthButton');button.textContent='ENTRAR →';
  const shopForm=document.createElement('form');shopForm.id='macCloudShopForm';shopForm.className='auth-block';shopForm.hidden=true;
@@ -238,6 +238,9 @@ function loadGate(){
   if(!hasConfig()){status('A configuração da ligação está incompleta.');return;}
   const form=document.getElementById('macCloudAuthForm'),shopForm=document.getElementById('macCloudShopForm');
   const roleInput=document.getElementById('macCloudRole'),nameInput=document.getElementById('macCloudName'),retry=document.getElementById('macCloudRetry'),loginButton=document.getElementById('macCloudAuthButton');
+  const storeInput=document.getElementById('macCloudOriginalStore'),storeField=document.getElementById('macCloudOriginalStoreField'),userLabel=form.querySelector('label[for="macCloudName"]');
+  const passwordInput=document.getElementById('macCloudPassword');
+  const collaborator=()=>roleInput.value==='colaborador';
   let listRequest=0,photoRequest=0;
   const photoBox=document.getElementById('macCloudUserPhoto');
   photoBox.style.cssText='margin-top:17px;display:flex;justify-content:center;align-items:center;gap:12px;text-align:left;min-width:0';
@@ -273,72 +276,98 @@ function loadGate(){
   }
   async function loadUserPreview(){
     clearUserPreview();
-    const req=photoRequest,name=nameInput.value,role=roleInput.value;
+    const req=photoRequest,name=nameInput.value,role=roleInput.value,shopId=collaborator()?storeInput.value:undefined;
     if(!name||!role)return;
     const fallback=role==='admin'?'Administrador':role==='gestor'?'Gestor de Loja':'Colaborador';
     drawUserPreview(name,fallback,'');
     try{
-      const result=await raw('/functions/v1/mac-vision-login-list',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role,name})});
-      if(req!==photoRequest||name!==nameInput.value||role!==roleInput.value)return;
+      const result=await raw('/functions/v1/mac-vision-login-list',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role,name,...(shopId?{shopId}:{})})});
+      if(req!==photoRequest||name!==nameInput.value||role!==roleInput.value||(shopId!==undefined&&shopId!==storeInput.value))return;
       const p=result?.profile;
       if(p&&typeof p.name==='string')drawUserPreview(p.name,typeof p.cargo==='string'&&p.cargo?p.cargo:fallback,p.photo);
     }catch(e){console.warn('Pré-visualização do perfil indisponível.');}
   }
   clearUserPreview();
-  function syncLoginButton(){loginButton.disabled=!roleInput.value||nameInput.disabled||!nameInput.value;}
-  async function loadUsers(){
-    const role=roleInput.value,req=++listRequest;
-    clearUserPreview();
-    document.getElementById('macCloudRecovery').hidden=true;
-    nameInput.disabled=true;
-    retry.hidden=true;
-    status('');
-    nameInput.replaceChildren(new Option(role?'A carregar utilizadores…':'Selecionar utilizador',''));
-    syncLoginButton();
-    if(!role)return;
+  function syncLoginButton(){loginButton.disabled=!roleInput.value||nameInput.disabled||!nameInput.value||(collaborator()&&!storeInput.value);}
+  function resetNames(label){
+    clearUserPreview();nameInput.disabled=true;nameInput.replaceChildren(new Option(label,''));syncLoginButton();
+  }
+  async function loadShops(){
+    const req=++listRequest;retry.hidden=true;status('');
+    resetNames('Selecionar primeiro a loja');
+    storeInput.disabled=true;storeInput.replaceChildren(new Option('A carregar lojas…',''));
     try{
-      const result=await raw('/functions/v1/mac-vision-login-list',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role})});
-      if(req!==listRequest||role!==roleInput.value)return;
+      const result=await raw('/functions/v1/mac-vision-login-list',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:'colaborador'})});
+      if(req!==listRequest||!collaborator())return;
+      if(!Array.isArray(result?.shops))throw Error('Lista de lojas indisponível.');
+      const shops=result.shops.filter(x=>typeof x?.id==='string'&&x.id&&typeof x.name==='string'&&x.name.trim());
+      storeInput.replaceChildren(new Option(shops.length?'Selecionar loja':'Sem lojas registadas',''),...shops.map(x=>new Option(x.name,x.id)));
+      storeInput.disabled=!shops.length;
+    }catch(err){
+      if(req!==listRequest||!collaborator())return;
+      storeInput.replaceChildren(new Option('Lista de lojas indisponível',''));
+      retry.hidden=false;status('Não foi possível carregar as lojas. '+err.message);
+    }finally{if(req===listRequest)syncLoginButton();}
+  }
+  async function loadUsers(){
+    const role=roleInput.value,shopId=collaborator()?storeInput.value:undefined,req=++listRequest;
+    document.getElementById('macCloudRecovery').hidden=true;
+    retry.hidden=true;status('');
+    resetNames(!role?'Selecionar utilizador':collaborator()&&!shopId?'Selecionar primeiro a loja':'A carregar utilizadores…');
+    if(!role||(collaborator()&&!shopId))return;
+    try{
+      const result=await raw('/functions/v1/mac-vision-login-list',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role,...(shopId?{shopId}:{})})});
+      if(req!==listRequest||role!==roleInput.value||(shopId!==undefined&&shopId!==storeInput.value))return;
       if(!Array.isArray(result?.names))throw Error('Resposta inválida.');
       const names=result.names.filter(n=>typeof n==='string'&&n.trim());
-      nameInput.replaceChildren(new Option(names.length?'Selecionar utilizador':'Sem utilizadores registados',''),...names.map(n=>new Option(n,n)));
+      nameInput.replaceChildren(new Option(names.length?(collaborator()?'Selecionar colaborador':'Selecionar utilizador'):(collaborator()?'Sem colaboradores nesta loja':'Sem utilizadores registados'),''),...names.map(n=>new Option(n,n)));
       nameInput.disabled=!names.length;
       document.getElementById('macCloudRecovery').hidden=role!=='admin'||names.length>0;
     }catch(err){
       if(req!==listRequest||role!==roleInput.value)return;
       nameInput.replaceChildren(new Option('Lista indisponível',''));
-      retry.hidden=false;
-      status('Não foi possível carregar os utilizadores. '+err.message);
+      retry.hidden=false;status('Não foi possível carregar os utilizadores. '+err.message);
     }finally{if(req===listRequest)syncLoginButton();}
   }
-  roleInput.addEventListener('change',()=>{document.getElementById('macCloudPassword').value='';void loadUsers();});
-  nameInput.addEventListener('change',()=>{document.getElementById('macCloudPassword').value='';syncLoginButton();void loadUserPreview();});
-  retry.addEventListener('click',()=>void loadUsers());
+  function changeRole(){
+    passwordInput.value='';storeField.hidden=!collaborator();storeInput.required=collaborator();
+    storeInput.disabled=true;storeInput.replaceChildren(new Option('Selecionar loja',''));
+    if(userLabel)userLabel.textContent=collaborator()?'Colaborador':'User';
+    document.getElementById('macCloudRecovery').hidden=true;
+    if(collaborator())void loadShops();else void loadUsers();
+  }
+  roleInput.addEventListener('change',changeRole);
+  storeInput.addEventListener('change',()=>{passwordInput.value='';void loadUsers();});
+  nameInput.addEventListener('change',()=>{passwordInput.value='';syncLoginButton();void loadUserPreview();});
+  retry.addEventListener('click',()=>{if(collaborator()&&storeInput.disabled)void loadShops();else void loadUsers();});
   syncLoginButton();
   const finish=()=>{beginTransition('');el.restoreOriginal();resolve();};
   document.getElementById('macCloudRecovery').addEventListener('submit',async e=>{
    e.preventDefault();const button=e.currentTarget.querySelector('button'),pw=document.getElementById('macCloudRecoveryPassword');button.disabled=true;status('');
    try{const t=await raw('/auth/v1/token?grant_type=password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('macCloudRecoveryEmail').value.trim(),password:pw.value})});sessionSave(t);await loadProfile();if(profile?.role!=='admin'||profile.app_user_id)throw Error('Conta sem autorização de configuração inicial.');const rows=await authRequest('/rest/v1/mac_vision_directory?select=shop_id&limit=1');if(rows.length)throw Error('A aplicação já está configurada.');finish();}catch(e){sessionSave(null);profile=null;access=[];status('Não foi possível recuperar a configuração: '+e.message);}finally{pw.value='';button.disabled=false;}
   });
-  async function chooseShop(){
+  async function chooseShop(requestedShop=''){
     // Administradores e gestores entram diretamente; a loja inicial é resolvida em autoLogin.
     if(profile?.role==='admin'||profile?.role==='gestor'){selectedCloudShop='';finish();return;}
     const rows=await authRequest('/rest/v1/mac_vision_directory?select=shop_id,data&order=shop_id.asc');
     const choices=rows.filter(x=>(x.data?.users||[]).some(u=>String(u.id)===String(profile.app_user_id)));
+    if(requestedShop){if(!choices.some(x=>x.shop_id===requestedShop)||!access.some(a=>a.shop_id===requestedShop))throw Error('O colaborador não está autorizado a entrar nesta loja.');selectedCloudShop=requestedShop;finish();return;}
     if(choices.length<2){selectedCloudShop=choices[0]?.shop_id||'';finish();return;}
     const select=document.getElementById('macCloudShop');
     select.replaceChildren(new Option('Selecionar loja',''),...choices.map(x=>new Option(x.data?.name||x.shop_id,x.shop_id)));
     form.hidden=true;shopForm.hidden=false;select.focus();
   }
   shopForm.addEventListener('submit',e=>{e.preventDefault();const shop=document.getElementById('macCloudShop').value;if(!shop)return;selectedCloudShop=shop;finish();});
-  document.getElementById('macCloudBack').addEventListener('click',async()=>{try{await authRequest('/auth/v1/logout',{method:'POST'})}catch{}sessionSave(null);profile=null;access=[];selectedCloudShop='';shopForm.hidden=true;form.hidden=false;void loadUsers();});
+  document.getElementById('macCloudBack').addEventListener('click',async()=>{try{await authRequest('/auth/v1/logout',{method:'POST'})}catch{}sessionSave(null);profile=null;access=[];selectedCloudShop='';shopForm.hidden=true;form.hidden=false;changeRole();});
   form.addEventListener('submit',async e=>{
    e.preventDefault();const button=document.getElementById('macCloudAuthButton');button.disabled=true;status('');
    const pw=document.getElementById('macCloudPassword');
    try{
     const name=document.getElementById('macCloudName').value.trim(),role=document.getElementById('macCloudRole').value;
-    const t=await raw('/functions/v1/mac-vision-name-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,role,password:pw.value})});
-    sessionSave(t);await loadProfile();await chooseShop();
+    const shopId=role==='colaborador'?storeInput.value:undefined;
+    if(role==='colaborador'&&!shopId)throw Error('Seleciona a loja.');
+    const t=await raw('/functions/v1/mac-vision-name-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,role,password:pw.value,...(shopId?{shopId}:{})})});
+    sessionSave(t);await loadProfile();await chooseShop(shopId);
    }catch(err){sessionSave(null);profile=null;access=[];status('Não foi possível entrar: '+err.message);}finally{pw.value='';syncLoginButton();}
   });
   (async()=>{
