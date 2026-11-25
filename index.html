@@ -13441,5 +13441,32 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
  #mainApp:not(.mac-sidebar-collapsed):not(.is-locked)>.sidebar #nav button{padding-top:10px!important;padding-bottom:10px!important}
 }
 </style>
+<style id="mac-mobile-compact-login-20261125">
+/* Apenas o ecrã de autenticação em telemóvel; não afeta o desktop ou a configuração inicial. */
+@media(max-width:600px){
+ #authScreen:has(#loginPanel:not([hidden])){padding:16px max(16px,env(safe-area-inset-right)) 16px max(16px,env(safe-area-inset-left));min-height:100svh}
+ #authScreen .auth-card:has(#loginPanel:not([hidden])){width:100%;max-width:320px;padding:18px 17px;border-radius:17px;box-shadow:0 12px 35px #0004}
+ #authScreen:has(#loginPanel:not([hidden])) #rcAuthBrand{gap:9px;margin-bottom:16px}
+ #authScreen:has(#loginPanel:not([hidden])) #rcAuthBrand .brand-mark{width:34px;height:34px;flex:0 0 34px;font-size:12px!important;border-radius:10px}
+ #authScreen:has(#loginPanel:not([hidden])) #rcAuthBrand strong{font-size:17px!important;line-height:1.15}
+ #authScreen:has(#loginPanel:not([hidden])) #rcAuthBrand .smalltext{font-size:10px;line-height:1.3}
+ #authScreen:has(#loginPanel:not([hidden])) #macSetupWelcomeRow{margin-bottom:14px;gap:8px}
+ #authScreen:has(#loginPanel:not([hidden])) #authTitle{font-size:21px;line-height:1.2;margin:0}
+ #authScreen:has(#loginPanel:not([hidden])) #authSubtitle:empty{display:none}
+ #authScreen .auth-card:has(#loginPanel:not([hidden])) .auth-block{gap:10px}
+ #authScreen #loginForm .auth-step{gap:5px}
+ #authScreen #loginForm .auth-step>label{font-size:11px;line-height:1.3}
+ /* 16px mantém a leitura e evita o zoom automático ao editar no Safari iOS. */
+ #authScreen #loginForm .auth-step>input,#authScreen #loginForm .auth-step>select{font-size:16px;min-height:44px;height:44px;padding:8px 10px;border-radius:9px}
+ #authScreen #rcLoginButton{font-size:14px;min-height:44px;padding:9px 12px;margin-top:3px;border-radius:10px}
+ #authScreen #loginUserPhoto:empty{display:none!important;margin:0!important}
+ #authScreen #loginUserPhoto:not(:empty){margin-top:3px!important;gap:8px}
+ #authScreen #loginUserPhoto .employee-avatar{width:40px;height:40px;min-width:40px;flex-basis:40px}
+ #authScreen #loginUserPhoto .mac-login-names strong{font-size:13px}
+ #authScreen #loginUserPhoto .mac-login-names small{font-size:11px}
+ #authScreen:has(#loginPanel:not([hidden])) #authError:empty{display:none}
+ #authScreen:has(#loginPanel:not([hidden])) #authError:not(:empty){min-height:0}
+}
+</style>
 </body>
 </html>
