@@ -63,16 +63,16 @@ function gate(){
  const form=copy('loginForm',{loginForm:'macCloudAuthForm',loginRole:'macCloudRole',loginUser:'macCloudName',loginUserPhoto:'macCloudUserPhoto',macLoginStoreField:'macCloudOriginalStoreField',loginStore:'macCloudOriginalStore',loginPassword:'macCloudPassword',rcLoginButton:'macCloudAuthButton'});
  form.setAttribute('autocomplete','on');
  const role=form.querySelector('#macCloudRole');role.querySelector('option[value="administrador"]').value='admin';role.value='';
- const names=form.querySelector('#macCloudName');names.replaceChildren(new Option('Selecionar user',''));names.disabled=true;
+ const names=form.querySelector('#macCloudName');names.replaceChildren(new Option('Selecionar user',''));names.disabled=true;names.closest('.auth-step').hidden=true;
  const storeField=form.querySelector('#macCloudOriginalStoreField');storeField.hidden=true;const store=form.querySelector('#macCloudOriginalStore');store.required=false;store.disabled=true;names.closest('.auth-step').before(storeField);store.replaceChildren(new Option('Selecionar loja',''));
- const retry=document.createElement('button');retry.type='button';retry.id='macCloudRetry';retry.className='btn ghost';retry.hidden=true;retry.textContent='Tentar novamente';names.after(retry);
- const button=form.querySelector('#macCloudAuthButton');button.textContent='ENTRAR →';
+ const retry=document.createElement('button');retry.type='button';retry.id='macCloudRetry';retry.className='btn ghost';retry.hidden=true;retry.textContent='Tentar novamente';names.closest('.auth-step').after(retry);
+ const button=form.querySelector('#macCloudAuthButton');button.textContent='ENTRAR →';button.hidden=true;button.disabled=true;const password=form.querySelector('#macCloudPassword');password.closest('.auth-step').hidden=true;password.disabled=true;
  const shopForm=document.createElement('form');shopForm.id='macCloudShopForm';shopForm.className='auth-block';shopForm.hidden=true;
  shopForm.innerHTML='<div class="auth-step"><label for="macCloudShop">Loja</label><select id="macCloudShop" required></select></div><button type="submit" class="btn primary auth-btn">ENTRAR →</button><button type="button" class="btn ghost" id="macCloudBack">Voltar</button>';
  const error=copy('authError',{authError:'macCloudError'});error.textContent='';
  const block=document.createElement('div');block.className='auth-block';const panel=document.createElement('div');panel.className='auth-block';const recovery=document.createElement('form');recovery.id='macCloudRecovery';recovery.className='auth-block';recovery.hidden=true;recovery.innerHTML='<p class="smalltext muted">Configuração inicial: entra com a conta técnica de recuperação.</p><div class="auth-step"><label for="macCloudRecoveryEmail">Email</label><input id="macCloudRecoveryEmail" type="email" autocomplete="username" required></div><div class="auth-step"><label for="macCloudRecoveryPassword">Palavra-passe</label><input id="macCloudRecoveryPassword" type="password" autocomplete="current-password" required></div><button class="btn primary auth-btn" type="submit">CONFIGURAR MAC VISION →</button>';panel.append(form,shopForm,recovery);block.append(panel,error);
  el.append(brand,welcome,block);
- const css=document.createElement('style');css.textContent='#authScreen.mac-cloud-login-active .auth-card > :not(#macCloudGate){display:none!important}#authScreen.mac-cloud-login-active .auth-card{width:min(540px,100%);max-width:540px}#macCloudWelcome .mac-setup-welcome-copy{flex:1 1 auto;min-width:0}#macCloudTitle{margin:0 0 5px;line-height:1.18}#macCloudSubtitle{margin:0;line-height:1.42}#macCloudOriginalStoreField[hidden],#macCloudRetry[hidden],#macCloudAuthForm[hidden],#macCloudRecovery[hidden],#macCloudShopForm[hidden],#macCloudWelcome .rc-setup-hero-logo[hidden]{display:none!important}#macCloudAuthForm .auth-step>select,#macCloudAuthForm .auth-step>input,#macCloudShopForm .auth-step>select,#macCloudRecovery .auth-step>input{font-size:14px!important;color:#6b7280!important;-webkit-text-fill-color:#6b7280!important;font-weight:400!important}#macCloudAuthForm .auth-step>input::placeholder,#macCloudRecovery .auth-step>input::placeholder{color:#6b7280!important;-webkit-text-fill-color:#6b7280!important;opacity:1}#macCloudAuthForm .auth-step>select option,#macCloudShopForm .auth-step>select option{color:#6b7280;font-size:14px}';
+ const css=document.createElement('style');css.textContent='#authScreen.mac-cloud-login-active .auth-card > :not(#macCloudGate){display:none!important}#authScreen.mac-cloud-login-active .auth-card{width:min(540px,100%);max-width:540px}#macCloudWelcome .mac-setup-welcome-copy{flex:1 1 auto;min-width:0}#macCloudTitle{margin:0 0 5px;line-height:1.18}#macCloudSubtitle{margin:0;line-height:1.42}#macCloudAuthForm .auth-step[hidden],#macCloudAuthForm button[hidden],#macCloudUserPhoto[hidden],#macCloudOriginalStoreField[hidden],#macCloudRetry[hidden],#macCloudAuthForm[hidden],#macCloudRecovery[hidden],#macCloudShopForm[hidden],#macCloudWelcome .rc-setup-hero-logo[hidden]{display:none!important}#macCloudAuthForm .auth-step>select,#macCloudAuthForm .auth-step>input,#macCloudShopForm .auth-step>select,#macCloudRecovery .auth-step>input{font-size:14px!important;color:#6b7280!important;-webkit-text-fill-color:#6b7280!important;font-weight:400!important}#macCloudAuthForm .auth-step>input::placeholder,#macCloudRecovery .auth-step>input::placeholder{color:#6b7280!important;-webkit-text-fill-color:#6b7280!important;opacity:1}#macCloudAuthForm .auth-step>select option,#macCloudShopForm .auth-step>select option{color:#6b7280;font-size:14px}';
  document.head.append(css);
  original.forEach(({node})=>node.hidden=true);
  screen.classList.add('mac-cloud-login-active');screen.hidden=false;document.body.classList.remove('mac-starting');
@@ -239,7 +239,7 @@ function loadGate(){
   const form=document.getElementById('macCloudAuthForm'),shopForm=document.getElementById('macCloudShopForm');
   const roleInput=document.getElementById('macCloudRole'),nameInput=document.getElementById('macCloudName'),retry=document.getElementById('macCloudRetry'),loginButton=document.getElementById('macCloudAuthButton');
   const storeInput=document.getElementById('macCloudOriginalStore'),storeField=document.getElementById('macCloudOriginalStoreField'),userLabel=form.querySelector('label[for="macCloudName"]');
-  const passwordInput=document.getElementById('macCloudPassword');
+  const passwordInput=document.getElementById('macCloudPassword'),passwordField=passwordInput.closest('.auth-step'),userField=nameInput.closest('.auth-step');
   const collaborator=()=>roleInput.value==='colaborador';
   let listRequest=0,photoRequest=0;
   const photoBox=document.getElementById('macCloudUserPhoto');
@@ -288,7 +288,15 @@ function loadGate(){
     }catch(e){console.warn('Pré-visualização do perfil indisponível.');}
   }
   clearUserPreview();
-  function syncLoginButton(){loginButton.disabled=!roleInput.value||nameInput.disabled||!nameInput.value||(collaborator()&&!storeInput.value);}
+  function syncLoginButton(){
+    const showStore=collaborator();
+    const showUser=!!roleInput.value&&(!showStore||!!storeInput.value);
+    const showPassword=showUser&&!nameInput.disabled&&!!nameInput.value;
+    storeField.hidden=!showStore;userField.hidden=!showUser;
+    passwordField.hidden=!showPassword;passwordInput.disabled=!showPassword;
+    loginButton.hidden=!showPassword;loginButton.disabled=!showPassword;
+    if(!showPassword)passwordInput.value='';
+  }
   function resetNames(label){
     clearUserPreview();nameInput.disabled=true;nameInput.replaceChildren(new Option(label,''));syncLoginButton();
   }
@@ -338,7 +346,7 @@ function loadGate(){
   }
   roleInput.addEventListener('change',changeRole);
   storeInput.addEventListener('change',()=>{passwordInput.value='';void loadUsers();});
-  nameInput.addEventListener('change',()=>{passwordInput.value='';syncLoginButton();void loadUserPreview();});
+  nameInput.addEventListener('change',()=>{passwordInput.value='';status('');void loadUserPreview();syncLoginButton();});
   retry.addEventListener('click',()=>{if(collaborator()&&storeInput.disabled)void loadShops();else void loadUsers();});
   syncLoginButton();
   const finish=()=>{beginTransition('');el.restoreOriginal();resolve();};
@@ -360,7 +368,7 @@ function loadGate(){
   shopForm.addEventListener('submit',e=>{e.preventDefault();const shop=document.getElementById('macCloudShop').value;if(!shop)return;selectedCloudShop=shop;finish();});
   document.getElementById('macCloudBack').addEventListener('click',async()=>{try{await authRequest('/auth/v1/logout',{method:'POST'})}catch{}sessionSave(null);profile=null;access=[];selectedCloudShop='';shopForm.hidden=true;form.hidden=false;changeRole();});
   form.addEventListener('submit',async e=>{
-   e.preventDefault();const button=document.getElementById('macCloudAuthButton');button.disabled=true;status('');
+   e.preventDefault();const button=document.getElementById('macCloudAuthButton');if(button.disabled||button.hidden)return;button.disabled=true;status('');
    const pw=document.getElementById('macCloudPassword');
    try{
     const name=document.getElementById('macCloudName').value.trim(),role=document.getElementById('macCloudRole').value;
