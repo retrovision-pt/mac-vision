@@ -9191,7 +9191,7 @@ function macRenderManagerStores(){
 #macChatNudgeOpen strong,#macChatNudgeOpen small{display:block;overflow-wrap:anywhere}
 #macChatNudgeOpen strong{font-size:12px}#macChatNudgeOpen small{font-size:12px;margin-top:3px}
 #macChatNudgeDismiss{background:transparent;border:0;color:var(--text);font-size:22px;padding:7px;cursor:pointer}
-#macChatNudge{flex:0 0 34px!important;min-width:34px!important;width:34px!important;padding:0!important;font-size:17px;line-height:1}
+
 #macChatNudge:disabled{opacity:.45}
 #macChatPanel .mac-chat-nudge-message{border:1px solid var(--accent);font-weight:700}
 @keyframes macChatNudgeShake{0%,100%{transform:translate(0,0)}10%,30%,50%,70%,90%{transform:translate(-12px,-3px)}20%,40%,60%,80%{transform:translate(10px,3px)}}
@@ -10059,7 +10059,8 @@ const importLog=$('importLog');if(importLog){
  font-size:16px!important;line-height:1.3!important;
  border-radius:11px!important;
 }
-#macChatForm button[type="submit"] {
+#macChatForm button[type="submit"],
+#macChatForm #macChatNudge {
  display:inline-flex!important;align-items:center!important;justify-content:center!important;
  flex:0 0 44px!important;width:44px!important;max-width:44px!important;
  min-width:44px!important;height:44px!important;min-height:44px!important;
