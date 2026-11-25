@@ -1983,7 +1983,7 @@ body.mac-starting:not(.mac-cloud-transition) #macStartupLoading{position:fixed;i
 </section>
 <section id="page-imports" class="page">
  <div class="grid2 equal">
-  <div class="surface card"><div class="section-head"><h2>▦ Importar Senhas</h2><span class="tag">MOVIIK</span></div><p class="smalltext muted">Importa senhas MOVIIK em Excel ou CSV para a loja atual.</p><div class="upload-box" style="max-width:none"><div class="upload-icon">📥</div><h3>Importar senhas MOVIIK</h3><p class="smalltext muted">Seleciona um ou vários ficheiros Excel (.xlsx, .xlsb, .xls) ou CSV. Aceita também exportações MOVIIK com colunas em português (Senha, Estado, Data de criação). Os registos repetidos são atualizados pelo identificador da senha.</p><label for="fileTickets" class="btn primary">Selecionar senhas MOVIIK</label><input id="fileTickets" type="file" multiple accept=".xlsx,.xlsb,.xls,.csv"></div></div>
+  <div class="surface card"><div class="section-head"><h2>▦ Importar Senhas</h2><span class="tag">MOVIIK</span></div><p class="smalltext muted">Importa senhas MOVIIK em Excel ou CSV para a loja atual.</p><div class="upload-box" style="max-width:none"><div class="upload-icon">📥</div><h3>Importar senhas MOVIIK</h3><p class="smalltext muted mac-moviik-distribution-note">O ficheiro MOVIIK é distribuído automaticamente pelas lojas reconhecidas na coluna D, desde que estejam associadas nas definições de Lojas. Registos sem loja reconhecida não são atribuídos.</p><label for="fileTickets" class="btn primary">Selecionar senhas MOVIIK</label><input id="fileTickets" type="file" multiple accept=".xlsx,.xlsb,.xls,.csv"></div></div>
   <div class="surface card"><div class="section-head"><h2>📤 Histórico de Importações</h2><span class="tag" id="importCount">0</span></div><div id="importLog"></div></div>
  </div>
  <div id="macMoviikPendingImportsPanel" class="surface card" style="margin:16px 0" hidden aria-live="polite"></div>
@@ -13574,6 +13574,13 @@ html[data-theme="uni"].mac-dark #mainApp #page-history .mac-history-title-action
   height:26px!important;min-height:26px!important;max-height:26px!important;
   padding:6px 8px!important;font-size:10px!important;border-radius:7px!important;flex:0 0 104px!important;
  }
+}
+</style>
+<style id="mac-moviik-distribution-note-20261125">
+#page-imports .upload-box .mac-moviik-distribution-note{
+ box-sizing:border-box;width:100%;max-width:100%;min-width:0;
+ font-size:11px!important;line-height:1.5!important;text-align:justify!important;text-align-last:left;
+ margin:0 0 12px!important;overflow-wrap:break-word;white-space:normal;
 }
 </style>
 </body>
