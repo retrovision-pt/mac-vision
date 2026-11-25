@@ -7567,8 +7567,7 @@ html[data-theme="uni"] #macCollapseSidebar{background:#34353e!important;color:#f
  }
  function updateNav(){if(!session)return;
   oldNavigation();
-  const hideAdminMenu=session.accessKind==='administrador';
-  document.querySelectorAll('#nav button[data-go]').forEach(b=>{const key=b.dataset.go;b.hidden=!canShow(key)||(hideAdminMenu&&['schedule','config'].includes(key));});
+  document.querySelectorAll('#nav button[data-go]').forEach(b=>{const key=b.dataset.go;b.hidden=!canShow(key)||(session.accessKind==='administrador'&&key==='schedule');});
   const panel=el('configHome')?.querySelector('[data-config-target="vision"]');if(panel)panel.hidden=!isAdmin();
   if(!canShow(page)){
    const fallback=macPages.find(([key])=>canShow(key))?.[0];
