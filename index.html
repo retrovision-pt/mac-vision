@@ -13557,8 +13557,23 @@ html:is([data-theme="claro"],[data-theme="nos"],[data-theme="sand"]) #mainApp #p
 html[data-theme="uni"] #mainApp #page-history .mac-history-title-actions .mac-new-sale-btn{background:#ecf6d4!important;border-color:#bad68a!important;color:#507900!important}
 html[data-theme="uni"].mac-dark #mainApp #page-history .mac-history-title-actions .mac-new-sale-btn{background:#45454e!important;border-color:#666a51!important;color:#dafa75!important}
 #mainApp #page-history .mac-history-title-actions .mac-new-sale-btn:hover{filter:brightness(.96)!important}
+/* Dimensões comuns: os dois elementos têm a mesma caixa, independentemente do texto. */
+#mainApp #page-sales .section-head:has(>div>#saleFormHeading)>.tag.ok,
+#mainApp #page-history .mac-history-title-actions .mac-new-sale-btn{
+ box-sizing:border-box!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;
+ width:118px!important;min-width:118px!important;max-width:118px!important;
+ height:24px!important;min-height:24px!important;max-height:24px!important;
+ padding:4px 8px!important;font-family:inherit!important;font-size:11px!important;font-weight:760!important;
+ line-height:1.2!important;letter-spacing:0!important;border-width:1px!important;border-radius:8px!important;white-space:nowrap!important;
+ flex:0 0 118px!important;
+}
 @media(max-width:600px){
- #mainApp #page-history .mac-history-title-actions .mac-new-sale-btn{min-height:36px!important;height:36px!important;padding:6px 8px!important;font-size:10px!important;border-radius:7px!important;flex:0 0 auto!important}
+ #mainApp #page-sales .section-head:has(>div>#saleFormHeading)>.tag.ok,
+ #mainApp #page-history .mac-history-title-actions .mac-new-sale-btn{
+  width:104px!important;min-width:104px!important;max-width:104px!important;
+  height:26px!important;min-height:26px!important;max-height:26px!important;
+  padding:6px 8px!important;font-size:10px!important;border-radius:7px!important;flex:0 0 104px!important;
+ }
 }
 </style>
 </body>
