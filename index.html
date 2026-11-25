@@ -10510,9 +10510,9 @@ window.macRefreshWalletLabel=function(){const el=document.getElementById('profil
 </style>
 <dialog id="rcFullResetDialog" aria-labelledby="rcFullResetTitle">
  <form id="rcFullResetForm" autocomplete="off">
-  <h2 id="rcFullResetTitle">🗑️ Apagar todos os dados</h2>
-  <p>Esta ação vai repor a aplicação no estado de configuração inicial.</p>
-  <div class="rc-reset-warning"><strong>Atenção: Eliminação Irreversível!</strong> Serão removidas todas as lojas e todos os seus administradores, gestores, colaboradores, vendas, senhas MOVIIK, escalas, ponderações, comissões, importações, conversas e definições guardadas neste navegador.<br><strong>Esta operação elimina apenas os dados deste navegador.</strong></div>
+  <h2 id="rcFullResetTitle">🗑️ Repor dados locais</h2>
+  <p>Esta ação limpa o armazenamento deste navegador e termina a sessão. Os dados partilhados no Supabase permanecem intactos.</p>
+  <div class="rc-reset-warning"><strong>Atenção: Eliminação Irreversível!</strong> Serão removidos os dados locais, cache e definições guardados neste navegador.<br><strong>As lojas, utilizadores, vendas e restantes dados partilhados no Supabase não serão eliminados.</strong></div>
   <label for="rcFullResetText">Para confirmar, escreve <strong>APAGAR TUDO</strong>:</label>
   <input id="rcFullResetText" placeholder="APAGAR TUDO" spellcheck="false" autocapitalize="characters" aria-required="true" required>
   <p id="rcFullResetError" role="alert" hidden></p>
@@ -10655,9 +10655,21 @@ window.macRefreshWalletLabel=function(){const el=document.getElementById('profil
   resetDialog.showModal();resetInput.focus();
  },true);
  async function clearOwnedStorage(){
-  await macFlushChangesForExit();
-  if(db){db.close();db=null;macDbOpenPromise=null;}
-  await new Promise((resolve,reject)=>{const req=indexedDB.deleteDatabase(MAC_LOCAL_DB_NAME);req.onsuccess=resolve;req.onerror=()=>reject(req.error);req.onblocked=()=>reject(Error('Fecha os outros separadores do MAC Vision para apagar os dados.'));});
+  // Aguarda apenas as gravações já iniciadas; não grava novamente o estado a limpar.
+  await macSaveQueue.catch(()=>false);
+  await initDB();
+  if(db){
+   await new Promise((resolve,reject)=>{
+    const names=Array.from(db.objectStoreNames).filter(n=>n==='storage'||n==='attachments');
+    if(!names.length){resolve();return;}
+    const tx=db.transaction(names,'readwrite');
+    tx.oncomplete=()=>resolve();
+    tx.onerror=()=>reject(tx.error||Error('Não foi possível limpar o armazenamento local.'));
+    tx.onabort=()=>reject(tx.error||Error('Limpeza local interrompida.'));
+    for(const name of names)tx.objectStore(name).clear();
+   });
+  }
+  macStateDirty=false;
   for(const key of Object.keys(localStorage))if(key.startsWith('mac-vision-local-')||key.startsWith('rc-clean-install-20261110')||key.startsWith('MAC_VISION'))localStorage.removeItem(key);
   forgetLocalSession();
  }
@@ -10674,7 +10686,8 @@ window.macRefreshWalletLabel=function(){const el=document.getElementById('profil
    await clearOwnedStorage();
    session=null;shopRegistry=[];currentShopId=null;pendingSetupManager=null;pendingSetupWorkspace={managers:[],stores:[]};
    resetDialog.close();
-   window.location.reload();
+   if(window.macCloud?.session)await window.macCloud.signOut();
+   else window.location.reload();
   }catch(error){
    clearing=false;el('rcFullResetCancel').disabled=false;resetConfirm.textContent='Apagar todos os dados';
    resetConfirm.disabled=false;showError('Não foi possível terminar a limpeza: '+(error?.message||error));
