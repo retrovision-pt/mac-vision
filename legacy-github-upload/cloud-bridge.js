@@ -169,6 +169,25 @@ async function put(key,value){
  if(!shared(key))throw Error('Chave não partilhada.');
  // A lista de colaboradores inteira é uma operação administrativa; não substituir dados silenciosamente.
  if(key===registryKey){
+  if(profile?.role==='gestor'){
+   const before=bases.get(key);
+   if(!Array.isArray(before)||!Array.isArray(value))throw Error('Atualiza a lista de utilizadores antes de guardar.');
+   const additions=[];
+   for(const shop of value){
+    const prior=before.find(st=>st.id===shop.id);
+    if(!prior)throw Error('Apenas administradores podem criar lojas.');
+    for(const u of shop.users||[]){
+     if(!(prior.users||[]).some(p=>p.id===u.id)){
+      if(u.role!=='colaborador')throw Error('Apenas administradores podem criar gestores.');
+      additions.push({shopId:shop.id,user:u});
+     }
+    }
+   }
+   if(additions.length!==1)throw Error('Os gestores apenas podem adicionar um colaborador de cada vez.');
+   await authRequest('/functions/v1/mac-vision-add-collaborator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(additions[0])});
+   const fresh=await get(key);
+   return {data:fresh,merged:!same(fresh,value)};
+  }
   if(profile?.role!=='admin')throw Error('Apenas administradores podem alterar o registo de lojas e utilizadores.');
   const revision=Number(versions.get(key)||0);
   if(revision){
