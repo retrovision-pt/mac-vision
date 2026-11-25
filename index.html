@@ -2057,6 +2057,8 @@ body.mac-starting:not(.mac-cloud-transition) #macStartupLoading{position:fixed;i
       <label class="mac-switch-row"><span><strong>Som para vendas recebidas</strong><small>Reproduz o aviso quando outra sessão regista uma venda</small></span><input type="checkbox" data-mac-audio="otherSaleSound" checked></label>
       <label class="mac-switch-row"><span><strong>Notificações do Chat MAC Vision</strong><small>Avisar quando chega uma mensagem</small></span><input type="checkbox" data-mac-audio="chatNotify" checked></label>
       <label class="mac-switch-row"><span><strong>Som das mensagens</strong><small>Reproduzir aviso ao receber mensagens</small></span><input type="checkbox" data-mac-audio="chatSound" checked></label>
+      <label class="mac-switch-row"><span><strong>Nudge · som e movimento</strong><small>Alertas especiais do Chat Vision, independentes das mensagens normais</small></span><input type="checkbox" data-mac-audio="nudgeEnabled" checked></label>
+      <div class="mac-switch-row"><span><strong>Testar Nudge</strong><small>Verifica o som e a animação neste dispositivo</small></span><button type="button" class="btn small" id="macTestNudge">👋 Testar</button></div>
       <label class="mac-switch-row"><span><strong>Notificações visuais</strong><small>Mostrar avisos na aplicação</small></span><input type="checkbox" data-mac-audio="visual" checked></label>
       <div class="mac-switch-row mac-audio-volume"><span><strong>Volume do áudio</strong><small>Volume dos avisos do MAC Vision</small></span><div><input type="range" min="0" max="100" step="5" value="70" data-mac-audio-volume><output id="macAudioVolumeText">70%</output></div></div>
 <div class="mac-error-sound-row" id="macErrorSoundConfig"><div class="mac-error-sound-info"><strong>Som de erro</strong><small>Usado em notificações de erro e passwords incorretas. Pode carregar um áudio personalizado.</small></div><div class="mac-error-sound-buttons"><label for="macErrorSoundUpload" class="btn small" title="Carregar som de erro">▲ Carregar som</label><input type="file" id="macErrorSoundUpload" accept="audio/mpeg,audio/mp3,audio/wav,audio/ogg,audio/mp4,.mp3,.wav,.ogg,.m4a" hidden><button type="button" class="btn small" id="macErrorSoundTest">▶ Testar</button><button type="button" class="btn small danger" id="macErrorSoundReset" title="Restaurar som padrão">🗑️</button></div><small id="macErrorSoundCurrent" class="muted" aria-live="polite">Som padrão</small></div>
@@ -9192,8 +9194,8 @@ function macRenderManagerStores(){
 #macChatNudge{flex:0 0 34px!important;min-width:34px!important;width:34px!important;padding:0!important;font-size:17px;line-height:1}
 #macChatNudge:disabled{opacity:.45}
 #macChatPanel .mac-chat-nudge-message{border:1px solid var(--accent);font-weight:700}
-@keyframes macChatNudgeShake{0%,100%{transform:translateX(0)}10%,30%,50%,70%,90%{transform:translateX(-5px)}20%,40%,60%,80%{transform:translateX(5px)}}
-#macChatBubble.mac-chat-nudge-shake,#macChatPanel.mac-chat-nudge-shake,#macChatNudgeNotice.mac-chat-nudge-shake,#macChatSelectedContact .mac-chat-nudge-shake{animation:macChatNudgeShake .65s ease-in-out 2!important}
+@keyframes macChatNudgeShake{0%,100%{transform:translate(0,0)}10%,30%,50%,70%,90%{transform:translate(-12px,-3px)}20%,40%,60%,80%{transform:translate(10px,3px)}}
+#macChatBubble.mac-chat-nudge-shake,#macChatPanel.mac-chat-nudge-shake,#macChatNudgeNotice.mac-chat-nudge-shake,#macChatSelectedContact .mac-chat-nudge-shake{animation:macChatNudgeShake .55s linear 3!important}
 @media(prefers-reduced-motion:reduce){#macChatBubble.mac-chat-nudge-shake,#macChatPanel.mac-chat-nudge-shake,#macChatNudgeNotice.mac-chat-nudge-shake,#macChatSelectedContact .mac-chat-nudge-shake{animation:none!important;outline:2px solid var(--accent);outline-offset:2px}}
 </style>
 <section id="macChatPanel" role="dialog" aria-label="Chat MAC Vision" aria-modal="false" hidden>
@@ -9218,7 +9220,7 @@ function macRenderManagerStores(){
  const el=id=>document.getElementById(id);
  const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
  const normalized=name=>String(name||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/gi,'').toUpperCase();
- const defaults={ownSale:true,otherSales:true,otherSaleSound:true,chatNotify:true,chatSound:true,visual:true,volume:70};
+ const defaults={ownSale:true,otherSales:true,otherSaleSound:true,chatNotify:true,chatSound:true,nudgeEnabled:true,visual:true,volume:70};
  const settingsKey=()=>session?.id?'rc-clean-install-20261110-audio-20261109:'+session.id:null;
  const prefs=()=>{try{return {...defaults,...JSON.parse(localStorage.getItem(settingsKey())||'{}')}}catch{return {...defaults}}};
  function savePref(partial){if(!settingsKey())return;try{localStorage.setItem(settingsKey(),JSON.stringify({...prefs(),...partial}))}catch{}}
@@ -9262,18 +9264,55 @@ function macRenderManagerStores(){
   let chatRefreshTimer = 0, chatLoadAgain=false, chatSending=false;
   const chatReadPending=new Set();
   const NUDGE_BODY='👋 Nudge!';
-  const isNudge=m=>m.recipient_id!=null&&m.body===NUDGE_BODY;
+  const isNudge=m=>m.recipient_id!=null&&String(m.body??'').normalize('NFC').trim()===NUDGE_BODY;
   const nudgeCooldown=new Map();
   let nudgeNoticeTimer=0,nudgeNoticeSender=null;
   function hideNudgeNotice(){clearTimeout(nudgeNoticeTimer);nudgeNoticeSender=null;el('macChatNudgeNotice').hidden=true;}
-  function shakeNudge(node){if(!node||node.hidden)return;node.classList.remove('mac-chat-nudge-shake');void node.offsetWidth;node.classList.add('mac-chat-nudge-shake');setTimeout(()=>node.classList.remove('mac-chat-nudge-shake'),1400);}
-  function nudgeSound(){const p=prefs();if(!p.chatSound||!p.volume)return;try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;const ctx=new AC();const t=ctx.currentTime;[660,440,880].forEach((hz,i)=>{const osc=ctx.createOscillator(),gain=ctx.createGain();osc.frequency.value=hz;gain.gain.setValueAtTime(0.001,t+i*.12);gain.gain.linearRampToValueAtTime(p.volume/100*.07,t+i*.12+.02);gain.gain.exponentialRampToValueAtTime(.001,t+i*.12+.11);osc.connect(gain);gain.connect(ctx.destination);osc.start(t+i*.12);osc.stop(t+i*.12+.12);if(i===2)osc.onended=()=>void ctx.close();});if(ctx.state==='suspended'){void ctx.resume().catch(()=>{});setTimeout(()=>{if(ctx.state!=='closed')void ctx.close().catch(()=>{});},1500);}}catch{}}
-  function showNudge(m){const p=prefs();if(p.chatSound)nudgeSound();if(!p.chatNotify||!p.visual)return;
-    nudgeNoticeSender=m.sender_id;el('macChatNudgeText').textContent=memberName(m.sender_id)+' enviou-te um Nudge!';const notice=el('macChatNudgeNotice');notice.hidden=false;clearTimeout(nudgeNoticeTimer);nudgeNoticeTimer=setTimeout(hideNudgeNotice,10000);
-    shakeNudge(notice);shakeNudge(el('macChatBubble'));
-    if(chatOpen&&chatRecipient===m.sender_id)shakeNudge(el('macChatPanel'));
-    if(chatOpen){const index=chatTabs.indexOf(m.sender_id);if(index>=0)shakeNudge(el('macChatSelectedContact')?.querySelector('[data-chat-tab="'+index+'"]')?.parentElement);}
+  const nudgeAnimations=new WeakMap();
+  function shakeNudge(node){
+    if(!node||node.hidden)return;
+    const old=nudgeAnimations.get(node);if(old){clearTimeout(old.timer);old.animation?.cancel();}
+    node.classList.remove('mac-chat-nudge-shake');void node.offsetWidth;
+    const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let animation=null;
+    if(!reduced&&typeof node.animate==='function'){
+      try{animation=node.animate([{transform:'translate(0,0)'},{transform:'translate(-12px,-3px)'},{transform:'translate(10px,3px)'},{transform:'translate(-10px,-3px)'},{transform:'translate(8px,3px)'},{transform:'translate(0,0)'}],{duration:550,iterations:3,easing:'linear'});}catch{}
+    }
+    if(!animation||reduced)node.classList.add('mac-chat-nudge-shake');
+    const timer=setTimeout(()=>{node.classList.remove('mac-chat-nudge-shake');nudgeAnimations.delete(node);},1750);
+    nudgeAnimations.set(node,{animation,timer});
   }
+  let nudgeAudioContext=null;
+  function unlockNudgeAudio(){
+    try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;
+      if(!nudgeAudioContext||nudgeAudioContext.state==='closed')nudgeAudioContext=new AC();
+      if(nudgeAudioContext.state!=='running')void nudgeAudioContext.resume().catch(()=>{});
+      return nudgeAudioContext;
+    }catch{return null;}
+  }
+  // Unlock on a real gesture; retain the same context for asynchronous Cloud messages.
+  for(const event of ['pointerup','touchend','click','keydown'])document.addEventListener(event,e=>{if(e.isTrusted&&(!nudgeAudioContext||nudgeAudioContext.state!=='running'))unlockNudgeAudio();},{capture:true,passive:true});
+  function nudgeSound(force=false){
+    const p=prefs();if((!force&&!p.nudgeEnabled)||!p.volume)return;
+    const ctx=unlockNudgeAudio();if(!ctx)return;
+    const play=()=>{try{const t=ctx.currentTime+.025;const loudness=Math.max(.001,Math.min(1,Number(p.volume)/100)*.22);
+      for(const [hz,i] of [[590,0],[420,1],[780,2],[520,3]]){const osc=ctx.createOscillator(),gain=ctx.createGain(),at=t+i*.13;osc.type='triangle';osc.frequency.setValueAtTime(hz,at);gain.gain.setValueAtTime(.0001,at);gain.gain.linearRampToValueAtTime(loudness,at+.018);gain.gain.exponentialRampToValueAtTime(.0001,at+.12);osc.connect(gain);gain.connect(ctx.destination);osc.start(at);osc.stop(at+.13);osc.onended=()=>{osc.disconnect();gain.disconnect();};}
+    }catch{}};
+    if(ctx.state==='running')play();else{const requested=Date.now();void ctx.resume().then(()=>{if(Date.now()-requested<5000)play();}).catch(()=>{});}
+  }
+  function nudgeVisual(senderId){
+    shakeNudge(el('macChatNudgeNotice'));shakeNudge(el('macChatBubble'));
+    if(chatOpen)shakeNudge(el('macChatPanel'));
+    if(chatOpen){const index=chatTabs.indexOf(senderId);if(index>=0)shakeNudge(el('macChatSelectedContact')?.querySelector('[data-chat-tab="'+index+'"]')?.parentElement);}
+  }
+  function showNudge(m){
+    if(!prefs().nudgeEnabled)return;
+    nudgeSound();
+    nudgeNoticeSender=m.sender_id;el('macChatNudgeText').textContent=memberName(m.sender_id)+' enviou-te um Nudge!';
+    const notice=el('macChatNudgeNotice');notice.hidden=false;clearTimeout(nudgeNoticeTimer);nudgeNoticeTimer=setTimeout(hideNudgeNotice,10000);
+    nudgeVisual(m.sender_id);
+  }
+  el('macTestNudge')?.addEventListener('click',()=>{nudgeSound(true);nudgeNoticeSender=null;el('macChatNudgeText').textContent='Teste local de som e animação';el('macChatNudgeNotice').hidden=false;clearTimeout(nudgeNoticeTimer);nudgeNoticeTimer=setTimeout(hideNudgeNotice,7000);nudgeVisual(chatRecipient);});
   function updateNudgeButton(){const btn=el('macChatNudge');if(!btn)return;btn.disabled=chatSending||!chatPermitted()||!hasChatTab()||chatRecipient===null||(nudgeCooldown.get(chatRecipient)||0)>Date.now();btn.title=chatRecipient===null?'Nudge disponível em conversas privadas':'Enviar Nudge (toque)';}
 
   // A visibilidade do painel depende exclusivamente da ação manual do utilizador.
@@ -9345,7 +9384,7 @@ function macRenderManagerStores(){
       cloudPresence=data.presence||{};
       // As mensagens de Todos abrangem as lojas autorizadas devolvidas pela Cloud.
       // Recuperar também avisos de grupo não lidos após início/religação da sessão.
-      const incoming=cloudMessages.filter(m=>chatIncoming(m)&&!cloudRead.has(m.id)&&!cloudSeen.has(m.id)&&(cloudInitialLoad||chatGroupMessage(m)));
+      const incoming=cloudMessages.filter(m=>chatIncoming(m)&&!cloudRead.has(m.id)&&!cloudSeen.has(m.id)&&(cloudInitialLoad||chatGroupMessage(m)||(isNudge(m)&&Date.now()-new Date(m.created_at).getTime()<60000)));
       const nudges=incoming.filter(isNudge);
       if(incoming.length){
         const normal=incoming.filter(m=>!isNudge(m)),m=normal[normal.length-1],p=prefs();
@@ -9523,7 +9562,8 @@ function macRenderManagerStores(){
     if(!storeId||!availableChatMembers().some(m=>m.user_id===recipient))return toast('Conversa indisponível para Nudge.',true);
     if((nudgeCooldown.get(recipient)||0)>Date.now())return;
     nudgeCooldown.set(recipient,Date.now()+10000);chatSending=true;setChatStatus(cloudReason,cloudReady);
-    try{const response=await chatRPC('send',{storeId,recipientId:recipient,body:NUDGE_BODY});if(cloudUser?.id!==owner)return;const saved=response?.message;if(saved?.id&&!cloudMessages.some(m=>m.id===saved.id)){cloudMessages.push(saved);cloudSeen.add(saved.id);renderChatCloud();}void loadChatCloud(true);}
+    if(prefs().nudgeEnabled){nudgeSound();nudgeVisual(recipient);}
+    try{const response=await chatRPC('send',{storeId,recipientId:recipient,body:NUDGE_BODY});if(cloudUser?.id!==owner)return;const saved=response?.message;if(saved?.id&&!cloudMessages.some(m=>m.id===saved.id)){cloudMessages.push(saved);cloudSeen.add(saved.id);renderChatCloud();}toast('👋 Nudge enviado a '+memberName(recipient));void loadChatCloud(true);}
     catch(err){if(cloudUser?.id===owner){nudgeCooldown.delete(recipient);toast('Falha ao enviar Nudge: '+err.message,true);}}
     finally{chatSending=false;setChatStatus(cloudReason,cloudReady);setTimeout(updateNudgeButton,10100);}
   });
