@@ -9586,7 +9586,7 @@ function macRenderManagerStores(){
     }
     const history=el('macChatMessages');
     const current=visibleChatMessages();
-    const historyMarkup=cloudReady ? (!hasChatTab()?'<div class="smalltext muted">Seleciona 👥 para abrir uma conversa.</div>':current.length?current.map(m=>{
+    const historyMarkup=cloudReady ? (!hasChatTab()?'<div class="smalltext muted" style="align-self:stretch;flex:1;display:grid;place-items:center;text-align:center;padding:12px">Seleciona 👥 para abrir uma conversa.</div>':current.length?current.map(m=>{
       const name=memberName(m.sender_id),mine=m.sender_id===cloudUser.id,sticker=getSticker(m.body);
       const groupStore=chatGroupMessage(m)&&m.store_id!==chatStoreId()?(shopRegistry.find(s=>s.id===m.store_id)?.name||m.store_id):'';
       const time=new Date(m.created_at).toLocaleString('pt-PT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
