@@ -1956,7 +1956,7 @@ html:is([data-theme="claro"],[data-theme="nos"],[data-theme="sand"]) #configPane
 <section id="page-ios" class="page">
  <div class="surface card ios-head"><div class="section-head"><div><h2>▤ Quadro IOS</h2><p class="smalltext muted" id="iosScopeLabel">Resultados gerados a partir das vendas registadas.</p></div><div class="mac-ios-head-actions"></div></div>
  <div class="ios-kpis" id="iosKpis"></div></div>
- <div class="surface card" style="margin-top:16px"><div class="section-head"><div><h2>Vendas por colaborador</h2><p class="smalltext muted" id="iosScheduledDescription">Colaboradores escalados no dia selecionado.</p></div><span class="tag">Vendas registadas</span></div><div class="tablewrap" id="iosTable"></div></div>
+ <div class="surface card" style="margin-top:16px"><div class="section-head"><div><h2>Vendas por colaborador</h2></div><span class="tag">Vendas registadas</span></div><div class="tablewrap" id="iosTable"></div></div>
  <div class="surface card" style="margin-top:16px"><div class="section-head"><h2>Detalhe de produtos e ações</h2></div><div class="ios-product-grid" id="iosProducts"></div></div>
  <div class="surface card mac-ios-schedule" id="iosCollaboratorSchedule" hidden style="margin-top:16px"><div class="section-head"><div><h2>📆 Escala Mensal</h2><p class="smalltext muted">Controlo de horas diárias</p></div><button type="button" class="btn small" data-go="schedule">Abrir escala completa</button></div><div class="tablewrap mac-ios-schedule-wrap" id="iosCollaboratorCalendar"></div></div>
 </section>
@@ -6292,10 +6292,9 @@ window.macCloud.loadGate()
   const names=[...scheduledNames.values()];
   const people=names.map(name=>{const id=iosPersonKey(name);const s=sales.filter(x=>iosPersonKey(x.employee)===id);const t=tickets.filter(x=>iosPersonKey(x.employee)===id);return {name,data:summarize(s,t)};}).sort((a,b)=>b.data.points-a.data.points||a.name.localeCompare(b.name,'pt'));
   const employeeRows=people.map((item,i)=>`<div class="mac-ios-row mac-ios-person-row"><div class="mac-ios-label mac-ios-person"><span class="mac-ios-rank">${i+1}</span>${avatarFor(item.name,employeePhotoIn(state,item.name),'small')}<span class="mac-ios-employee-name" title="${h(item.name)}">${h(item.name)}</span></div>${cells(item.data)}</div>`).join('');
-  const noScheduled=`<div class="mac-ios-no-people">Sem colaboradores com turno de trabalho em ${h(datePT(iosDay))}. Consulta ou importa a escala desse dia.</div>`;
+  const noScheduled='';
   $id('iosTable').innerHTML=`<div class="mac-ios-scroll mac-ios-table" id="macIosPeopleGrid">${header}${employeeRows||noScheduled}</div>`;
-  const subtitle=$id('iosScheduledDescription');
-  if(subtitle)subtitle.textContent=`${people.length} colaborador(es) escalado(s) em ${datePT(iosDay)} · Valores do período selecionado`;
+
 
   const top=$id('macIosTopGrid'),peopleGrid=$id('macIosPeopleGrid'); let syncing=false;
   for(const [src,dst] of [[top,peopleGrid],[peopleGrid,top]])src.addEventListener('scroll',()=>{if(syncing)return;syncing=true;dst.scrollLeft=src.scrollLeft;requestAnimationFrame(()=>{syncing=false});},{passive:true});
@@ -9917,7 +9916,7 @@ const importLog=$('importLog');if(importLog){
   return function(...args){
    if(!session)return base.apply(this,args);
    const signature=[currentShopId,page,period,state?.selectedDate,$('scheduleMonth')?.value,
-      state,state?.schedules?.length,state?.sales?.length,state?.tickets?.length,dataVersion].join('|');
+      state?.store,state?.schedules?.length,state?.sales?.length,state?.tickets?.length,dataVersion].join('|');
    const now=performance.now();
    if(signature===lastKey&&now-lastAt<110)return;
    lastKey=signature;lastAt=now;
@@ -10310,7 +10309,7 @@ window.macRefreshWalletLabel=function(){const el=document.getElementById('profil
    if(allMode){allMode=false;allTickets=[];requestVersion++;summary.hidden=true;}
    return;
   }
-  if(!existing)select.add(new Option('Todas as lojas',ALL),0);
+  if(!existing)select.add(new Option('Todas as Lojas',ALL),0);
   select.disabled=false;
   if(allMode)select.value=ALL;
  }
@@ -11358,7 +11357,7 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup{color:#
    if(!stores.length)return;
    const ids=stores.map(x=>x.id);
    const signature=ids.join('|');if(el.dataset.signature!==signature){
-     el.innerHTML='<option value="__all__">Todas as lojas</option>'+stores.map(st=>`<option value="${escapeHTML(st.id)}">${escapeHTML(st.name)}</option>`).join('');
+     el.innerHTML='<option value="__all__">Todas as Lojas</option>'+stores.map(st=>`<option value="${escapeHTML(st.id)}">${escapeHTML(st.name)}</option>`).join('');
      el.dataset.signature=signature;el.value=old==='__all__'?'__all__':ids.includes(old)?old:currentShopId;
    }
  }
@@ -12384,7 +12383,7 @@ html[data-theme="uni"].mac-dark #configPanelWeights #weightsUploadBtn {
    const shopFilter=el('macImportsStoreFilter');
    if(shopFilter){const shops=accessible(),prior=shopFilter.value,signature=shops.map(s=>s.id).join('|');
     shopFilter.hidden=shops.length===0;
-    if(shopFilter.dataset.signature!==signature){shopFilter.innerHTML='<option value="__all__">Todas as lojas</option>'+shops.map(st=>'<option value="'+escapeText(st.id)+'">'+escapeText(st.name)+'</option>').join('');shopFilter.dataset.signature=signature;shopFilter.value=prior==='__all__'?'__all__':shops.some(st=>st.id===prior)?prior:currentShopId;}
+    if(shopFilter.dataset.signature!==signature){shopFilter.innerHTML='<option value="__all__">Todas as Lojas</option>'+shops.map(st=>'<option value="'+escapeText(st.id)+'">'+escapeText(st.name)+'</option>').join('');shopFilter.dataset.signature=signature;shopFilter.value=prior==='__all__'?'__all__':shops.some(st=>st.id===prior)?prior:currentShopId;}
    }
    const all=shopFilter?.value==='__all__'&&!shopFilter.hidden;
    const set=all?accessible():[shopRegistry.find(s=>s.id===currentShopId)].filter(Boolean);
@@ -13072,7 +13071,7 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
  function options(){
   const old=Array.from(select.options).find(o=>o.value===ALL);
   if(!active()){old?.remove();formMode();return;}
-  if(!old)select.add(new Option('Todas',ALL),0);
+  if(!old)select.add(new Option('Todas as Lojas',ALL),0);
   else if(old!==select.firstElementChild)select.insertBefore(old,select.firstChild);
   select.disabled=false;
   select.value=isAll()?ALL:currentShopId;
@@ -13161,5 +13160,54 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
 #macChatParticipants .employee-avatar img,#macChatPanel .mac-chat-message-head .employee-avatar img{display:block!important;width:100%!important;height:100%!important;object-fit:cover!important;border-radius:50%!important}
 #macChatParticipants .mac-chat-avatar-fallback{flex:0 0 26px!important;width:26px!important;height:26px!important}
 </style>
+<script id="mac-admin-all-stores-default-20261125">
+(function(){
+ 'use strict';
+ const E=id=>document.getElementById(id);
+ const values={dashboard:'__mac_todas_as_lojas__',sales:'__mac_all_section_stores__',history:'__mac_all_section_stores__',imports:'__mac_all_section_stores__',tickets:'__mac_all_authorized__',ios:'__mac_all_section_stores__'};
+ let lastSession=null,lastPage='',editing=false;
+ function defaultAll(){
+  if(!session||session.accessKind!=='administrador'||!macIsAreaSession()||window.macCloud?.profile?.role!=='admin'||!values[page]||editing||!accessibleManagerStores().length)return;
+  if(page==='sales'&&E('saleEditId')?.value)return;
+  renderOptions();
+  const select=E('storeSelect'),value=values[page];
+  if(!select||!Array.from(select.options).some(o=>o.value===value))return;
+  // Aplicar a escolha através do controlador existente, que consolida os dados.
+  // Não alterar currentShopId nem gravar dados na base de dados.
+  select.value=value;
+  select.dispatchEvent(new Event('change',{bubbles:true}));
+ }
+ const priorGo=go;
+ go=function(...args){
+  const result=priorGo.apply(this,args);
+  const entering=lastSession!==session||lastPage!==page;
+  lastSession=session;lastPage=page;
+  if(entering)defaultAll();
+  return result;
+ };
+ const priorLogin=loginToStore;
+ loginToStore=async function(...args){
+  lastSession=null;lastPage='';
+  const result=await priorLogin.apply(this,args);
+  if(session&&(lastSession!==session||lastPage!==page)){lastSession=session;lastPage=page;defaultAll();}
+  return result;
+ };
+ const priorEdit=beginEdit;
+ beginEdit=function(...args){
+  editing=true;
+  try{
+   // Uma edição exige a loja concreta; não bloquear o formulário em modo agregado.
+   if(page==='sales'&&E('storeSelect')?.value===values.sales){
+    const select=E('storeSelect');select.value=currentShopId;select.dispatchEvent(new Event('change',{bubbles:true}));
+   }
+   const result=priorEdit.apply(this,args);
+   if(page==='sales'&&E('saleEditId')?.value&&E('storeSelect')?.value===values.sales){
+    const select=E('storeSelect');select.value=currentShopId;select.dispatchEvent(new Event('change',{bubbles:true}));
+   }
+   return result;
+  }finally{editing=false;}
+ };
+})();
+</script>
 </body>
 </html>
