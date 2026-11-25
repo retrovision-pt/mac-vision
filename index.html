@@ -7574,8 +7574,15 @@ html[data-theme="uni"] #macCollapseSidebar{background:#34353e!important;color:#f
   // Todos os módulos são acessíveis a Gestores de Loja e de Área.
   // Mesmo as regras antigas guardadas como false não restringem o Gestor.
   if(role==='gestor'||key==='sales')return true;
+  // A visibilidade de Importações MOVIIK segue o interruptor da loja, sem alterar a autorização Cloud.
+  // Por defeito, o módulo continua disponível para colaboradores com autorização de importação.
+  if(key==='imports'&&role==='colaborador'){
+   const configured=perms().imports?.colaborador;
+   if(typeof configured==='boolean')return configured;
+   return preview|| (typeof macCan==='function'&&(macCan('imports.view')||macCan('imports.moviik')));
+  }
   // Permissão individual delegada pelo Administrador (validada nas permissões locais).
-  if(!preview&&role==='colaborador'&&typeof macCan==='function'&&(macCan(key+'.view')||(key==='imports'&&macCan('imports.moviik'))))return true;
+  if(!preview&&role==='colaborador'&&typeof macCan==='function'&&macCan(key+'.view'))return true;
   const rule=perms()[key]?.[role];
   if(typeof rule==='boolean')return rule;
   return ['dashboard','sales','history','daily','ios','config','schedule'].includes(key);
