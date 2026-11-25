@@ -13522,5 +13522,23 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
 <style id="mac-admin-menu-visibility-20261125">
 #mainApp #nav button[data-go][hidden]{display:none!important}
 </style>
+<style id="mac-history-new-sale-quick-style-20261125">
+/* Mesmo aspeto do selo Registo Rápido, mantendo o botão clicável e o alinhamento existente. */
+#mainApp #page-history .mac-history-title-actions .mac-new-sale-btn{
+ display:inline-flex!important;align-items:center!important;justify-content:center!important;
+ width:auto!important;min-width:0!important;height:auto!important;min-height:28px!important;
+ padding:4px 8px!important;border:1px solid #266e56!important;border-radius:8px!important;
+ background:#174337!important;background-image:none!important;color:var(--accent)!important;
+ font-size:11px!important;font-weight:760!important;line-height:1.2!important;letter-spacing:0!important;
+ white-space:nowrap!important;box-shadow:none!important;
+}
+html:is([data-theme="claro"],[data-theme="nos"],[data-theme="sand"]) #mainApp #page-history .mac-history-title-actions .mac-new-sale-btn{background:#e2f7ec!important;border-color:var(--border)!important;color:#087346!important}
+html[data-theme="uni"] #mainApp #page-history .mac-history-title-actions .mac-new-sale-btn{background:#ecf6d4!important;border-color:#bad68a!important;color:#507900!important}
+html[data-theme="uni"].mac-dark #mainApp #page-history .mac-history-title-actions .mac-new-sale-btn{background:#45454e!important;border-color:#666a51!important;color:#dafa75!important}
+#mainApp #page-history .mac-history-title-actions .mac-new-sale-btn:hover{filter:brightness(.96)!important}
+@media(max-width:600px){
+ #mainApp #page-history .mac-history-title-actions .mac-new-sale-btn{min-height:36px!important;height:36px!important;padding:6px 8px!important;font-size:10px!important;border-radius:7px!important;flex:0 0 auto!important}
+}
+</style>
 </body>
 </html>
