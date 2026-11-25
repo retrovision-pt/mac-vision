@@ -16,31 +16,29 @@ const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 function shared(key){return key===registryKey||/^store:[^:]+$/.test(String(key));}
 function hasConfig(){return /^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(endpoint)&&String(cfg.publishableKey||'').startsWith('sb_publishable_');}
 function errorFrom(body,status){return new Error(body?.message||body?.msg||body?.error_description||body?.error||`Erro do servidor (${status}).`)}
+let selectedCloudShop='';
 function gate(){
-  let el=document.getElementById('macCloudGate');if(el)return el;
-  el=document.createElement('div');el.id='macCloudGate';el.innerHTML=`
-  <div class="mac-cloud-panel" role="dialog" aria-modal="true" aria-label="Acesso MAC Vision Cloud">
-   <div class="mac-cloud-logo">MAC</div><h1>MAC Vision</h1>
-   <p>Inicia sessão para aceder à base de dados partilhada. Vendas, escalas e senhas ficam disponíveis nos dispositivos autorizados.</p>
-   <form id="macCloudAuthForm">
-    <label>Email de acesso<input type="email" id="macCloudEmail" required autocomplete="username" placeholder="nome@empresa.pt"></label>
-    <label>Palavra-passe<input type="password" id="macCloudPassword" required autocomplete="current-password"></label>
-    <button type="submit" class="mac-cloud-primary" id="macCloudAuthButton">Entrar na base de dados</button>
-   </form>
-   <p id="macCloudError" class="mac-cloud-error" aria-live="polite"></p>
-   <p class="mac-cloud-foot">O acesso é gerido no Supabase Auth. A publicação no GitHub não guarda dados de colaboradores.</p>
-  </div>`;
-  const css=document.createElement('style');css.textContent=`
-  #macCloudGate{position:fixed;inset:0;z-index:99999;background:radial-gradient(circle at 20% 8%,#214d39,#060e19 60%);display:grid;place-items:center;padding:18px;font-family:Arial,sans-serif;color:#f5f9ff;overflow:auto}
-  .mac-cloud-panel{background:#122035;border:1px solid #3b5364;border-radius:20px;max-width:460px;width:100%;padding:30px;box-shadow:0 24px 90px #0009}
-  .mac-cloud-logo{display:inline-grid;place-items:center;background:#bad80a;color:#102016;font-weight:900;border-radius:12px;width:52px;height:48px}
-  .mac-cloud-panel h1{font-size:28px;margin:16px 0 7px}.mac-cloud-panel p{font-size:13px;line-height:1.7;color:#bdc9d9}
-  #macCloudAuthForm{display:grid;gap:15px;margin-top:23px}#macCloudAuthForm label{font-size:12px;font-weight:700;display:grid;gap:7px}
-  #macCloudAuthForm input{box-sizing:border-box;width:100%;background:#0c1625;color:#fff;padding:14px;border:1px solid #4b6178;border-radius:10px;font-size:14px}
-  .mac-cloud-primary{background:#bad80a;border:0;border-radius:11px;min-height:45px;font-size:14px;font-weight:800;color:#142017;cursor:pointer}
-  .mac-cloud-primary:disabled{opacity:.5;cursor:wait}.mac-cloud-error{color:#ff9bab!important;min-height:17px;margin:8px 0 0!important}
-  .mac-cloud-foot{font-size:11px!important;margin-top:20px}`;
-  document.head.appendChild(css);document.body.appendChild(el);return el;
+ let el=document.getElementById('macCloudGate');if(el)return el;
+ const screen=document.getElementById('authScreen'),card=screen?.querySelector('.auth-card');
+ if(!card)throw Error('Ecrã de entrada MAC Vision indisponível.');
+ const original=[...card.children].map(node=>({node,hidden:node.hidden}));
+ original.forEach(({node})=>node.hidden=true);
+ screen.hidden=false;document.body.classList.remove('mac-starting');
+ el=document.createElement('div');el.id='macCloudGate';el.className='auth-block';
+ el.innerHTML=`
+ <div class="auth-header"><div class="brand-mark">MAC</div><div><strong style="font-size:19px">MAC Vision</strong><div class="smalltext muted">Mapa de Acompanhamento Comercial</div></div></div>
+ <div><h1 class="auth-title">Bem-vindo</h1><p class="auth-subtitle">Seleciona o acesso e introduz o nome de utilizador e a palavra-passe.</p></div>
+ <form id="macCloudAuthForm" class="auth-block" autocomplete="on">
+ <div class="auth-step"><label for="macCloudRole">Acesso</label><select id="macCloudRole" required><option value="">Selecionar acesso</option><option value="admin">👑 Administrador</option><option value="gestor">🔐 Gestor</option><option value="colaborador">👤 Colaborador</option></select></div>
+ <div class="auth-step"><label for="macCloudName">Utilizador</label><input type="text" id="macCloudName" required maxlength="160" autocomplete="username" placeholder="Nome do utilizador"></div>
+ <div class="auth-step"><label for="macCloudPassword">Password</label><input type="password" id="macCloudPassword" required autocomplete="current-password" placeholder="Introduzir palavra-passe"></div>
+ <button type="submit" class="btn primary auth-btn" id="macCloudAuthButton">ENTRAR NO MAC VISION →</button>
+ </form>
+ <form id="macCloudShopForm" class="auth-block" hidden><div class="auth-step"><label for="macCloudShop">Loja</label><select id="macCloudShop" required></select></div><button type="submit" class="btn primary auth-btn">ENTRAR NO MAC VISION →</button><button type="button" class="btn ghost" id="macCloudBack">Voltar</button></form>
+ <p id="macCloudError" class="auth-message" role="alert" aria-live="polite"></p>`;
+ card.appendChild(el);
+ el.restoreOriginal=()=>{el.remove();original.forEach(({node,hidden})=>node.hidden=hidden);};
+ return el;
 }
 function status(text){const x=document.getElementById('macCloudError');if(x)x.textContent=text||'';lastCloudError=text||'';}
 function sessionGet(){try{return JSON.parse(sessionStorage.getItem(AUTH_CACHE)||'null')}catch{return null}}
@@ -172,20 +170,31 @@ async function remove(key){
 function loadGate(){
  return new Promise((resolve,reject)=>{
   const el=gate();
-  if(!hasConfig()){status('A configuração da base de dados está incompleta. Consulta o ficheiro cloud-config.js.');return;}
-  const form=document.getElementById('macCloudAuthForm');
+  if(!hasConfig()){status('A configuração da ligação está incompleta.');return;}
+  const form=document.getElementById('macCloudAuthForm'),shopForm=document.getElementById('macCloudShopForm');
+  const finish=()=>{el.restoreOriginal();resolve();};
+  async function chooseShop(){
+    const rows=await authRequest('/rest/v1/mac_vision_directory?select=shop_id,data&order=shop_id.asc');
+    const choices=rows.filter(x=>(x.data?.users||[]).some(u=>String(u.id)===String(profile.app_user_id)));
+    if(choices.length<2){selectedCloudShop=choices[0]?.shop_id||'';finish();return;}
+    const select=document.getElementById('macCloudShop');
+    select.replaceChildren(new Option('Selecionar loja',''),...choices.map(x=>new Option(x.data?.name||x.shop_id,x.shop_id)));
+    form.hidden=true;shopForm.hidden=false;select.focus();
+  }
+  shopForm.addEventListener('submit',e=>{e.preventDefault();const shop=document.getElementById('macCloudShop').value;if(!shop)return;selectedCloudShop=shop;finish();});
+  document.getElementById('macCloudBack').addEventListener('click',async()=>{try{await authRequest('/auth/v1/logout',{method:'POST'})}catch{}sessionSave(null);profile=null;access=[];selectedCloudShop='';shopForm.hidden=true;form.hidden=false;status('');});
   form.addEventListener('submit',async e=>{
    e.preventDefault();const button=document.getElementById('macCloudAuthButton');button.disabled=true;status('');
+   const pw=document.getElementById('macCloudPassword');
    try{
-    const email=document.getElementById('macCloudEmail').value.trim();
-    const password=document.getElementById('macCloudPassword').value;
-    const t=await raw('/auth/v1/token?grant_type=password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
-    sessionSave(t);await loadProfile();el.remove();resolve();
-   }catch(err){sessionSave(null);status('Não foi possível entrar: '+err.message);}finally{button.disabled=false;}
+    const name=document.getElementById('macCloudName').value.trim(),role=document.getElementById('macCloudRole').value;
+    const t=await raw('/functions/v1/mac-vision-name-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,role,password:pw.value})});
+    sessionSave(t);await loadProfile();await chooseShop();
+   }catch(err){sessionSave(null);profile=null;access=[];status('Não foi possível entrar: '+err.message);}finally{pw.value='';button.disabled=false;}
   });
   (async()=>{
    const cached=sessionGet();if(!cached?.access_token)return;
-   try{sessionSave(cached);await loadProfile();el.remove();resolve()}catch(e){sessionSave(null);status('A sessão anterior terminou. Entra novamente.');}
+   try{sessionSave(cached);await loadProfile();finish()}catch(e){sessionSave(null);profile=null;access=[];status('A sessão anterior terminou. Entra novamente.');}
   })();
  });
 }
@@ -209,7 +218,7 @@ async function autoLogin(){
  }
  const allowed=profile.role==='admin'?shopRegistry:shopRegistry.filter(st=>access.some(a=>a.shop_id===st.id));
  let shop=null,account=null;
- for(const st of allowed){const u=(st.users||[]).find(x=>String(x.id)===String(accountId));
+ for(const st of [...allowed].sort((a,b)=>Number(b.id===selectedCloudShop)-Number(a.id===selectedCloudShop))){const u=(st.users||[]).find(x=>String(x.id)===String(accountId));
   if(u && (profile.role==='admin' ? u.role==='gestor' : profile.role===u.role)){shop=st;account=u;break;}}
  if(!shop||!account)throw Error('Conta Cloud sem loja ou utilizador MAC Vision associado. Confirma as permissões no Supabase.');
  const mgr={};if(account.role==='gestor')for(const st of allowed){if(st.users.some(u=>u.id===account.id))mgr[st.id]=account.id;}
