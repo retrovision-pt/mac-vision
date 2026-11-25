@@ -9181,7 +9181,8 @@ function macRenderManagerStores(){
 </script>
 <button type="button" id="macChatBubble" aria-label="Abrir Chat MAC Vision" title="Chat MAC Vision" hidden>💬</button>
 <section id="macChatPanel" role="dialog" aria-label="Chat MAC Vision" aria-modal="false" hidden>
- <div class="mac-chat-head"><div><strong id="macChatTitle">💬 Chat MAC Vision</strong><div id="macChatCloudStatus" style="font-size:10px;line-height:1.3;margin-top:3px">● Cloud · inicia sessão</div><div id="macChatSelectedContact" hidden></div></div><div class="mac-chat-head-actions"><button type="button" class="btn small mac-chat-action" id="macChatPeople" title="Utilizadores disponíveis" aria-label="Utilizadores disponíveis" aria-controls="macChatParticipants" aria-expanded="false">👥</button><button type="button" class="btn small mac-chat-action" id="macChatEditMode" title="Gerir mensagens deste utilizador" aria-label="Editar conversas" aria-pressed="false" hidden>✏️</button><button type="button" class="btn small mac-chat-action mac-chat-danger" id="macChatDeleteConversation" title="Apagar conversas do utilizador" aria-label="Apagar conversas" hidden>🗑️</button><button type="button" class="btn small" id="macChatClose" title="Fechar chat">✕</button></div></div>
+ <div class="mac-chat-head"><div><strong id="macChatTitle">💬 Chat MAC Vision</strong><div id="macChatCloudStatus" style="font-size:10px;line-height:1.3;margin-top:3px">● Cloud · inicia sessão</div></div><div class="mac-chat-head-actions"><button type="button" class="btn small mac-chat-action" id="macChatPeople" title="Utilizadores disponíveis" aria-label="Utilizadores disponíveis" aria-controls="macChatParticipants" aria-expanded="false">👥</button><button type="button" class="btn small mac-chat-action" id="macChatEditMode" title="Gerir mensagens deste utilizador" aria-label="Editar conversas" aria-pressed="false" hidden>✏️</button><button type="button" class="btn small mac-chat-action mac-chat-danger" id="macChatDeleteConversation" title="Apagar conversas do utilizador" aria-label="Apagar conversas" hidden>🗑️</button><button type="button" class="btn small" id="macChatClose" title="Fechar chat">✕</button></div></div>
+ <div id="macChatSelectedContact" aria-label="Conversas abertas" hidden></div>
  <div id="macChatParticipants" class="mac-chat-participants" aria-label="Utilizadores disponíveis" hidden></div>
  <div id="macChatMessages" class="mac-chat-log" aria-live="polite"></div>
  <form id="macChatForm" class="mac-chat-send"><input id="macChatText" placeholder="Escrever mensagem…" maxlength="1000" autocomplete="off" aria-label="Mensagem"><button class="btn primary" type="submit" aria-label="Enviar mensagem">➤</button></form>
@@ -9226,6 +9227,21 @@ function macRenderManagerStores(){
   let cloudUser = null, cloudMembers = [], cloudMessages = [], cloudRead = new Set(), cloudPresence = {}, cloudReceipts = {};
   let cloudSeen = new Set(), cloudInitialLoad = false;
   let chatRecipient = null, chatEditMode = false, chatOpen = false, cloudCurrentStore = '', chatPeopleOpen=false;
+  let chatTabs=[null], chatDrafts=new Map();
+  const hasChatTab=()=>chatRecipient!==undefined&&chatTabs.includes(chatRecipient);
+  function selectChatTab(id){
+    const field=el('macChatText');
+    if(chatRecipient!==undefined&&field)chatDrafts.set(chatRecipient,field.value);
+    if(id!==undefined&&!chatTabs.includes(id))chatTabs.push(id);
+    chatRecipient=id;chatEditMode=false;chatPeopleOpen=false;
+    if(field)field.value=id===undefined?'':(chatDrafts.get(id)||'');
+  }
+  function closeChatTab(id){
+    const i=chatTabs.indexOf(id);if(i<0)return;
+    chatTabs.splice(i,1);
+    if(chatRecipient===id)selectChatTab(chatTabs.length?chatTabs[Math.min(i,chatTabs.length-1)]:undefined);
+  }
+  function resetChatTabs(){chatTabs=[null];chatDrafts.clear();chatRecipient=null;chatEditMode=false;chatPeopleOpen=false;const field=el('macChatText');if(field)field.value='';}
   let chatReqId = 0, cloudLastLoad = 0, chatPending = new Map(), cloudLastSession = '';
   let chatRefreshTimer = 0;
   const chatUserName = () => session?.employee || session?.name || '';
@@ -9242,9 +9258,9 @@ function macRenderManagerStores(){
     cloudReason = message;
     if (chatCloudStatus) { chatCloudStatus.textContent = message; chatCloudStatus.className = ok ? 'mac-cloud-on' : 'mac-cloud-off'; }
     const input = document.getElementById('macChatText');
-    if (input) { input.disabled = !chatPermitted(); input.placeholder = cloudReady ? 'Escrever mensagem…' : 'Chat Cloud indisponível'; }
+    if (input) { input.disabled = !chatPermitted()||!hasChatTab(); input.placeholder = cloudReady ? (hasChatTab()?'Escrever mensagem…':'Seleciona uma conversa…') : 'Chat Cloud indisponível'; }
     const send = document.querySelector('#macChatForm button[type="submit"]');
-    if (send) send.disabled = !chatPermitted();
+    if (send) send.disabled = !chatPermitted()||!hasChatTab();
   }
   function chatRPC(action,payload={}) { return macRPC('chat-'+action,payload); }
   // Sincronização entre separadores da mesma origem, nunca com outras máquinas.
@@ -9264,7 +9280,7 @@ function macRenderManagerStores(){
       const own=members.find(m=>m.user_id===res.user.id && m.store_id===chatStoreId());
       if(!own)throw Error('O utilizador não pertence à loja selecionada.');
       if(normChat(own.display_name)!==normChat(chatUserName()))throw Error('A identidade Cloud não corresponde à conta selecionada.');
-      if(cloudUser?.id!==res.user.id)cloudSeen.clear();
+      if(cloudUser&&cloudUser.id!==res.user.id){cloudSeen.clear();resetChatTabs();}
       cloudUser=res.user;cloudMembers=members; cloudCurrentStore=chatStoreId();
       window.__macChatStoreEnabled = res.settings?.[cloudCurrentStore] !== false;
       cloudLastSession=fingerprint;cloudReady=true;cloudInitialLoad=false;setChatStatus('● Cloud · ligado',true);
@@ -9289,7 +9305,8 @@ function macRenderManagerStores(){
       const incoming=cloudMessages.filter(m=>chatIncoming(m)&&!cloudRead.has(m.id)&&!cloudSeen.has(m.id)&&(cloudInitialLoad||chatGroupMessage(m)));
       if(incoming.length){
         const m=incoming[incoming.length-1],p=prefs();
-        if(!chatOpen){chatRecipient=chatGroupMessage(m)?null:m.sender_id;chatPeopleOpen=false;chatEditMode=false;chatOpen=true;el('macChatPanel').hidden=false;}
+        for(const message of incoming){const id=chatGroupMessage(message)?null:message.sender_id;if(!chatTabs.includes(id))chatTabs.push(id);}
+        if(!chatOpen||!hasChatTab()){selectChatTab(chatGroupMessage(m)?null:m.sender_id);chatOpen=true;el('macChatPanel').hidden=false;}
         if(p.chatNotify&&p.visual)toast('💬 '+(chatGroupMessage(m)?'Todos · ':'Nova mensagem de ')+memberName(m.sender_id));
         if(p.chatSound)softAlert();
       }
@@ -9318,6 +9335,8 @@ function macRenderManagerStores(){
           if(!manager)continue;
         }else if(m.role!=='colaborador')continue;
       }else if(role!=='admin' && m.role!=='colaborador')continue;
+      // Gestor MAC Vision com perfil Cloud admin: todos os colaboradores ativos
+      // de todas as lojas autorizadas, independentemente da loja selecionada.
       
       const prev=list.get(m.user_id);
       if(!prev || m.store_id===chatStoreId())list.set(m.user_id,m);
@@ -9331,7 +9350,7 @@ function macRenderManagerStores(){
     return shared.includes(chatStoreId())?chatStoreId():shared[0]||chatStoreId();
   }
   function visibleChatMessages(){
-    if(!cloudReady || !cloudUser)return [];
+    if(!cloudReady || !cloudUser || !hasChatTab())return [];
     if(chatRecipient===null) return cloudMessages.filter(m=>!m.deleted_at&&chatGroupMessage(m));
     const store=chatStoreFor(chatRecipient);
     return cloudMessages.filter(m=>!m.deleted_at&&(
@@ -9348,17 +9367,17 @@ function macRenderManagerStores(){
   }
   function renderSelectedContact(){
     const slot=el('macChatSelectedContact');if(!slot)return;
-    if(!session||!cloudReady){slot.hidden=true;slot.replaceChildren();return;}
-    if(chatRecipient===null){
-      slot.hidden=false;
-      slot.innerHTML='<div class="mac-chat-selected-chip"><span class="employee-avatar mac-chat-group-avatar" aria-hidden="true">👥</span><span class="mac-chat-selected-name" title="Todos">Todos</span><span class="mac-chat-selected-presence online" title="Conversa de grupo" aria-label="Conversa de grupo"></span></div>';
-      return;
-    }
-    const name=memberName(chatRecipient),seen=cloudPresence[chatRecipient],age=seen?Date.now()-new Date(seen).getTime():Infinity;
-    const status=age<60000?'online':age<300000?'away':'offline';
-    const statusLabel=status==='online'?'Online':status==='away'?'Ausente':'Offline';
-    slot.hidden=false;
-    slot.innerHTML='<div class="mac-chat-selected-chip">'+avatarFor(name,chatContactPhoto(chatRecipient),'small')+'<span class="mac-chat-selected-name" title="'+escChat(name)+'">'+escChat(name)+'</span><span class="mac-chat-selected-presence '+status+'" title="'+statusLabel+'" aria-label="'+statusLabel+'"></span><button type="button" id="macChatClearContact" title="Voltar a Todos" aria-label="Fechar conversa de '+escChat(name)+'">×</button></div>';
+    if(!session||!cloudReady||!chatTabs.length){slot.hidden=true;slot.replaceChildren();return;}
+    const unread=chatUnread();
+    const markup=chatTabs.map((id,i)=>{
+      const group=id===null,name=group?'Todos':memberName(id),seen=cloudPresence[id],age=seen?Date.now()-new Date(seen).getTime():Infinity;
+      const status=group||age<60000?'online':age<300000?'away':'offline';
+      const statusLabel=group?'Conversa de grupo':status==='online'?'Online':status==='away'?'Ausente':'Offline';
+      const count=unread.filter(m=>group?chatGroupMessage(m):m.recipient_id!=null&&m.sender_id===id).length;
+      const avatar=group?'<span class="employee-avatar mac-chat-group-avatar" aria-hidden="true">👥</span>':avatarFor(name,chatContactPhoto(id),'small');
+      return '<div class="mac-chat-selected-chip '+(id===chatRecipient?'active':'')+'"><button type="button" class="mac-chat-tab-select" data-chat-tab="'+i+'" aria-pressed="'+(id===chatRecipient)+'" title="'+escChat(name)+'">'+avatar+'<span class="mac-chat-selected-name">'+escChat(name)+'</span><span class="mac-chat-selected-presence '+status+'" title="'+statusLabel+'" aria-label="'+statusLabel+'"></span>'+(count?'<span class="mac-chat-tab-count">'+Math.min(count,99)+'</span>':'')+'</button><button type="button" class="mac-chat-tab-close" data-chat-close="'+i+'" aria-label="Fechar conversa de '+escChat(name)+'" title="Fechar conversa">×</button></div>';
+    }).join('');
+    slot.hidden=false;if(slot.dataset.markup!==markup||!slot.firstChild){slot.innerHTML=markup;slot.dataset.markup=markup;}
   }
   function chatUnread(){return cloudMessages.filter(m=>chatIncoming(m)&&!cloudRead.has(m.id));}
   function markReadCloud(){
@@ -9383,7 +9402,11 @@ function macRenderManagerStores(){
     else bubble.removeAttribute('data-unread');
     const mem=availableChatMembers();
     const participants=[{user_id:null,display_name:'Todos'},...mem];
-    if(chatRecipient!==null && !mem.some(m=>m.user_id===chatRecipient) && !cloudMessages.some(m=>m.sender_id===chatRecipient&&m.recipient_id===cloudUser?.id))chatRecipient=null;
+    if(cloudReady){
+      const allowed=id=>id===null||mem.some(m=>m.user_id===id)||cloudMessages.some(m=>m.sender_id===id&&m.recipient_id===cloudUser?.id);
+      chatTabs=chatTabs.filter(allowed);
+      if(chatRecipient!==undefined&&!chatTabs.includes(chatRecipient))selectChatTab(chatTabs.length?chatTabs[0]:undefined);
+    }
     const all=el('macChatParticipants');
     const peopleMarkup = cloudReady ? participants.map(m=>{
       const count=unread.filter(msg=>m.user_id===null?chatGroupMessage(msg):msg.recipient_id!=null&&msg.sender_id===m.user_id).length;
@@ -9399,7 +9422,7 @@ function macRenderManagerStores(){
     }
     const history=el('macChatMessages');
     const current=visibleChatMessages();
-    if(history)history.innerHTML=cloudReady ? (current.length?current.map(m=>{
+    if(history)history.innerHTML=cloudReady ? (!hasChatTab()?'<div class="smalltext muted">Seleciona 👥 para abrir uma conversa.</div>':current.length?current.map(m=>{
       const name=memberName(m.sender_id),mine=m.sender_id===cloudUser.id;
       const groupStore=chatGroupMessage(m)&&m.store_id!==chatStoreId()?(shopRegistry.find(s=>s.id===m.store_id)?.name||m.store_id):'';
       const time=new Date(m.created_at).toLocaleString('pt-PT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
@@ -9414,8 +9437,8 @@ function macRenderManagerStores(){
     const people=el('macChatPeople');if(people){people.setAttribute('aria-expanded',String(chatPeopleOpen));people.disabled=!cloudReady;}
     if(all)all.hidden=!chatPeopleOpen;
     const edit=el('macChatEditMode'),del=el('macChatDeleteConversation');
-    if(edit){edit.hidden=!chatManager();edit.setAttribute('aria-pressed',String(chatEditMode&&chatManager()));}
-    if(del){del.hidden=!chatManager();del.disabled=!chatEditMode;}
+    if(edit){edit.hidden=!chatManager();edit.disabled=!hasChatTab();edit.setAttribute('aria-pressed',String(chatEditMode&&chatManager()));}
+    if(del){del.hidden=!chatManager();del.disabled=!chatEditMode||!hasChatTab();}
     if(el('macChatStoreEnabled')){el('macChatStoreEnabled').checked=currentStoreEnabled();el('macChatStoreEnabled').disabled=!chatManager()||!cloudReady;}
     markReadCloud();setChatStatus(cloudReady?'● Cloud · ligado':cloudReason,cloudReady);
   }
@@ -9427,21 +9450,27 @@ function macRenderManagerStores(){
   });
   el('macChatClose')?.addEventListener('click',()=>{chatOpen=false;chatPeopleOpen=false;el('macChatPanel').hidden=true;});
   el('macChatPeople')?.addEventListener('click',()=>{chatPeopleOpen=!chatPeopleOpen;renderChatCloud();});
-  el('macChatSelectedContact')?.addEventListener('click',e=>{if(!e.target.closest('#macChatClearContact'))return;chatRecipient=null;chatPeopleOpen=false;chatEditMode=false;renderChatCloud();});
+  el('macChatSelectedContact')?.addEventListener('click',e=>{
+    const close=e.target.closest('[data-chat-close]'),tab=e.target.closest('[data-chat-tab]');
+    if(close){const i=Number(close.dataset.chatClose);if(i>=0&&i<chatTabs.length)closeChatTab(chatTabs[i]);}
+    else if(tab){const i=Number(tab.dataset.chatTab);if(i>=0&&i<chatTabs.length)selectChatTab(chatTabs[i]);}
+    else return;renderChatCloud();
+  });
   el('macChatParticipants')?.addEventListener('click',e=>{
     const btn=e.target.closest('[data-cloud-person]'); if(!btn)return;
-    chatRecipient=btn.dataset.cloudPerson==='todos'?null:btn.dataset.cloudPerson;chatPeopleOpen=false;chatEditMode=false;renderChatCloud();
+    selectChatTab(btn.dataset.cloudPerson==='todos'?null:btn.dataset.cloudPerson);renderChatCloud();
   });
   el('macChatForm')?.addEventListener('submit',async e=>{
     e.preventDefault();
     const input=el('macChatText'),value=input?.value.trim();if(!value)return;
-    if(!chatPermitted())return toast('Chat Cloud indisponível. '+cloudReason,true);
-    const storeId=chatStoreFor(chatRecipient);
+    if(!chatPermitted()||!hasChatTab())return toast('Seleciona uma conversa disponível.',true);
+    const recipient=chatRecipient;
+    const storeId=chatStoreFor(recipient);
     if(!storeId)return toast('Não existe uma loja autorizada comum entre estes utilizadores.',true);
     const button=e.currentTarget.querySelector('button[type="submit"]');button.disabled=true;
-    try{await chatRPC('send',{storeId,recipientId:chatRecipient,body:value.slice(0,1000)});input.value='';await loadChatCloud();}
+    try{await chatRPC('send',{storeId,recipientId:recipient,body:value.slice(0,1000)});if(chatRecipient===recipient&&input.value.trim()===value)input.value='';if((chatDrafts.get(recipient)||'').trim()===value)chatDrafts.delete(recipient);await loadChatCloud();}
     catch(err){toast('Falha ao guardar na Cloud: '+err.message,true);}
-    finally{button.disabled=!chatPermitted();}
+    finally{button.disabled=!chatPermitted()||!hasChatTab();}
   });
   el('macChatEditMode')?.addEventListener('click',()=>{if(!chatManager())return;chatEditMode=!chatEditMode;renderChatCloud();});
   el('macChatMessages')?.addEventListener('click',async e=>{
@@ -9484,8 +9513,8 @@ function macRenderManagerStores(){
   if(saleChannel)saleChannel.onmessage=e=>{const m=e.data;if(!session||!m||m.from===String(session.id))return;const p=prefs();if(p.otherSales&&p.visual)toast('🔔 '+m.employee+' registou uma venda: '+m.product);if(p.otherSales&&p.otherSaleSound)soundSale(true)};
   const previousGo=go;go=function(){const value=previousGo.apply(this,arguments);if(session && cloudLastSession!==String(session.id)+'|'+chatStoreId())void connectChatCloud(true);renderChatCloud();return value;};
   const previousRender=render;render=function(){const value=previousRender.apply(this,arguments);if(chatOpen)renderChatCloud();return value;};
-  const previousLogin=loginToStore;loginToStore=async function(){const value=await previousLogin.apply(this,arguments);chatOpen=false;cloudLastSession='';await connectChatCloud(true);return value;};
-  const previousLogout=logout;logout=async function(){if(session&&cloudReady)await chatRPC('offline',{storeId:chatStoreId()}).catch(()=>{});const value=await previousLogout.apply(this,arguments);chatOpen=false;cloudReady=false;cloudUser=null;cloudMembers=[];cloudMessages=[];cloudRead.clear();cloudSeen.clear();cloudLastSession='';el('macChatPanel').hidden=true;renderChatCloud();return value;};
+  const previousLogin=loginToStore;loginToStore=async function(){const value=await previousLogin.apply(this,arguments);chatOpen=false;resetChatTabs();cloudLastSession='';await connectChatCloud(true);return value;};
+  const previousLogout=logout;logout=async function(){if(session&&cloudReady)await chatRPC('offline',{storeId:chatStoreId()}).catch(()=>{});const value=await previousLogout.apply(this,arguments);chatOpen=false;cloudReady=false;cloudUser=null;cloudMembers=[];cloudMessages=[];cloudRead.clear();cloudSeen.clear();resetChatTabs();cloudLastSession='';el('macChatPanel').hidden=true;renderChatCloud();return value;};
   const previousShowConfig=showConfigView;showConfigView=function(){const value=previousShowConfig.apply(this,arguments);if(arguments[0]==='appearance')refreshAudioUI();return value;};
   document.querySelectorAll('[data-appearance-target="audio"]').forEach(btn=>btn.addEventListener('click',()=>{
     const home=el('macAppearanceHome'),audio=el('macAppearanceAudio');if(home)home.hidden=true;
@@ -13646,6 +13675,16 @@ html[data-theme="uni"].mac-dark #mainApp #page-history .mac-history-title-action
   margin-left:auto!important;margin-right:0!important;align-self:flex-start!important;
  }
 }
+</style>
+<style id="mac-chat-multiple-tabs-20261125">
+#macChatSelectedContact{display:flex;flex:0 0 auto;align-items:center;gap:5px;overflow-x:auto;overflow-y:hidden;max-width:100%;margin:0;padding:6px 9px;background:var(--surface2);border-bottom:1px solid var(--border);scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+#macChatSelectedContact[hidden]{display:none!important}
+#macChatSelectedContact .mac-chat-selected-chip{flex:0 0 auto;max-width:220px;padding:2px 4px 2px 3px;gap:2px;background:var(--surface);border-color:var(--border);color:var(--text)}
+#macChatSelectedContact .mac-chat-selected-chip.active{background:#e9f1ca;border-color:#81b800;color:#24301c}
+#macChatSelectedContact .mac-chat-tab-select,#macChatSelectedContact .mac-chat-tab-close{display:inline-flex;align-items:center;justify-content:center;gap:5px;border:0!important;background:transparent!important;color:inherit!important;padding:0!important;box-shadow:none!important;height:28px!important;min-height:28px!important;min-width:0!important;cursor:pointer}
+#macChatSelectedContact .mac-chat-tab-select{flex:1 1 auto;min-width:0;max-width:185px}
+#macChatSelectedContact .mac-chat-tab-close{flex:0 0 22px;width:22px!important;font-size:17px;line-height:1}
+#macChatSelectedContact .mac-chat-tab-count{background:#dc3545;color:white;border-radius:99px;padding:1px 4px;font-size:10px;min-width:15px;text-align:center}
 </style>
 </body>
 </html>
