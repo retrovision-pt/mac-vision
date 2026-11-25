@@ -9184,6 +9184,21 @@ function macRenderManagerStores(){
 <button type="button" id="macChatBubble" aria-label="Abrir Chat MAC Vision" title="Chat MAC Vision" hidden>💬</button>
 <div id="macChatNudgeNotice" hidden><button type="button" id="macChatNudgeOpen"><span aria-hidden="true">👋</span><span><strong>NUDGE · Chat Vision</strong><small id="macChatNudgeText" role="status" aria-live="polite"></small></span></button><button type="button" id="macChatNudgeDismiss" aria-label="Fechar notificação">×</button></div>
 <style id="mac-chat-nudge-20261125">
+#macChatPanel #macChatStickers[hidden]{display:none!important}
+#macChatStickers{flex:0 1 auto;min-height:0;padding:8px 10px 10px;background:var(--surface);border-top:1px solid var(--border);display:flex;flex-direction:column;max-height:min(285px,40dvh);overflow:hidden}
+.mac-sticker-heading{display:flex;align-items:center;justify-content:space-between;padding:0 2px 5px;font-size:13px}
+#macChatStickerClose{width:28px;height:28px;border:0;background:transparent;color:var(--text);font-size:22px;line-height:1;cursor:pointer}
+#macChatStickerGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;overflow-y:auto;overscroll-behavior:contain;padding:3px;min-height:0}
+#macChatStickerGrid button{border:1px solid var(--border);background:var(--surface2);color:var(--text);border-radius:10px;min-width:0;min-height:65px;padding:5px 2px;cursor:pointer;display:grid;place-items:center;gap:2px}
+#macChatStickerGrid button:hover,#macChatStickerGrid button:focus-visible{border-color:var(--accent);background:var(--accent-dark)}
+#macChatStickerGrid .mac-sticker-emoji{font-size:32px;line-height:1.1;filter:drop-shadow(0 2px 1px #0002)}
+#macChatStickerGrid .mac-sticker-label{font-size:10px;line-height:1.1;text-align:center;overflow-wrap:anywhere}
+#macChatPanel .mac-chat-sticker-message .mac-chat-message-body{display:grid;justify-items:center;min-width:110px;padding:6px 12px 9px;gap:5px;text-align:center}
+#macChatPanel .mac-chat-sticker-message .mac-sticker-emoji{font-size:66px;line-height:1.15;filter:drop-shadow(0 3px 2px #0003)}
+#macChatPanel .mac-chat-sticker-message .mac-sticker-label{font-size:14px;font-weight:800;line-height:1.2}
+#macChatStickerButton[aria-expanded="true"]{border-color:var(--accent)!important;background:var(--accent-dark)!important}
+@media(max-width:400px){#macChatForm.mac-chat-send{gap:4px!important;padding:6px!important}#macChatForm #macChatText{padding-left:7px!important;padding-right:7px!important;font-size:14px!important}}
+
 #macChatNudgeNotice{position:fixed;top:calc(env(safe-area-inset-top) + 78px);right:16px;z-index:1200;display:flex;align-items:center;gap:4px;width:min(330px,calc(100vw - 32px));background:var(--surface);color:var(--text);border:1px solid var(--accent);border-radius:14px;box-shadow:0 8px 25px #0005;padding:5px}
 #macChatNudgeNotice[hidden]{display:none!important}
 #macChatNudgeOpen{display:flex;align-items:center;gap:10px;flex:1;min-width:0;text-align:left;background:transparent;border:0;color:var(--text);padding:9px;cursor:pointer}
@@ -9203,7 +9218,8 @@ function macRenderManagerStores(){
  <div id="macChatSelectedContact" aria-label="Conversas abertas" hidden></div>
  <div id="macChatParticipants" class="mac-chat-participants" aria-label="Utilizadores disponíveis" hidden></div>
  <div id="macChatMessages" class="mac-chat-log" aria-live="polite"></div>
- <form id="macChatForm" class="mac-chat-send"><input id="macChatText" placeholder="Escrever mensagem…" maxlength="1000" autocomplete="off" aria-label="Mensagem"><button class="btn small" id="macChatNudge" type="button" title="Enviar Nudge (toque)" aria-label="Enviar Nudge (toque)" disabled>👋</button><button class="btn primary" type="submit" aria-label="Enviar mensagem">➤</button></form>
+ <div id="macChatStickers" hidden aria-label="Escolher sticker"><div class="mac-sticker-heading"><strong>🎨 Stickers</strong><button type="button" id="macChatStickerClose" aria-label="Fechar stickers">×</button></div><div id="macChatStickerGrid"></div></div>
+ <form id="macChatForm" class="mac-chat-send"><input id="macChatText" placeholder="Escrever mensagem…" maxlength="1000" autocomplete="off" aria-label="Mensagem"><button class="btn small" type="button" id="macChatStickerButton" title="Enviar sticker" aria-label="Escolher sticker" aria-expanded="false" aria-controls="macChatStickers" disabled>😊</button><button class="btn small" id="macChatNudge" type="button" title="Enviar Nudge (toque)" aria-label="Enviar Nudge (toque)" disabled>👋</button><button class="btn primary" type="submit" aria-label="Enviar mensagem">➤</button></form>
 </section>
 <dialog id="macChatActionDialog" class="mac-chat-action-dialog" aria-labelledby="macChatActionTitle">
  <form method="dialog" id="macChatActionForm">
@@ -9248,6 +9264,7 @@ function macRenderManagerStores(){
   let chatTabs=[], chatDrafts=new Map();
   const hasChatTab=()=>chatRecipient!==undefined&&chatTabs.includes(chatRecipient);
   function selectChatTab(id){
+    closeStickers();
     const field=el('macChatText');
     if(chatRecipient!==undefined&&field)chatDrafts.set(chatRecipient,field.value);
     if(id!==undefined&&!chatTabs.includes(id))chatTabs.push(id);
@@ -9259,10 +9276,45 @@ function macRenderManagerStores(){
     chatTabs.splice(i,1);
     if(chatRecipient===id)selectChatTab(chatTabs.length?chatTabs[Math.min(i,chatTabs.length-1)]:undefined);
   }
-  function resetChatTabs(){hideNudgeNotice();nudgeCooldown.clear();chatTabs=[];chatDrafts.clear();chatRecipient=undefined;chatEditMode=false;chatPeopleOpen=false;const field=el('macChatText');if(field)field.value='';}
+  function resetChatTabs(){closeStickers();hideNudgeNotice();nudgeCooldown.clear();chatTabs=[];chatDrafts.clear();chatRecipient=undefined;chatEditMode=false;chatPeopleOpen=false;const field=el('macChatText');if(field)field.value='';}
   let chatReqId = 0, cloudLastLoad = 0, chatPending = new Map(), cloudLastSession = '';
   let chatRefreshTimer = 0, chatLoadAgain=false, chatSending=false;
   const chatReadPending=new Set();
+  // Stickers have a small, allow-listed text identifier; the existing authorized Cloud chat
+  // endpoint persists them without attachments, external assets or schema changes.
+  const CHAT_STICKERS=Object.freeze([
+    ['laugh','😂','A morrer de rir'],['love','😍','Adoro!'],['wink','😉','Piscar o olho'],['cool','😎','Espetáculo!'],
+    ['wow','😮','Uau!'],['party','🥳','Parabéns!'],['cry','😭','Oh não!'],['angry','😤','A sério?'],
+    ['thinking','🤔','A pensar…'],['sleep','😴','Que sono!'],['shush','🤫','Segredo!'],['facepalm','🤦','Não acredito!'],
+    ['thumb','👍','Boa!'],['clap','👏','Muito bem!'],['muscle','💪','Força!'],['fire','🔥','Vamos a isso!'],
+    ['rocket','🚀','Sempre a subir!'],['trophy','🏆','Campeões!'],['target','🎯','Objetivo atingido!'],['check','✅','Feito!'],
+    ['heart','❤️','Com carinho'],['thank','🙏','Obrigado!'],['hi','👋','Olá!'],['hug','🤗','Abraço!'],
+    ['coffee','☕','Pausa para café'],['dance','🕺','Bora!'],['eyes','👀','Estou a ver…'],['ok','👌','Perfeito!'],
+    ['money','💰','Boa venda!'],['star','🌟','Excelente!'],['team','🤝','Trabalho de equipa'],['confetti','🎉','Conseguimos!']
+  ]);
+  const STICKER_PREFIX='[[MACSTICKER:';
+  function stickerBody(sticker){return STICKER_PREFIX+sticker[0]+']] '+sticker[1]+' '+sticker[2];}
+  function getSticker(body){const value=String(body??'');if(!value.startsWith(STICKER_PREFIX))return null;return CHAT_STICKERS.find(item=>stickerBody(item)===value)||null;}
+  function stickerMarkup(sticker){return '<span class="mac-sticker-emoji" aria-hidden="true">'+escChat(sticker[1])+'</span><span class="mac-sticker-label">'+escChat(sticker[2])+'</span>';}
+  function closeStickers(){const panel=el('macChatStickers');if(panel)panel.hidden=true;el('macChatStickerButton')?.setAttribute('aria-expanded','false');}
+  function updateStickerButton(){const btn=el('macChatStickerButton');if(!btn)return;btn.disabled=chatSending||!chatPermitted()||!hasChatTab();if(btn.disabled)closeStickers();}
+  const stickerGrid=el('macChatStickerGrid');
+  if(stickerGrid)stickerGrid.innerHTML=CHAT_STICKERS.map(sticker=>'<button type="button" data-sticker="'+escChat(sticker[0])+'" title="'+escChat(sticker[2])+'" aria-label="Enviar sticker: '+escChat(sticker[2])+'">'+stickerMarkup(sticker)+'</button>').join('');
+  el('macChatStickerButton')?.addEventListener('click',()=>{if(chatSending||!chatPermitted()||!hasChatTab())return;const panel=el('macChatStickers');if(!panel.hidden){closeStickers();return;}chatPeopleOpen=false;renderChatCloud();panel.hidden=false;el('macChatStickerButton').setAttribute('aria-expanded','true');});
+  el('macChatStickerClose')?.addEventListener('click',()=>{closeStickers();el('macChatStickerButton')?.focus();});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!el('macChatStickers')?.hidden){closeStickers();el('macChatStickerButton')?.focus();}});
+  stickerGrid?.addEventListener('click',async e=>{
+    const btn=e.target.closest('[data-sticker]');if(!btn||chatSending||!chatPermitted()||!hasChatTab())return;
+    const sticker=CHAT_STICKERS.find(item=>item[0]===btn.dataset.sticker);if(!sticker)return;
+    const recipient=chatRecipient,storeId=chatStoreFor(recipient),owner=cloudUser.id;
+    if(!storeId)return toast('Não existe uma loja autorizada comum entre estes utilizadores.',true);
+    closeStickers();chatSending=true;setChatStatus(cloudReason,cloudReady);
+    try{const response=await chatRPC('send',{storeId,recipientId:recipient,body:stickerBody(sticker)});if(cloudUser?.id!==owner)return;
+      const saved=response?.message;if(saved?.id&&!cloudMessages.some(m=>m.id===saved.id)){cloudMessages.push(saved);cloudSeen.add(saved.id);renderChatCloud();}
+      void loadChatCloud(true);
+    }catch(err){if(cloudUser?.id===owner)toast('Falha ao enviar sticker: '+err.message,true);}
+    finally{chatSending=false;setChatStatus(cloudReason,cloudReady);}
+  });
   const NUDGE_BODY='👋 Nudge!';
   const isNudge=m=>m.recipient_id!=null&&String(m.body??'').normalize('NFC').trim()===NUDGE_BODY;
   const nudgeCooldown=new Map();
@@ -9345,6 +9397,7 @@ function macRenderManagerStores(){
     const open=!!session&&chatOpen===true;
     panel.classList.toggle('mac-chat-manually-open',open);
     panel.hidden=!open;
+    if(!open)closeStickers();
     bubble?.setAttribute('aria-expanded',String(open));
   }
   const chatUserName = () => session?.employee || session?.name || '';
@@ -9364,7 +9417,7 @@ function macRenderManagerStores(){
     if (input) { input.disabled = !chatPermitted()||!hasChatTab(); input.placeholder = cloudReady ? (hasChatTab()?'Escrever mensagem…':'Seleciona uma conversa…') : 'Chat Cloud indisponível'; }
     const send = document.querySelector('#macChatForm button[type="submit"]');
     if (send) send.disabled = chatSending||!chatPermitted()||!hasChatTab();
-    updateNudgeButton();
+    updateNudgeButton();updateStickerButton();
   }
   function chatRPC(action,payload={}) { return macRPC('chat-'+action,payload); }
   // Sincronização entre separadores da mesma origem, nunca com outras máquinas.
@@ -9534,13 +9587,13 @@ function macRenderManagerStores(){
     const history=el('macChatMessages');
     const current=visibleChatMessages();
     const historyMarkup=cloudReady ? (!hasChatTab()?'<div class="smalltext muted">Seleciona 👥 para abrir uma conversa.</div>':current.length?current.map(m=>{
-      const name=memberName(m.sender_id),mine=m.sender_id===cloudUser.id;
+      const name=memberName(m.sender_id),mine=m.sender_id===cloudUser.id,sticker=getSticker(m.body);
       const groupStore=chatGroupMessage(m)&&m.store_id!==chatStoreId()?(shopRegistry.find(s=>s.id===m.store_id)?.name||m.store_id):'';
       const time=new Date(m.created_at).toLocaleString('pt-PT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
       const actions=chatEditMode&&chatCanModerate(m)?'<span class="mac-chat-message-actions"><button type="button" data-cloud-edit="'+escChat(m.id)+'">✏️</button><button type="button" data-cloud-delete="'+escChat(m.id)+'">🗑️</button></span>':'';
       const read=mine&&m.recipient_id&&cloudReceipts[m.id]?.includes(m.recipient_id);
       const status=mine&&m.recipient_id?'<span class="mac-chat-receipt '+(read?'is-read':'is-delivered')+'"> · '+(read?'✓✓ Lida':'✓ Enviada')+'</span>':'';
-      return '<div class="mac-chat-message '+(mine?'own':'')+(isNudge(m)?' mac-chat-nudge-message':'')+'" data-msg-id="'+escChat(m.id)+'" data-sender-id="'+escChat(m.sender_id)+'"><div class="mac-chat-message-head">'+avatarFor(name,chatContactPhoto(m.sender_id),'small')+'<strong>'+escChat(name)+'</strong>'+actions+'</div>'+(groupStore?'<small>'+escChat(groupStore)+'</small>':'')+'<div class="mac-chat-message-body">'+(isNudge(m)?(mine?'👋 Enviaste um Nudge!':'👋 Recebeste um Nudge!'):escChat(m.body))+'</div><small>'+time+(m.edited_at?' · editada':'')+status+'</small></div>';
+      return '<div class="mac-chat-message '+(mine?'own':'')+(isNudge(m)?' mac-chat-nudge-message':'')+(sticker?' mac-chat-sticker-message':'')+'" data-msg-id="'+escChat(m.id)+'" data-sender-id="'+escChat(m.sender_id)+'"><div class="mac-chat-message-head">'+avatarFor(name,chatContactPhoto(m.sender_id),'small')+'<strong>'+escChat(name)+'</strong>'+actions+'</div>'+(groupStore?'<small>'+escChat(groupStore)+'</small>':'')+'<div class="mac-chat-message-body">'+(sticker?stickerMarkup(sticker):isNudge(m)?(mine?'👋 Enviaste um Nudge!':'👋 Recebeste um Nudge!'):escChat(m.body))+'</div><small>'+time+(m.edited_at?' · editada':'')+status+'</small></div>';
     }).join(''):'<div class="smalltext muted">Ainda não existem mensagens nesta conversa.</div>'):'<div class="smalltext muted">Não foi possível consultar as mensagens na Cloud.</div>';
     if(history&&history.dataset.markup!==historyMarkup){
       const nearBottom=history.scrollHeight-history.scrollTop-history.clientHeight<70;
@@ -9566,7 +9619,7 @@ function macRenderManagerStores(){
     renderChatCloud();
   });
   el('macChatClose')?.addEventListener('click',()=>{chatOpen=false;chatPeopleOpen=false;syncChatPanel();});
-  el('macChatPeople')?.addEventListener('click',()=>{chatPeopleOpen=!chatPeopleOpen;renderChatCloud();});
+  el('macChatPeople')?.addEventListener('click',()=>{closeStickers();chatPeopleOpen=!chatPeopleOpen;renderChatCloud();});
   el('macChatSelectedContact')?.addEventListener('click',e=>{
     const close=e.target.closest('[data-chat-close]'),tab=e.target.closest('[data-chat-tab]');
     if(close){const i=Number(close.dataset.chatClose);if(i>=0&&i<chatTabs.length)closeChatTab(chatTabs[i]);}
@@ -9598,7 +9651,7 @@ function macRenderManagerStores(){
     const recipient=chatRecipient;
     const storeId=chatStoreFor(recipient);
     if(!storeId)return toast('Não existe uma loja autorizada comum entre estes utilizadores.',true);
-    const button=e.currentTarget.querySelector('button[type="submit"]');chatSending=true;button.disabled=true;updateNudgeButton();
+    const button=e.currentTarget.querySelector('button[type="submit"]');chatSending=true;button.disabled=true;updateNudgeButton();updateStickerButton();
     const owner=cloudUser.id;
     try{const response=await chatRPC('send',{storeId,recipientId:recipient,body:value.slice(0,1000)});if(cloudUser?.id!==owner)return;
       if(chatRecipient===recipient&&input.value.trim()===value)input.value='';if((chatDrafts.get(recipient)||'').trim()===value)chatDrafts.delete(recipient);
@@ -9606,7 +9659,7 @@ function macRenderManagerStores(){
       void loadChatCloud(true);
     }
     catch(err){toast('Falha ao guardar na Cloud: '+err.message,true);}
-    finally{chatSending=false;button.disabled=!chatPermitted()||!hasChatTab();updateNudgeButton();}
+    finally{chatSending=false;button.disabled=!chatPermitted()||!hasChatTab();updateNudgeButton();updateStickerButton();}
   });
   el('macChatEditMode')?.addEventListener('click',()=>{if(!chatManager())return;chatEditMode=!chatEditMode;renderChatCloud();});
   el('macChatMessages')?.addEventListener('click',async e=>{
@@ -10060,7 +10113,8 @@ const importLog=$('importLog');if(importLog){
  border-radius:11px!important;
 }
 #macChatForm button[type="submit"],
-#macChatForm #macChatNudge {
+#macChatForm #macChatNudge,
+#macChatForm #macChatStickerButton {
  display:inline-flex!important;align-items:center!important;justify-content:center!important;
  flex:0 0 44px!important;width:44px!important;max-width:44px!important;
  min-width:44px!important;height:44px!important;min-height:44px!important;
