@@ -9180,12 +9180,28 @@ function macRenderManagerStores(){
 })();
 </script>
 <button type="button" id="macChatBubble" aria-label="Abrir Chat MAC Vision" title="Chat MAC Vision" hidden>💬</button>
+<div id="macChatNudgeNotice" hidden><button type="button" id="macChatNudgeOpen"><span aria-hidden="true">👋</span><span><strong>NUDGE · Chat Vision</strong><small id="macChatNudgeText" role="status" aria-live="polite"></small></span></button><button type="button" id="macChatNudgeDismiss" aria-label="Fechar notificação">×</button></div>
+<style id="mac-chat-nudge-20261125">
+#macChatNudgeNotice{position:fixed;top:calc(env(safe-area-inset-top) + 78px);right:16px;z-index:1200;display:flex;align-items:center;gap:4px;width:min(330px,calc(100vw - 32px));background:var(--surface);color:var(--text);border:1px solid var(--accent);border-radius:14px;box-shadow:0 8px 25px #0005;padding:5px}
+#macChatNudgeNotice[hidden]{display:none!important}
+#macChatNudgeOpen{display:flex;align-items:center;gap:10px;flex:1;min-width:0;text-align:left;background:transparent;border:0;color:var(--text);padding:9px;cursor:pointer}
+#macChatNudgeOpen>span:first-child{font-size:25px}
+#macChatNudgeOpen strong,#macChatNudgeOpen small{display:block;overflow-wrap:anywhere}
+#macChatNudgeOpen strong{font-size:12px}#macChatNudgeOpen small{font-size:12px;margin-top:3px}
+#macChatNudgeDismiss{background:transparent;border:0;color:var(--text);font-size:22px;padding:7px;cursor:pointer}
+#macChatNudge{flex:0 0 34px!important;min-width:34px!important;width:34px!important;padding:0!important;font-size:17px;line-height:1}
+#macChatNudge:disabled{opacity:.45}
+#macChatPanel .mac-chat-nudge-message{border:1px solid var(--accent);font-weight:700}
+@keyframes macChatNudgeShake{0%,100%{transform:translateX(0)}10%,30%,50%,70%,90%{transform:translateX(-5px)}20%,40%,60%,80%{transform:translateX(5px)}}
+#macChatBubble.mac-chat-nudge-shake,#macChatPanel.mac-chat-nudge-shake,#macChatNudgeNotice.mac-chat-nudge-shake,#macChatSelectedContact .mac-chat-nudge-shake{animation:macChatNudgeShake .65s ease-in-out 2!important}
+@media(prefers-reduced-motion:reduce){#macChatBubble.mac-chat-nudge-shake,#macChatPanel.mac-chat-nudge-shake,#macChatNudgeNotice.mac-chat-nudge-shake,#macChatSelectedContact .mac-chat-nudge-shake{animation:none!important;outline:2px solid var(--accent);outline-offset:2px}}
+</style>
 <section id="macChatPanel" role="dialog" aria-label="Chat MAC Vision" aria-modal="false" hidden>
  <div class="mac-chat-head"><div><strong id="macChatTitle">💬 Chat MAC Vision</strong><div id="macChatCloudStatus" style="font-size:10px;line-height:1.3;margin-top:3px">● Cloud · inicia sessão</div></div><div class="mac-chat-head-actions"><button type="button" class="btn small mac-chat-action" id="macChatPeople" title="Utilizadores disponíveis" aria-label="Utilizadores disponíveis" aria-controls="macChatParticipants" aria-expanded="false">👥</button><button type="button" class="btn small mac-chat-action" id="macChatEditMode" title="Gerir mensagens deste utilizador" aria-label="Editar conversas" aria-pressed="false" hidden>✏️</button><button type="button" class="btn small mac-chat-action mac-chat-danger" id="macChatDeleteConversation" title="Apagar conversas do utilizador" aria-label="Apagar conversas" hidden>🗑️</button><button type="button" class="btn small" id="macChatClose" title="Fechar chat">✕</button></div></div>
  <div id="macChatSelectedContact" aria-label="Conversas abertas" hidden></div>
  <div id="macChatParticipants" class="mac-chat-participants" aria-label="Utilizadores disponíveis" hidden></div>
  <div id="macChatMessages" class="mac-chat-log" aria-live="polite"></div>
- <form id="macChatForm" class="mac-chat-send"><input id="macChatText" placeholder="Escrever mensagem…" maxlength="1000" autocomplete="off" aria-label="Mensagem"><button class="btn primary" type="submit" aria-label="Enviar mensagem">➤</button></form>
+ <form id="macChatForm" class="mac-chat-send"><input id="macChatText" placeholder="Escrever mensagem…" maxlength="1000" autocomplete="off" aria-label="Mensagem"><button class="btn small" id="macChatNudge" type="button" title="Enviar Nudge (toque)" aria-label="Enviar Nudge (toque)" disabled>👋</button><button class="btn primary" type="submit" aria-label="Enviar mensagem">➤</button></form>
 </section>
 <dialog id="macChatActionDialog" class="mac-chat-action-dialog" aria-labelledby="macChatActionTitle">
  <form method="dialog" id="macChatActionForm">
@@ -9241,10 +9257,25 @@ function macRenderManagerStores(){
     chatTabs.splice(i,1);
     if(chatRecipient===id)selectChatTab(chatTabs.length?chatTabs[Math.min(i,chatTabs.length-1)]:undefined);
   }
-  function resetChatTabs(){chatTabs=[];chatDrafts.clear();chatRecipient=undefined;chatEditMode=false;chatPeopleOpen=false;const field=el('macChatText');if(field)field.value='';}
+  function resetChatTabs(){hideNudgeNotice();nudgeCooldown.clear();chatTabs=[];chatDrafts.clear();chatRecipient=undefined;chatEditMode=false;chatPeopleOpen=false;const field=el('macChatText');if(field)field.value='';}
   let chatReqId = 0, cloudLastLoad = 0, chatPending = new Map(), cloudLastSession = '';
   let chatRefreshTimer = 0, chatLoadAgain=false, chatSending=false;
   const chatReadPending=new Set();
+  const NUDGE_BODY='👋 Nudge!';
+  const isNudge=m=>m.recipient_id!=null&&m.body===NUDGE_BODY;
+  const nudgeCooldown=new Map();
+  let nudgeNoticeTimer=0,nudgeNoticeSender=null;
+  function hideNudgeNotice(){clearTimeout(nudgeNoticeTimer);nudgeNoticeSender=null;el('macChatNudgeNotice').hidden=true;}
+  function shakeNudge(node){if(!node||node.hidden)return;node.classList.remove('mac-chat-nudge-shake');void node.offsetWidth;node.classList.add('mac-chat-nudge-shake');setTimeout(()=>node.classList.remove('mac-chat-nudge-shake'),1400);}
+  function nudgeSound(){const p=prefs();if(!p.chatSound||!p.volume)return;try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;const ctx=new AC();const t=ctx.currentTime;[660,440,880].forEach((hz,i)=>{const osc=ctx.createOscillator(),gain=ctx.createGain();osc.frequency.value=hz;gain.gain.setValueAtTime(0.001,t+i*.12);gain.gain.linearRampToValueAtTime(p.volume/100*.07,t+i*.12+.02);gain.gain.exponentialRampToValueAtTime(.001,t+i*.12+.11);osc.connect(gain);gain.connect(ctx.destination);osc.start(t+i*.12);osc.stop(t+i*.12+.12);if(i===2)osc.onended=()=>void ctx.close();});if(ctx.state==='suspended'){void ctx.resume().catch(()=>{});setTimeout(()=>{if(ctx.state!=='closed')void ctx.close().catch(()=>{});},1500);}}catch{}}
+  function showNudge(m){const p=prefs();if(p.chatSound)nudgeSound();if(!p.chatNotify||!p.visual)return;
+    nudgeNoticeSender=m.sender_id;el('macChatNudgeText').textContent=memberName(m.sender_id)+' enviou-te um Nudge!';const notice=el('macChatNudgeNotice');notice.hidden=false;clearTimeout(nudgeNoticeTimer);nudgeNoticeTimer=setTimeout(hideNudgeNotice,10000);
+    shakeNudge(notice);shakeNudge(el('macChatBubble'));
+    if(chatOpen&&chatRecipient===m.sender_id)shakeNudge(el('macChatPanel'));
+    if(chatOpen){const index=chatTabs.indexOf(m.sender_id);if(index>=0)shakeNudge(el('macChatSelectedContact')?.querySelector('[data-chat-tab="'+index+'"]')?.parentElement);}
+  }
+  function updateNudgeButton(){const btn=el('macChatNudge');if(!btn)return;btn.disabled=chatSending||!chatPermitted()||!hasChatTab()||chatRecipient===null||(nudgeCooldown.get(chatRecipient)||0)>Date.now();btn.title=chatRecipient===null?'Nudge disponível em conversas privadas':'Enviar Nudge (toque)';}
+
   // A visibilidade do painel depende exclusivamente da ação manual do utilizador.
   function syncChatPanel(){
     const panel=el('macChatPanel'),bubble=el('macChatBubble');
@@ -9271,6 +9302,7 @@ function macRenderManagerStores(){
     if (input) { input.disabled = !chatPermitted()||!hasChatTab(); input.placeholder = cloudReady ? (hasChatTab()?'Escrever mensagem…':'Seleciona uma conversa…') : 'Chat Cloud indisponível'; }
     const send = document.querySelector('#macChatForm button[type="submit"]');
     if (send) send.disabled = chatSending||!chatPermitted()||!hasChatTab();
+    updateNudgeButton();
   }
   function chatRPC(action,payload={}) { return macRPC('chat-'+action,payload); }
   // Sincronização entre separadores da mesma origem, nunca com outras máquinas.
@@ -9314,14 +9346,15 @@ function macRenderManagerStores(){
       // As mensagens de Todos abrangem as lojas autorizadas devolvidas pela Cloud.
       // Recuperar também avisos de grupo não lidos após início/religação da sessão.
       const incoming=cloudMessages.filter(m=>chatIncoming(m)&&!cloudRead.has(m.id)&&!cloudSeen.has(m.id)&&(cloudInitialLoad||chatGroupMessage(m)));
+      const nudges=incoming.filter(isNudge);
       if(incoming.length){
-        const m=incoming[incoming.length-1],p=prefs();
+        const normal=incoming.filter(m=>!isNudge(m)),m=normal[normal.length-1],p=prefs();
         // Todos só abre por escolha manual, mesmo após refresh ou novas mensagens.
         for(const message of incoming){if(chatGroupMessage(message))continue;const id=message.sender_id;if(!chatTabs.includes(id))chatTabs.push(id);}
         // A receção de mensagens nunca abre o painel nem muda a conversa selecionada.
         // O utilizador abre o Chat Vision manualmente; os avisos e o contador mantêm-se.
-        if(p.chatNotify&&p.visual)toast('💬 '+(chatGroupMessage(m)?'Todos · ':'Nova mensagem de ')+memberName(m.sender_id));
-        if(p.chatSound)softAlert();
+        if(m&&p.chatNotify&&p.visual)toast('💬 '+(chatGroupMessage(m)?'Todos · ':'Nova mensagem de ')+memberName(m.sender_id));
+        if(m&&p.chatSound&&!nudges.length)softAlert();
       }
       for(const m of cloudMessages)cloudSeen.add(m.id);
       if(cloudSeen.size>1200)cloudSeen=new Set(cloudMessages.map(m=>m.id));
@@ -9329,6 +9362,7 @@ function macRenderManagerStores(){
       if(data.settings && Object.prototype.hasOwnProperty.call(data.settings,chatStoreId()))window.__macChatStoreEnabled=data.settings[chatStoreId()];
       cloudLastLoad=Date.now();setChatStatus('● Cloud · ligado',true);
       renderChatCloud();
+      if(nudges.length)showNudge(nudges[nudges.length-1]);
     }catch(err){cloudReady=false;setChatStatus('● Erro Cloud · '+err.message,false);renderChatCloud();}finally{chatPending.delete('load');if(chatLoadAgain){chatLoadAgain=false;if(session&&cloudReady)queueMicrotask(()=>void loadChatCloud(true));}}
   }
   function availableChatMembers(){
@@ -9444,7 +9478,7 @@ function macRenderManagerStores(){
       const actions=chatEditMode&&chatCanModerate(m)?'<span class="mac-chat-message-actions"><button type="button" data-cloud-edit="'+escChat(m.id)+'">✏️</button><button type="button" data-cloud-delete="'+escChat(m.id)+'">🗑️</button></span>':'';
       const read=mine&&m.recipient_id&&cloudReceipts[m.id]?.includes(m.recipient_id);
       const status=mine&&m.recipient_id?'<span class="mac-chat-receipt '+(read?'is-read':'is-delivered')+'"> · '+(read?'✓✓ Lida':'✓ Enviada')+'</span>':'';
-      return '<div class="mac-chat-message '+(mine?'own':'')+'" data-msg-id="'+escChat(m.id)+'" data-sender-id="'+escChat(m.sender_id)+'"><div class="mac-chat-message-head">'+avatarFor(name,chatContactPhoto(m.sender_id),'small')+'<strong>'+escChat(name)+'</strong>'+actions+'</div>'+(groupStore?'<small>'+escChat(groupStore)+'</small>':'')+'<div class="mac-chat-message-body">'+escChat(m.body)+'</div><small>'+time+(m.edited_at?' · editada':'')+status+'</small></div>';
+      return '<div class="mac-chat-message '+(mine?'own':'')+(isNudge(m)?' mac-chat-nudge-message':'')+'" data-msg-id="'+escChat(m.id)+'" data-sender-id="'+escChat(m.sender_id)+'"><div class="mac-chat-message-head">'+avatarFor(name,chatContactPhoto(m.sender_id),'small')+'<strong>'+escChat(name)+'</strong>'+actions+'</div>'+(groupStore?'<small>'+escChat(groupStore)+'</small>':'')+'<div class="mac-chat-message-body">'+(isNudge(m)?(mine?'👋 Enviaste um Nudge!':'👋 Recebeste um Nudge!'):escChat(m.body))+'</div><small>'+time+(m.edited_at?' · editada':'')+status+'</small></div>';
     }).join(''):'<div class="smalltext muted">Ainda não existem mensagens nesta conversa.</div>'):'<div class="smalltext muted">Não foi possível consultar as mensagens na Cloud.</div>';
     if(history&&history.dataset.markup!==historyMarkup){
       const nearBottom=history.scrollHeight-history.scrollTop-history.clientHeight<70;
@@ -9481,6 +9515,18 @@ function macRenderManagerStores(){
     const btn=e.target.closest('[data-cloud-person]'); if(!btn)return;
     selectChatTab(btn.dataset.cloudPerson==='todos'?null:btn.dataset.cloudPerson);renderChatCloud();
   });
+  el('macChatNudgeDismiss')?.addEventListener('click',hideNudgeNotice);
+  el('macChatNudgeOpen')?.addEventListener('click',()=>{const id=nudgeNoticeSender;if(!session||!cloudReady||!id)return;hideNudgeNotice();selectChatTab(id);chatOpen=true;syncChatPanel();renderChatCloud();void loadChatCloud(true);});
+  el('macChatNudge')?.addEventListener('click',async()=>{
+    if(chatSending||!chatPermitted()||!hasChatTab()||chatRecipient===null)return;
+    const recipient=chatRecipient,owner=cloudUser.id,storeId=chatStoreFor(recipient);
+    if(!storeId||!availableChatMembers().some(m=>m.user_id===recipient))return toast('Conversa indisponível para Nudge.',true);
+    if((nudgeCooldown.get(recipient)||0)>Date.now())return;
+    nudgeCooldown.set(recipient,Date.now()+10000);chatSending=true;setChatStatus(cloudReason,cloudReady);
+    try{const response=await chatRPC('send',{storeId,recipientId:recipient,body:NUDGE_BODY});if(cloudUser?.id!==owner)return;const saved=response?.message;if(saved?.id&&!cloudMessages.some(m=>m.id===saved.id)){cloudMessages.push(saved);cloudSeen.add(saved.id);renderChatCloud();}void loadChatCloud(true);}
+    catch(err){if(cloudUser?.id===owner){nudgeCooldown.delete(recipient);toast('Falha ao enviar Nudge: '+err.message,true);}}
+    finally{chatSending=false;setChatStatus(cloudReason,cloudReady);setTimeout(updateNudgeButton,10100);}
+  });
   el('macChatForm')?.addEventListener('submit',async e=>{
     e.preventDefault();
     const input=el('macChatText'),value=input?.value.trim();if(!value)return;
@@ -9489,7 +9535,7 @@ function macRenderManagerStores(){
     const recipient=chatRecipient;
     const storeId=chatStoreFor(recipient);
     if(!storeId)return toast('Não existe uma loja autorizada comum entre estes utilizadores.',true);
-    const button=e.currentTarget.querySelector('button[type="submit"]');chatSending=true;button.disabled=true;
+    const button=e.currentTarget.querySelector('button[type="submit"]');chatSending=true;button.disabled=true;updateNudgeButton();
     const owner=cloudUser.id;
     try{const response=await chatRPC('send',{storeId,recipientId:recipient,body:value.slice(0,1000)});if(cloudUser?.id!==owner)return;
       if(chatRecipient===recipient&&input.value.trim()===value)input.value='';if((chatDrafts.get(recipient)||'').trim()===value)chatDrafts.delete(recipient);
@@ -9497,7 +9543,7 @@ function macRenderManagerStores(){
       void loadChatCloud(true);
     }
     catch(err){toast('Falha ao guardar na Cloud: '+err.message,true);}
-    finally{chatSending=false;button.disabled=!chatPermitted()||!hasChatTab();}
+    finally{chatSending=false;button.disabled=!chatPermitted()||!hasChatTab();updateNudgeButton();}
   });
   el('macChatEditMode')?.addEventListener('click',()=>{if(!chatManager())return;chatEditMode=!chatEditMode;renderChatCloud();});
   el('macChatMessages')?.addEventListener('click',async e=>{
