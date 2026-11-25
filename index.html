@@ -3264,7 +3264,7 @@ function renderAccess(){
  const accounts=role=>shop.users.filter(u=>u.role===role&&(role!=='gestor'||!u.adminOnly)).sort((a,b)=>macLoginCollator.compare(a.name,b.name)).map(u=>{
   const linked=localEmployees.find(e=>norm(e.name)===norm(u.employee||u.name));
   const avatar=u.role==='gestor'?(u.photo||linked?.photo||''):(linked?.photo||u.photo||'');
-  return `<div class="manager-account-row account-inline"><div class="person-line">${avatarFor(u.name,avatar)}<div><strong>${h(u.name)}</strong><div class="smalltext muted">${h(profileFields(u,linked).cargo||(role==='gestor'?'Gestor de Loja':'Cargo não definido'))}</div></div></div><div class="hours-bar account-controls"><label class="btn small" title="Avatar">📷 <span class="action-word">Foto</span><input class="manager-photo-input" data-user-id="${h(u.id)}" type="file" accept="image/jpeg,image/png,image/webp" hidden></label><button type="button" class="btn small" data-reset-user="${h(u.id)}">🔑 <span class="action-word">Palavra-passe</span></button>${u.id===session.id?'<button class="btn small danger" disabled title="Não é possível remover a conta com sessão iniciada">✕ Remover</button>':`<button type="button" class="btn small danger" data-remove-user="${h(u.id)}">✕ <span class="action-word">Remover</span></button>`}</div></div>`;
+  return `<div class="manager-account-row account-inline"><div class="person-line">${avatarFor(u.name,avatar)}<div><strong>${h(u.name)}</strong><div class="smalltext muted">${h(profileFields(u,linked).cargo||(role==='gestor'?'Gestor de Loja':'Cargo não definido'))}</div></div></div><div class="hours-bar account-controls"><label class="btn small" title="Avatar">📷 <span class="action-word">Foto</span><input class="manager-photo-input" data-user-id="${h(u.id)}" type="file" accept="image/jpeg,image/png,image/webp" hidden></label><button type="button" class="btn small" data-reset-user="${h(u.id)}">🔑 <span class="action-word">Palavra-passe</span></button>${u.id===session.id&&!macCanRevokeDualManager(u,shop.id)?'<button class="btn small danger" disabled title="Não é possível remover a conta com sessão iniciada">✕ Remover</button>':`<button type="button" class="btn small danger" data-remove-user="${h(u.id)}">✕ <span class="action-word">Remover</span></button>`}</div></div>`;
  }).join('')||'<div class="smalltext muted">Ainda não existem contas deste tipo.</div>';
  $('userAccounts').innerHTML=`<div><h3 style="margin:10px 0">🔐 Gestores</h3>${accounts('gestor')}</div><div style="margin-top:20px"><h3 style="margin:10px 0">👤 Colaboradores</h3>${accounts('colaborador')}</div>`;
  $('storeAccounts').innerHTML=accessibleManagerStores().map(st=>`<div class="mac-store-row">
@@ -3294,7 +3294,7 @@ function renderAccess(){
   const staff=localEmployees.find(x=>norm(x.name)===norm(u.employee||u.name));
   const profile=profileFields(u,staff);
   const photo=u.role==='gestor'?(u.photo||staff?.photo||''):(staff?.photo||u.photo||'');
-  return `<div class="mac-user-profile"><div class="mac-user-heading">${avatarFor(u.name,photo)}<div><strong>${h(u.name)}</strong><div class="mac-user-role"><span class="mac-user-cargo">${h(profile.cargo||(u.role==='gestor'?'Gestor de Loja':'Cargo não definido'))}</span></div></div></div><div class="mac-user-details"><div><b>CAV:</b> ${h(profile.cav||'—')} &nbsp;|&nbsp; <b>SFID:</b> ${h(profile.sfid||'—')}</div><div><b>Email:</b> ${h(profile.email||'—')}</div><div><b>Contacto:</b> ${h(profile.contacto||'—')}</div></div><div class="mac-user-actions"><button type="button" class="btn small mac-icon-action" data-profile-edit="${h(u.id)}" aria-label="Editar utilizador" title="Editar utilizador">✏️</button><button type="button" class="btn small mac-icon-action" data-profile-reset="${h(u.id)}" aria-label="Alterar password" title="Alterar password">🔑</button>${u.id===session.id?'<button class="btn small danger mac-icon-action" disabled title="Não podes remover a conta da sessão ativa" aria-label="Não é possível remover a conta ativa">🗑️</button>':`<button type="button" class="btn small danger mac-icon-action" data-profile-remove="${h(u.id)}" aria-label="Remover utilizador" title="Remover utilizador">🗑️</button>`}</div></div>`;
+  return `<div class="mac-user-profile"><div class="mac-user-heading">${avatarFor(u.name,photo)}<div><strong>${h(u.name)}</strong><div class="mac-user-role"><span class="mac-user-cargo">${h(profile.cargo||(u.role==='gestor'?'Gestor de Loja':'Cargo não definido'))}</span></div></div></div><div class="mac-user-details"><div><b>CAV:</b> ${h(profile.cav||'—')} &nbsp;|&nbsp; <b>SFID:</b> ${h(profile.sfid||'—')}</div><div><b>Email:</b> ${h(profile.email||'—')}</div><div><b>Contacto:</b> ${h(profile.contacto||'—')}</div></div><div class="mac-user-actions"><button type="button" class="btn small mac-icon-action" data-profile-edit="${h(u.id)}" aria-label="Editar utilizador" title="Editar utilizador">✏️</button><button type="button" class="btn small mac-icon-action" data-profile-reset="${h(u.id)}" aria-label="Alterar password" title="Alterar password">🔑</button>${u.id===session.id&&!macCanRevokeDualManager(u,shop.id)?'<button class="btn small danger mac-icon-action" disabled title="Não podes remover a conta da sessão ativa" aria-label="Não é possível remover a conta ativa">🗑️</button>':`<button type="button" class="btn small danger mac-icon-action" data-profile-remove="${h(u.id)}" aria-label="Remover utilizador" title="Remover utilizador">🗑️</button>`}</div></div>`;
  }).join('')||'<p class="smalltext muted">Ainda não existem contas deste tipo nesta loja.</p>';
  const managersForSales=shop.users.filter(u=>u.role==='gestor'&&!u.adminOnly);
  const eligibleManagers=managersForSales.filter(u=>u.salesEnabled!==true).sort((a,b)=>macLoginCollator.compare(a.name,b.name));
@@ -3323,7 +3323,7 @@ function renderAccess(){
   const card=btn.closest('.mac-user-profile');const name=card?.querySelector('.mac-user-heading strong')?.textContent||'';
   const target=shop.users.find(u=>u.role==='gestor'&&norm(u.name)===norm(name));
   if(!master&&target?.id!==session.id)btn.hidden=true;
-  if(target?.isAreaMaster&&btn.hasAttribute('data-profile-remove'))btn.hidden=true;
+  if(target?.isAreaMaster&&btn.hasAttribute('data-profile-remove')){btn.hidden=!macCanRevokeDualManager(target,shop.id);if(!btn.hidden){btn.title='Retirar apenas o acesso de Gestor de Loja';btn.setAttribute('aria-label',btn.title);}}
  }
  refreshUserCandidates().catch(err=>toast(err.message,true));
 }
@@ -3626,9 +3626,20 @@ async function resetUserPassword(id,shopId=viewedAccessShop()?.id){
  if(!/^[0-9]{4,}$/.test(password))return toast('A password deve ter, no mínimo, 4 números.',true);
  const salt=randomHex(),hash=await hashPassword(password,salt);for(const st of shopRegistry)for(const u of st.users){if(u.id===user.id&&u.role===user.role){u.salt=salt;u.hash=hash;u.pbkdf2Iterations=MAC_PASSWORD_ITERATIONS}}await saveRegistry();toast('Palavra-passe alterada para '+user.name+' em todas as suas lojas.');
 }
+function macCanRevokeDualManager(user,shopId){
+ return !!(user&&user.role==='gestor'&&macIsAreaUser(user)&&!user.adminOnly&&macIsAreaSession()&&macCanAdministerStore(shopId)&&(user.id===session.id||macSessionProfileLabel()==='Gestor MAC Vision'));
+}
 async function removeUser(id,shopId=viewedAccessShop()?.id){
  if(session?.role!=='gestor'||!macCanAdministerStore(shopId))return;
  const shop=shopRegistry.find(s=>s.id===shopId),user=shop?.users.find(x=>x.id===id);
+ if(macCanRevokeDualManager(user,shopId)){
+  if(!confirm('Retirar apenas o acesso de Gestor de Loja de '+user.name+' em '+shop.name+'? O perfil administrativo e o histórico de vendas serão mantidos.'))return;
+  const previous={...user};
+  user.adminOnly=true;user.salesEnabled=false;
+  try{await saveRegistry();}catch(err){Object.assign(user,previous);throw err;}
+  renderAccess();renderOptions();if(shopId===currentShopId)render();
+  toast('Acesso de Gestor de Loja retirado. Perfil administrativo mantido.');return;
+ }
  if(!user||user.id===session.id||user.isAreaMaster||(user.role==='gestor'&&!macIsAreaSession()))return;
  if(user.role==='gestor'&&shop.users.filter(x=>x.role==='gestor').length<=1)return toast('Mantém pelo menos um gestor.',true);
  if(!confirm('Remover o acesso local de '+user.name+'?'))return;
@@ -4874,7 +4885,7 @@ async function start(){
    $id('accessCurrentManagerStore').title='Todas as lojas';
    const groups=[];
    for(const st of accessibleManagerStores()){
-    for(const u of st.users.filter(x=>x.role==='gestor'&&!macIsAreaUser(x))){
+    for(const u of st.users.filter(x=>x.role==='gestor'&&!x.adminOnly)){
      // An ID, confirmed SFID or email links the same manager across shops.
      const identity=groups.find(g=>g.user.id===u.id||
       (clean(u.sfid)&&clean(g.user.sfid)&&norm(u.sfid)===norm(g.user.sfid))||
@@ -4898,7 +4909,7 @@ async function start(){
       <div class="mac-user-actions">
        <button class="btn small mac-icon-action" type="button" data-all-manager-edit="${h(u.id)}" data-all-shop="${h(st.id)}" title="Editar utilizador" aria-label="Editar utilizador">✏️</button>
        <button class="btn small mac-icon-action" type="button" data-all-manager-reset="${h(u.id)}" data-all-shop="${h(st.id)}" title="Alterar password" aria-label="Alterar password">🔑</button>
-       ${u.id===session.id?'<button class="btn small danger mac-icon-action" disabled title="Não podes remover a conta ativa">✕</button>':`<button class="btn small danger mac-icon-action" type="button" data-all-manager-remove="${h(u.id)}" data-all-shop="${h(st.id)}" title="Remover acesso desta loja" aria-label="Remover acesso desta loja">✕</button>`}
+       ${u.id===session.id&&!macCanRevokeDualManager(u,st.id)?'<button class="btn small danger mac-icon-action" disabled title="Não podes remover a conta ativa">✕</button>':`<button class="btn small danger mac-icon-action" type="button" data-all-manager-remove="${h(u.id)}" data-all-shop="${h(st.id)}" title="Remover acesso desta loja" aria-label="Remover acesso desta loja">✕</button>`}
       </div></div>`;
    }).join(''):'<p class="smalltext muted">Sem gestores registados.</p>';
   }
@@ -4921,7 +4932,7 @@ async function start(){
   setAccessViewStore(target.dataset.allShop);
   if(target.dataset.allManagerEdit)openUserProfileEditor(target.dataset.allManagerEdit);
   else if(target.dataset.allManagerReset)resetUserPassword(target.dataset.allManagerReset).catch(err=>toast(err.message,true));
-  else if(target.dataset.allManagerRemove)removeUser(target.dataset.allManagerRemove).catch(err=>toast(err.message,true));
+  else if(target.dataset.allManagerRemove)removeUser(target.dataset.allManagerRemove,target.dataset.allShop).catch(err=>toast(err.message,true));
  },true);
  const mgrSelect=$id('accessManagersView');let managerAllMode=false;
  mgrSelect?.addEventListener('change',e=>{if(e.target.value==='__all__'){managerAllMode=true;e.stopImmediatePropagation();renderAccess()}else{managerAllMode=false}},true);
