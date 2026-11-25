@@ -7558,7 +7558,8 @@ html[data-theme="uni"] #macCollapseSidebar{background:#34353e!important;color:#f
  const oldAddImport=addImport;
  const perms=()=>{state.macPagePermissions??={};return state.macPagePermissions};
  const canShow=(key,role=session?.role,preview=false)=>{
-  if(!session||key==='schedule')return false;
+  if(!session)return false;
+  if(key==='schedule')return !preview&&role==='gestor'&&macSessionProfileLabel()==='Gestor MAC Vision';
   // Todos os módulos são acessíveis a Gestores de Loja e de Área.
   // Mesmo as regras antigas guardadas como false não restringem o Gestor.
   if(role==='gestor'||key==='sales')return true;
@@ -7578,7 +7579,8 @@ html[data-theme="uni"] #macCollapseSidebar{background:#34353e!important;color:#f
  }
  function updateNav(){if(!session)return;
   oldNavigation();
-  document.querySelectorAll('#nav button[data-go]').forEach(b=>{const key=b.dataset.go;b.hidden=!canShow(key)||(session.accessKind==='administrador'&&key==='schedule');});
+  el('mainApp')?.classList.toggle('mac-schedule-enabled',canShow('schedule'));
+  document.querySelectorAll('#nav button[data-go]').forEach(b=>{b.hidden=!canShow(b.dataset.go)});
   const panel=el('configHome')?.querySelector('[data-config-target="vision"]');if(panel)panel.hidden=!isAdmin();
   if(!canShow(page)){
    const fallback=macPages.find(([key])=>canShow(key))?.[0];
@@ -13166,7 +13168,7 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
 })();
 </script>
 <style id="mac-no-schedule-no-commission">
-[data-go="schedule"],#page-schedule,#iosCollaboratorSchedule,.dash-three>.surface.card:has(#todaySchedule),.mac-schedule-access-row,#macShareSchedule,#page-sales .mac-commission-preview,#page-history #macHistoryCommissionTotal,#page-history .mac-sale-hist-money{display:none!important}
+#mainApp:not(.mac-schedule-enabled) #nav [data-go="schedule"],#mainApp:not(.mac-schedule-enabled) #page-schedule,[data-go="schedule"]:not(#nav [data-go="schedule"]),#iosCollaboratorSchedule,.dash-three>.surface.card:has(#todaySchedule),.mac-schedule-access-row,#macShareSchedule,#page-sales .mac-commission-preview,#page-history #macHistoryCommissionTotal,#page-history .mac-sale-hist-money{display:none!important}
 #page-sales .mac-sale-preview-grid{grid-template-columns:minmax(0,1fr)!important}
 #page-dashboard .dash-three{grid-template-columns:repeat(2,minmax(0,1fr))}
 @media(max-width:900px){#page-dashboard .dash-three{grid-template-columns:1fr}}
