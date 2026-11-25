@@ -9306,7 +9306,7 @@ function macRenderManagerStores(){
       const p=cloudPresence[m.user_id]||'';
       const age=p?Date.now()-new Date(p).getTime():Infinity;
       const presence=m.user_id===null?'🟢':age<60000?'🟢':age<300000?'🟡':'🔴';
-      return '<button type="button" class="mac-chat-person '+(chatRecipient===m.user_id?'active':'')+'" data-cloud-person="'+escChat(m.user_id??'todos')+'"><span class="mac-chat-presence">'+presence+'</span><span class="mac-chat-avatar-fallback">'+escChat(m.display_name[0]||'👥')+'</span><span class="mac-chat-person-label">'+escChat(m.display_name)+'</span>'+(count?'<span class="mac-chat-person-count">'+count+'</span>':'')+'</button>';
+      return '<button type="button" class="mac-chat-person '+(chatRecipient===m.user_id?'active':'')+'" data-cloud-person="'+escChat(m.user_id??'todos')+'"><span class="mac-chat-presence">'+presence+'</span>'+(m.user_id===null?'<span class="mac-chat-avatar-fallback" aria-hidden="true">👥</span>':avatarFor(m.display_name,chatContactPhoto(m.user_id),'small'))+'<span class="mac-chat-person-label">'+escChat(m.display_name)+'</span>'+(count?'<span class="mac-chat-person-count">'+count+'</span>':'')+'</button>';
     }).join('') : '<div class="smalltext muted" style="padding:12px">'+escChat(cloudReason)+'</div>';
     const history=el('macChatMessages');
     const current=visibleChatMessages();
@@ -9315,7 +9315,7 @@ function macRenderManagerStores(){
       const time=new Date(m.created_at).toLocaleString('pt-PT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
       const actions=chatEditMode&&chatCanModerate(m)?'<span class="mac-chat-message-actions"><button type="button" data-cloud-edit="'+escChat(m.id)+'">✏️</button><button type="button" data-cloud-delete="'+escChat(m.id)+'">🗑️</button></span>':'';
       const status=mine&&m.recipient_id?(cloudReceipts[m.id]?.includes(m.recipient_id)?' · ✓✓ Lida':' · ✓ Enviada'):'';
-      return '<div class="mac-chat-message '+(mine?'own':'')+'" data-msg-id="'+escChat(m.id)+'" data-sender-id="'+escChat(m.sender_id)+'"><div class="mac-chat-message-head"><span class="mac-chat-message-avatar-fallback">'+escChat(name.slice(0,1))+'</span><strong>'+escChat(name)+'</strong>'+actions+'</div><div class="mac-chat-message-body">'+escChat(m.body)+'</div><small>'+time+(m.edited_at?' · editada':'')+status+'</small></div>';
+      return '<div class="mac-chat-message '+(mine?'own':'')+'" data-msg-id="'+escChat(m.id)+'" data-sender-id="'+escChat(m.sender_id)+'"><div class="mac-chat-message-head">'+avatarFor(name,chatContactPhoto(m.sender_id),'small')+'<strong>'+escChat(name)+'</strong>'+actions+'</div><div class="mac-chat-message-body">'+escChat(m.body)+'</div><small>'+time+(m.edited_at?' · editada':'')+status+'</small></div>';
     }).join(''):'<div class="smalltext muted">Ainda não existem mensagens nesta conversa.</div>'):'<div class="smalltext muted">Não foi possível consultar as mensagens na Cloud.</div>';
     if(chatOpen&&history)history.scrollTop=history.scrollHeight;
     el('macChatTitle').textContent='💬 Chat Vision';
@@ -13155,6 +13155,11 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
 #macChatSelectedContact .mac-chat-selected-presence.online{background:#10b981}
 #macChatSelectedContact .mac-chat-selected-presence.away{background:#eab308}
 #macChatPanel #macChatClearContact{display:inline-grid;place-items:center;flex:0 0 15px;width:15px!important;height:18px!important;min-width:15px!important;min-height:18px!important;padding:0!important;border:0!important;background:transparent!important;color:#677c47!important;font-size:17px!important;line-height:1;cursor:pointer}
+</style>
+<style id="mac-chat-profile-photos-20261125">
+#macChatParticipants .employee-avatar,#macChatPanel .mac-chat-message-head .employee-avatar{display:inline-grid!important;place-items:center!important;flex:0 0 26px!important;width:26px!important;height:26px!important;min-width:26px!important;min-height:26px!important;max-width:26px!important;max-height:26px!important;border-radius:50%!important;overflow:hidden!important;object-fit:cover;font-size:11px!important}
+#macChatParticipants .employee-avatar img,#macChatPanel .mac-chat-message-head .employee-avatar img{display:block!important;width:100%!important;height:100%!important;object-fit:cover!important;border-radius:50%!important}
+#macChatParticipants .mac-chat-avatar-fallback{flex:0 0 26px!important;width:26px!important;height:26px!important}
 </style>
 </body>
 </html>
