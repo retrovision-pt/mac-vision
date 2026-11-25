@@ -308,7 +308,7 @@ function loadGate(){
       const result=await raw('/functions/v1/mac-vision-login-list',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:'colaborador'})});
       if(req!==listRequest||!collaborator())return;
       if(!Array.isArray(result?.shops))throw Error('Lista de lojas indisponível.');
-      const shops=result.shops.filter(x=>typeof x?.id==='string'&&x.id&&typeof x.name==='string'&&x.name.trim());
+      const shops=result.shops.filter(x=>typeof x?.id==='string'&&x.id&&typeof x.name==='string'&&x.name.trim()).sort((a,b)=>Number(/^P-/i.test(b.name.trim()))-Number(/^P-/i.test(a.name.trim()))||a.name.trim().localeCompare(b.name.trim(),'pt-PT',{sensitivity:'base',numeric:true}));
       storeInput.replaceChildren(new Option(shops.length?'Selecionar loja':'Sem lojas registadas',''),...shops.map(x=>new Option(x.name,x.id)));
       storeInput.disabled=!shops.length;
     }catch(err){
