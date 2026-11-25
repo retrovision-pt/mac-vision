@@ -21,23 +21,41 @@ function gate(){
  let el=document.getElementById('macCloudGate');if(el)return el;
  const screen=document.getElementById('authScreen'),card=screen?.querySelector('.auth-card');
  if(!card)throw Error('Ecrã de entrada MAC Vision indisponível.');
+ // Reutilizar a estrutura visual original, sem executar o login local.
  const original=[...card.children].map(node=>({node,hidden:node.hidden}));
+ const source=id=>{const node=document.getElementById(id);if(!node)throw Error('Elemento original em falta: '+id);return node;};
+ const copy=(id,map={})=>{
+   const node=source(id).cloneNode(true);
+   for(const item of [node,...node.querySelectorAll('[id],[for]')]){
+     if(item.id)item.id=map[item.id]||'cloudOriginal-'+item.id;
+     if(item.hasAttribute('for')){const target=item.getAttribute('for');item.setAttribute('for',map[target]||'cloudOriginal-'+target);}
+   }
+   node.hidden=false;return node;
+ };
+ el=document.createElement('div');el.id='macCloudGate';el.style.display='contents';
+ const brand=copy('rcAuthBrand',{rcAuthBrand:'macCloudBrand'});
+ const welcome=copy('macSetupWelcomeRow',{macSetupWelcomeRow:'macCloudWelcome',authTitle:'macCloudTitle',authSubtitle:'macCloudSubtitle'});
+ welcome.querySelector('.rc-setup-hero-logo')?.setAttribute('hidden','');
+ welcome.querySelector('#macCloudTitle').textContent='Bem-vindo';
+ welcome.querySelector('#macCloudSubtitle').textContent='Seleciona o acesso, o user e a password.';
+ const form=copy('loginForm',{loginForm:'macCloudAuthForm',loginRole:'macCloudRole',loginUser:'macCloudName',loginUserPhoto:'macCloudUserPhoto',macLoginStoreField:'macCloudOriginalStoreField',loginStore:'macCloudOriginalStore',loginPassword:'macCloudPassword',rcLoginButton:'macCloudAuthButton'});
+ form.setAttribute('autocomplete','on');
+ const role=form.querySelector('#macCloudRole');role.querySelector('option[value="administrador"]').value='admin';role.value='';
+ const names=form.querySelector('#macCloudName');names.replaceChildren(new Option('Selecionar user',''));names.disabled=true;
+ const storeField=form.querySelector('#macCloudOriginalStoreField');storeField.hidden=true;const store=form.querySelector('#macCloudOriginalStore');store.required=false;store.disabled=true;
+ const retry=document.createElement('button');retry.type='button';retry.id='macCloudRetry';retry.className='btn ghost';retry.hidden=true;retry.textContent='Tentar novamente';names.after(retry);
+ const button=form.querySelector('#macCloudAuthButton');button.textContent='ENTRAR →';
+ const shopForm=document.createElement('form');shopForm.id='macCloudShopForm';shopForm.className='auth-block';shopForm.hidden=true;
+ shopForm.innerHTML='<div class="auth-step"><label for="macCloudShop">Loja</label><select id="macCloudShop" required></select></div><button type="submit" class="btn primary auth-btn">ENTRAR →</button><button type="button" class="btn ghost" id="macCloudBack">Voltar</button>';
+ const error=copy('authError',{authError:'macCloudError'});error.textContent='';
+ const block=document.createElement('div');block.className='auth-block';const panel=document.createElement('div');panel.className='auth-block';panel.append(form,shopForm);block.append(panel,error);
+ el.append(brand,welcome,block);
+ const css=document.createElement('style');css.textContent='#authScreen.mac-cloud-login-active .auth-card > :not(#macCloudGate){display:none!important}#authScreen.mac-cloud-login-active .auth-card{width:min(540px,100%);max-width:540px}#macCloudWelcome .mac-setup-welcome-copy{flex:1 1 auto;min-width:0}#macCloudTitle{margin:0 0 5px;line-height:1.18}#macCloudSubtitle{margin:0;line-height:1.42}#macCloudOriginalStoreField[hidden],#macCloudRetry[hidden],#macCloudAuthForm[hidden],#macCloudShopForm[hidden],#macCloudWelcome .rc-setup-hero-logo[hidden]{display:none!important}';
+ document.head.append(css);
  original.forEach(({node})=>node.hidden=true);
- screen.hidden=false;document.body.classList.remove('mac-starting');
- el=document.createElement('div');el.id='macCloudGate';el.className='auth-block';
- el.innerHTML=`
- <div class="auth-header"><div class="brand-mark">MAC</div><div><strong style="font-size:19px">MAC Vision</strong><div class="smalltext muted">Mapa de Acompanhamento Comercial</div></div></div>
- <div><h1 class="auth-title">Bem-vindo</h1><p class="auth-subtitle">Seleciona o acesso, o utilizador e introduz a palavra-passe.</p></div>
- <form id="macCloudAuthForm" class="auth-block" autocomplete="on">
- <div class="auth-step"><label for="macCloudRole">Acesso</label><select id="macCloudRole" required><option value="">Selecionar acesso</option><option value="admin">👑 Administrador</option><option value="gestor">🔐 Gestor</option><option value="colaborador">👤 Colaborador</option></select></div>
- <div class="auth-step"><label for="macCloudName">Utilizador</label><select id="macCloudName" required disabled><option value="">Selecionar utilizador</option></select><button type="button" id="macCloudRetry" class="btn ghost" hidden>Tentar novamente</button></div>
- <div class="auth-step"><label for="macCloudPassword">Password</label><input type="password" id="macCloudPassword" required autocomplete="current-password" placeholder="Introduzir palavra-passe"></div>
- <button type="submit" class="btn primary auth-btn" id="macCloudAuthButton">ENTRAR NO MAC VISION →</button>
- </form>
- <form id="macCloudShopForm" class="auth-block" hidden><div class="auth-step"><label for="macCloudShop">Loja</label><select id="macCloudShop" required></select></div><button type="submit" class="btn primary auth-btn">ENTRAR NO MAC VISION →</button><button type="button" class="btn ghost" id="macCloudBack">Voltar</button></form>
- <p id="macCloudError" class="auth-message" role="alert" aria-live="polite"></p>`;
+ screen.classList.add('mac-cloud-login-active');screen.hidden=false;document.body.classList.remove('mac-starting');
  card.appendChild(el);
- el.restoreOriginal=()=>{el.remove();original.forEach(({node,hidden})=>node.hidden=hidden);};
+ el.restoreOriginal=()=>{el.remove();css.remove();screen.classList.remove('mac-cloud-login-active');original.forEach(({node,hidden})=>node.hidden=hidden);};
  return el;
 }
 function status(text){const x=document.getElementById('macCloudError');if(x)x.textContent=text||'';lastCloudError=text||'';}
