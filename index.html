@@ -5472,7 +5472,7 @@ async function macLocalChatRPC(action,args={}){
  });
 }
 async function macRPC(action,args={}){
- if(String(action).startsWith('chat-'))return macLocalChatRPC(String(action).slice(5),args);
+ if(String(action).startsWith('chat-')){if(!window.macCloud?.session||!window.macCloud?.chat)throw Error('Chat Cloud indisponível. Inicia sessão novamente.');return window.macCloud.chat(String(action).slice(5),{storeId:currentShopId,...args});}
  switch(action){
   case 'password':{
    const salt=randomHex(),hash=await hashPassword(String(args.password||''),salt);
@@ -9100,7 +9100,7 @@ function macRenderManagerStores(){
 </script>
 <button type="button" id="macChatBubble" aria-label="Abrir Chat MAC Vision" title="Chat MAC Vision" hidden>💬</button>
 <section id="macChatPanel" role="dialog" aria-label="Chat MAC Vision" aria-modal="false" hidden>
- <div class="mac-chat-head"><div><strong id="macChatTitle">💬 Chat MAC Vision</strong><div id="macChatCloudStatus" style="font-size:10px;line-height:1.3;margin-top:3px">● Chat local</div></div><div class="mac-chat-head-actions"><button type="button" class="btn small mac-chat-action" id="macChatEditMode" title="Gerir mensagens deste utilizador" aria-label="Editar conversas" aria-pressed="false" hidden>✏️</button><button type="button" class="btn small mac-chat-action mac-chat-danger" id="macChatDeleteConversation" title="Apagar conversas do utilizador" aria-label="Apagar conversas" hidden>🗑️</button><button type="button" class="btn small" id="macChatClose" title="Fechar chat">✕</button></div></div>
+ <div class="mac-chat-head"><div><strong id="macChatTitle">💬 Chat MAC Vision</strong><div id="macChatCloudStatus" style="font-size:10px;line-height:1.3;margin-top:3px">● Cloud · inicia sessão</div></div><div class="mac-chat-head-actions"><button type="button" class="btn small mac-chat-action" id="macChatEditMode" title="Gerir mensagens deste utilizador" aria-label="Editar conversas" aria-pressed="false" hidden>✏️</button><button type="button" class="btn small mac-chat-action mac-chat-danger" id="macChatDeleteConversation" title="Apagar conversas do utilizador" aria-label="Apagar conversas" hidden>🗑️</button><button type="button" class="btn small" id="macChatClose" title="Fechar chat">✕</button></div></div>
  <div id="macChatParticipants" class="mac-chat-participants" aria-label="Colaboradores escalados"></div>
  <div id="macChatMessages" class="mac-chat-log" aria-live="polite"></div>
  <form id="macChatForm" class="mac-chat-send"><input id="macChatText" placeholder="Escrever mensagem…" maxlength="1000" autocomplete="off" aria-label="Mensagem"><button class="btn primary" type="submit" aria-label="Enviar mensagem">➤</button></form>
@@ -9137,11 +9137,11 @@ function macRenderManagerStores(){
  window.macVisionTestSaleAudio=()=>soundSale(true);
  el('macTestSaleSound')?.addEventListener('click',()=>soundSale(true));
  function softAlert(){const p=prefs();if(!p.volume||!p.chatSound)return;try{const AudioContext=window.AudioContext||window.webkitAudioContext;if(!AudioContext)return;const ctx=new AudioContext(),osc=ctx.createOscillator(),gain=ctx.createGain();osc.frequency.value=810;gain.gain.value=(p.volume/100)*0.06;osc.connect(gain);gain.connect(ctx.destination);osc.start();gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+.18);osc.stop(ctx.currentTime+.2);osc.onended=()=>void ctx.close();}catch{}}
-  // Chat Vision local: mensagens e autenticação mantidas no IndexedDB deste browser.
+  // Chat Vision Cloud: mensagens e identidade validadas pelo Supabase.
   const escChat = x => String(x ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const normChat = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/gi, '').toUpperCase();
   const chatToday = () => new Date().toLocaleDateString('pt-PT');
-  let cloudReady = false, cloudConnecting = false, cloudReason = 'A abrir o chat local…';
+  let cloudReady = false, cloudConnecting = false, cloudReason = 'A ligar à Cloud…';
   let cloudUser = null, cloudMembers = [], cloudMessages = [], cloudRead = new Set(), cloudPresence = {}, cloudReceipts = {};
   let cloudSeen = new Set(), cloudInitialLoad = false;
   let chatRecipient = null, chatEditMode = false, chatOpen = false, cloudCurrentStore = '';
@@ -9152,14 +9152,13 @@ function macRenderManagerStores(){
   const chatManager = () => !!cloudMembers.find(m => m.user_id === cloudUser?.id && m.store_id === chatStoreId() && ['gestor','admin','ga'].includes(m.role));
   const currentUserMember = () => cloudMembers.find(m => m.user_id === cloudUser?.id && m.store_id === chatStoreId());
   const currentStoreEnabled = () => window.__macChatStoreEnabled !== false;
-  const chatPermitted = () => cloudReady && !!session && !!currentUserMember() && (currentStoreEnabled() || chatManager()) && (
-      chatManager() || !!window.macShiftAccessStatus?.(state, {role:'colaborador', employee:session.employee || session.name, name:session.name}).allowed);
+  const chatPermitted = () => cloudReady && !!session && !!currentUserMember() && (currentStoreEnabled() || chatManager());
   const chatCloudStatus = document.getElementById('macChatCloudStatus');
   function setChatStatus(message, ok) {
     cloudReason = message;
     if (chatCloudStatus) { chatCloudStatus.textContent = message; chatCloudStatus.className = ok ? 'mac-cloud-on' : 'mac-cloud-off'; }
     const input = document.getElementById('macChatText');
-    if (input) { input.disabled = !chatPermitted(); input.placeholder = cloudReady ? 'Escrever mensagem…' : 'Chat local indisponível'; }
+    if (input) { input.disabled = !chatPermitted(); input.placeholder = cloudReady ? 'Escrever mensagem…' : 'Chat Cloud indisponível'; }
     const send = document.querySelector('#macChatForm button[type="submit"]');
     if (send) send.disabled = !chatPermitted();
   }
@@ -9168,37 +9167,42 @@ function macRenderManagerStores(){
   try{macChatNotify?.addEventListener('message',()=>{if(session&&cloudReady)scheduleChatLoad()})}catch{}
   function scheduleChatLoad(){clearTimeout(chatRefreshTimer);chatRefreshTimer=setTimeout(()=>{if(session && cloudReady)void loadChatCloud()},180);}
   async function connectChatCloud(force=false){
-    if(!session || !currentShopId){ cloudReady=false;cloudUser=null;cloudMembers=[];cloudMessages=[];setChatStatus('Inicia sessão para utilizar o Chat local.',false);renderChatCloud();return; }
+    if(!session || !currentShopId){ cloudReady=false;cloudUser=null;cloudMembers=[];cloudMessages=[];setChatStatus('Inicia sessão para utilizar o Chat Cloud.',false);renderChatCloud();return; }
     const fingerprint = String(session.id)+'|'+chatStoreId();
     if(!force && cloudReady && cloudLastSession === fingerprint) return;
     if(cloudConnecting)return;
-    cloudConnecting=true; cloudReady=false; setChatStatus('A abrir o chat local…',false);
+    cloudConnecting=true; cloudReady=false; setChatStatus('A ligar à Cloud…',false);
     try{
       const res=await chatRPC('hello',{storeId:chatStoreId()});
-      if(!res?.user?.id)throw Error('A sessão local não tem utilizador válido.');
+      if(!session||fingerprint!==String(session.id)+'|'+chatStoreId())return;
+      if(!res?.user?.id)throw Error('A sessão Cloud não tem utilizador válido.');
       const members=Array.isArray(res.members)?res.members:[];
       const own=members.find(m=>m.user_id===res.user.id && m.store_id===chatStoreId());
       if(!own)throw Error('O utilizador não pertence à loja selecionada.');
-      if(normChat(own.display_name)!==normChat(chatUserName()))throw Error('A identidade local não corresponde à conta selecionada.');
+      if(normChat(own.display_name)!==normChat(chatUserName()))throw Error('A identidade Cloud não corresponde à conta selecionada.');
       cloudUser=res.user;cloudMembers=members; cloudCurrentStore=chatStoreId();
       window.__macChatStoreEnabled = res.settings?.[cloudCurrentStore] !== false;
-      cloudLastSession=fingerprint;cloudReady=true;cloudInitialLoad=false;cloudSeen.clear();setChatStatus('● Local · neste navegador',true);
+      cloudLastSession=fingerprint;cloudReady=true;cloudInitialLoad=false;cloudSeen.clear();setChatStatus('● Cloud · ligado',true);
+      await chatRPC('presence',{storeId:chatStoreId()}).catch(()=>{});
       await loadChatCloud();
-    }catch(err){cloudReady=false;cloudUser=null;cloudMembers=[];cloudMessages=[];cloudRead=new Set();setChatStatus('● Local indisponível · '+err.message,false);renderChatCloud();}
+    }catch(err){cloudReady=false;cloudUser=null;cloudMembers=[];cloudMessages=[];cloudRead=new Set();setChatStatus('● Cloud indisponível · '+err.message,false);renderChatCloud();}
     finally{cloudConnecting=false;}
   }
   async function loadChatCloud(){
-    if(!cloudReady || !session)return;
+    if(!cloudReady || !session || chatPending.has('load'))return;
+    const fingerprint=String(session.id)+'|'+chatStoreId();chatPending.set('load',true);
     try{
       const data=await chatRPC('load',{storeId:chatStoreId()});
-      if(!session || !cloudReady)return;
+      if(!session || !cloudReady || fingerprint!==String(session.id)+'|'+chatStoreId())return;
+      if(Array.isArray(data.members))cloudMembers=data.members;
       cloudMessages=Array.isArray(data.messages)?data.messages:[];
       cloudRead=new Set(Array.isArray(data.readIds)?data.readIds:[]);
       cloudReceipts=data.receipts||{};
       cloudPresence=data.presence||{};
       if(cloudInitialLoad){
         for(const m of cloudMessages){
-          if(!cloudSeen.has(m.id) && m.sender_id!==cloudUser.id && (m.recipient_id===cloudUser.id || m.recipient_id===null)){
+          if(!cloudSeen.has(m.id) && !m.deleted_at && m.sender_id!==cloudUser.id && (m.recipient_id===cloudUser.id || (m.recipient_id===null&&m.store_id===chatStoreId()))){
+            if(!chatOpen){chatRecipient=m.recipient_id===null?null:m.sender_id;chatOpen=true;el('macChatPanel').hidden=false;}
             const p=prefs();if(p.chatNotify&&p.visual)toast('💬 Nova mensagem de '+memberName(m.sender_id));
             if(p.chatSound)softAlert();
           }
@@ -9208,9 +9212,9 @@ function macRenderManagerStores(){
       if(cloudSeen.size>1200)cloudSeen=new Set(cloudMessages.map(m=>m.id));
       cloudInitialLoad=true;
       if(data.settings && Object.prototype.hasOwnProperty.call(data.settings,chatStoreId()))window.__macChatStoreEnabled=data.settings[chatStoreId()];
-      cloudLastLoad=Date.now();setChatStatus('● Local · neste navegador',true);
+      cloudLastLoad=Date.now();setChatStatus('● Cloud · ligado',true);
       renderChatCloud();
-    }catch(err){setChatStatus('● Erro local · '+err.message,false);}
+    }catch(err){cloudReady=false;setChatStatus('● Erro Cloud · '+err.message,false);renderChatCloud();}finally{chatPending.delete('load');}
   }
   function availableChatMembers(){
     if(!cloudReady)return [];
@@ -9255,7 +9259,7 @@ function macRenderManagerStores(){
     bubble.hidden = !session;
     if(!session){panel.hidden=true;return;}
     bubble.classList.toggle('mac-chat-locked',!chatPermitted());
-    bubble.title=cloudReady?'Chat Vision — Local neste navegador':'Chat Vision — '+cloudReason;
+    bubble.title=cloudReady?'Chat Vision — Cloud':'Chat Vision — '+cloudReason;
     const unread=cloudReady?chatUnread():[];
     bubble.classList.toggle('mac-chat-unread',unread.length>0);
     if(unread.length)bubble.dataset.unread=unread.length>99?'99+':String(unread.length);
@@ -9267,7 +9271,8 @@ function macRenderManagerStores(){
     if(all)all.innerHTML = cloudReady ? participants.map(m=>{
       const count=unread.filter(msg=>m.user_id===null?msg.recipient_id===null:msg.sender_id===m.user_id).length;
       const p=cloudPresence[m.user_id]||'';
-      const presence=m.user_id===null?'🟢':p&&Date.now()-new Date(p).getTime()<300000?'🟢':'🔴';
+      const age=p?Date.now()-new Date(p).getTime():Infinity;
+      const presence=m.user_id===null?'🟢':age<60000?'🟢':age<300000?'🟡':'🔴';
       return '<button type="button" class="mac-chat-person '+(chatRecipient===m.user_id?'active':'')+'" data-cloud-person="'+escChat(m.user_id??'todos')+'"><span class="mac-chat-presence">'+presence+'</span><span class="mac-chat-avatar-fallback">'+escChat(m.display_name[0]||'👥')+'</span><span class="mac-chat-person-label">'+escChat(m.display_name)+'</span>'+(count?'<span class="mac-chat-person-count">'+count+'</span>':'')+'</button>';
     }).join('') : '<div class="smalltext muted" style="padding:12px">'+escChat(cloudReason)+'</div>';
     const history=el('macChatMessages');
@@ -9278,14 +9283,14 @@ function macRenderManagerStores(){
       const actions=mine&&chatEditMode?'<span class="mac-chat-message-actions"><button type="button" data-cloud-edit="'+escChat(m.id)+'">✏️</button><button type="button" data-cloud-delete="'+escChat(m.id)+'">🗑️</button></span>':'';
       const status=mine&&m.recipient_id?(cloudReceipts[m.id]?.includes(m.recipient_id)?' · ✓✓ Lida':' · ✓ Enviada'):'';
       return '<div class="mac-chat-message '+(mine?'own':'')+'" data-msg-id="'+escChat(m.id)+'" data-sender-id="'+escChat(m.sender_id)+'"><div class="mac-chat-message-head"><span class="mac-chat-message-avatar-fallback">'+escChat(name.slice(0,1))+'</span><strong>'+escChat(name)+'</strong>'+actions+'</div><div class="mac-chat-message-body">'+escChat(m.body)+'</div><small>'+time+(m.edited_at?' · editada':'')+status+'</small></div>';
-    }).join(''):'<div class="smalltext muted">Ainda não existem mensagens nesta conversa.</div>'):'<div class="smalltext muted">Não foi possível consultar as mensagens locais.</div>';
+    }).join(''):'<div class="smalltext muted">Ainda não existem mensagens nesta conversa.</div>'):'<div class="smalltext muted">Não foi possível consultar as mensagens na Cloud.</div>';
     if(chatOpen&&history)history.scrollTop=history.scrollHeight;
     el('macChatTitle').textContent='💬 Chat Vision · '+chatToday();
     const edit=el('macChatEditMode'),del=el('macChatDeleteConversation');
     if(edit)edit.hidden=!chatManager();
     if(del){del.hidden=!chatManager();del.disabled=!chatEditMode;}
     if(el('macChatStoreEnabled')){el('macChatStoreEnabled').checked=currentStoreEnabled();el('macChatStoreEnabled').disabled=!chatManager()||!cloudReady;}
-    markReadCloud();setChatStatus(cloudReady?'● Local · neste navegador':cloudReason,cloudReady);
+    markReadCloud();setChatStatus(cloudReady?'● Cloud · ligado':cloudReason,cloudReady);
   }
   el('macChatBubble')?.addEventListener('click',()=>{
     if(!session)return;
@@ -9301,23 +9306,23 @@ function macRenderManagerStores(){
   el('macChatForm')?.addEventListener('submit',async e=>{
     e.preventDefault();
     const input=el('macChatText'),value=input?.value.trim();if(!value)return;
-    if(!chatPermitted())return toast('Chat local indisponível. '+cloudReason,true);
+    if(!chatPermitted())return toast('Chat Cloud indisponível. '+cloudReason,true);
     const storeId=chatStoreFor(chatRecipient);
     if(!storeId)return toast('Não existe uma loja autorizada comum entre estes utilizadores.',true);
     const button=e.currentTarget.querySelector('button[type="submit"]');button.disabled=true;
     try{await chatRPC('send',{storeId,recipientId:chatRecipient,body:value.slice(0,1000)});input.value='';await loadChatCloud();}
-    catch(err){toast('Falha ao guardar localmente: '+err.message,true);}
-    finally{button.disabled=false;}
+    catch(err){toast('Falha ao guardar na Cloud: '+err.message,true);}
+    finally{button.disabled=!chatPermitted();}
   });
   el('macChatEditMode')?.addEventListener('click',()=>{if(!chatManager())return;chatEditMode=!chatEditMode;renderChatCloud();});
   el('macChatMessages')?.addEventListener('click',async e=>{
     const btn=e.target.closest('[data-cloud-edit],[data-cloud-delete]');if(!btn||!chatManager())return;
     const id=btn.dataset.cloudEdit||btn.dataset.cloudDelete;
     const msg=cloudMessages.find(m=>m.id===id);if(!msg)return;
-    if(btn.dataset.cloudDelete){if(!confirm('Apagar esta mensagem neste navegador?'))return;
+    if(btn.dataset.cloudDelete){if(!confirm('Apagar esta mensagem para todos?'))return;
       try{await chatRPC('moderate',{messageId:id,body:null});await loadChatCloud()}catch(err){toast(err.message,true);}return;
     }
-    const body=prompt('Editar mensagem local:',msg.body);
+    const body=prompt('Editar mensagem:',msg.body);
     if(body===null)return;
     if(!body.trim())return toast('A mensagem não pode ficar vazia.',true);
     try{await chatRPC('moderate',{messageId:id,body:body.trim().slice(0,1000)});await loadChatCloud()}catch(err){toast(err.message,true);}
@@ -9326,7 +9331,7 @@ function macRenderManagerStores(){
     if(!chatManager() || !chatEditMode)return;
     const list=visibleChatMessages();
     if(!list.length)return;
-    if(!confirm('Apagar '+list.length+' mensagens desta conversa local?'))return;
+    if(!confirm('Apagar '+list.length+' mensagens desta conversa na Cloud?'))return;
     try{await chatRPC('delete_conversation',{ids:list.map(x=>x.id)});await loadChatCloud()}
     catch(err){toast('Erro ao apagar conversa: '+err.message,true);}
   });
@@ -9335,13 +9340,13 @@ function macRenderManagerStores(){
     const enabled=!!e.target.checked;
     if(!chatManager()){e.target.checked=currentStoreEnabled();return;}
     try{await chatRPC('set_store_enabled',{storeId:chatStoreId(),enabled});window.__macChatStoreEnabled=enabled;renderChatCloud();}
-    catch(err){e.target.checked=currentStoreEnabled();toast('Erro a atualizar o Chat local: '+err.message,true);}
+    catch(err){e.target.checked=currentStoreEnabled();toast('Erro a atualizar o Chat Cloud: '+err.message,true);}
   });
   // Mantém avisos de vendas já existentes entre separadores do mesmo browser.
-  // O chat também utiliza exclusivamente o armazenamento local.
+  // O chat utiliza a Cloud; os avisos de vendas permanecem locais.
   let saleChannel=null;try{saleChannel=new BroadcastChannel('mac-vision-sales-tab-alerts-v1')}catch{}
   window.macChatCloudDeleteStore = async storeId => {
-    if(!cloudReady || !chatManager() || storeId!==chatStoreId()) throw new Error('É necessário ser gestor autorizado e ter o Chat local ativo.');
+    if(!cloudReady || !chatManager() || storeId!==chatStoreId()) throw new Error('É necessário ser gestor autorizado e ter o Chat Cloud ativo.');
     const response=await chatRPC('delete_store_chat',{storeId});
     await loadChatCloud();
     return response.count??0;
@@ -9351,7 +9356,7 @@ function macRenderManagerStores(){
   const previousGo=go;go=function(){const value=previousGo.apply(this,arguments);if(session && cloudLastSession!==String(session.id)+'|'+chatStoreId())void connectChatCloud(true);renderChatCloud();return value;};
   const previousRender=render;render=function(){const value=previousRender.apply(this,arguments);if(chatOpen)renderChatCloud();return value;};
   const previousLogin=loginToStore;loginToStore=async function(){const value=await previousLogin.apply(this,arguments);chatOpen=false;cloudLastSession='';await connectChatCloud(true);return value;};
-  const previousLogout=logout;logout=async function(){const value=await previousLogout.apply(this,arguments);chatOpen=false;cloudReady=false;cloudUser=null;cloudMembers=[];cloudMessages=[];cloudRead.clear();cloudLastSession='';el('macChatPanel').hidden=true;renderChatCloud();return value;};
+  const previousLogout=logout;logout=async function(){if(session&&cloudReady)await chatRPC('offline',{storeId:chatStoreId()}).catch(()=>{});const value=await previousLogout.apply(this,arguments);chatOpen=false;cloudReady=false;cloudUser=null;cloudMembers=[];cloudMessages=[];cloudRead.clear();cloudLastSession='';el('macChatPanel').hidden=true;renderChatCloud();return value;};
   const previousShowConfig=showConfigView;showConfigView=function(){const value=previousShowConfig.apply(this,arguments);if(arguments[0]==='appearance')refreshAudioUI();return value;};
   document.querySelectorAll('[data-appearance-target="audio"]').forEach(btn=>btn.addEventListener('click',()=>{
     const home=el('macAppearanceHome'),audio=el('macAppearanceAudio');if(home)home.hidden=true;
@@ -9361,9 +9366,10 @@ function macRenderManagerStores(){
   document.querySelectorAll('.mac-appearance-back').forEach(btn=>btn.addEventListener('click',()=>{
     const home=el('macAppearanceHome'),audio=el('macAppearanceAudio');if(audio)audio.hidden=true;if(home)home.hidden=false;
   }));
-  setInterval(()=>{if(!document.hidden && session && cloudLastSession!==String(session.id)+'|'+chatStoreId())void connectChatCloud(true);if(!document.hidden && session && cloudReady){void chatRPC('presence',{storeId:chatStoreId()}).catch(()=>{});if(Date.now()-cloudLastLoad>30000)void loadChatCloud();}},30000);
+  let lastPresence=0;
+  setInterval(()=>{if(document.hidden||!session)return;if(!cloudReady||cloudLastSession!==String(session.id)+'|'+chatStoreId()){void connectChatCloud(true);return;}if(Date.now()-lastPresence>=20000){lastPresence=Date.now();void chatRPC('presence',{storeId:chatStoreId()}).catch(()=>{});}void loadChatCloud();},5000);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden && session){void connectChatCloud();if(cloudReady)void loadChatCloud();}});
-  setChatStatus('● Local · inicia sessão',false);
+  setChatStatus('● Cloud · inicia sessão',false);
   renderChatCloud();
 })();
 </script>
@@ -10172,7 +10178,7 @@ dialog::backdrop,
     }
     targetStoreId=id;
     document.getElementById('macClearChatDetails').textContent=
-      'Vais eliminar mensagens de chat locais da loja "'+shopName()+'" em todas as datas. Esta ação não pode ser anulada.';
+      'Vais eliminar mensagens de chat na Cloud da loja "'+shopName()+'" em todas as datas. Esta ação não pode ser anulada.';
     input.value='';
     dialog.showModal();
     input.focus();
@@ -10187,13 +10193,13 @@ dialog::backdrop,
       input.focus();status('Para confirmar escreve exatamente APAGAR CHAT.',true);return;
     }
     if(typeof window.macChatCloudDeleteStore!=='function'){
-      status('Chat local indisponível. Nenhum dado foi apagado.',true);return;
+      status('Chat Cloud indisponível. Nenhum dado foi apagado.',true);return;
     }
     window.macChatCloudDeleteStore(id).then(count=>{
       close();
-      if(typeof macAudit==='function')try{macAudit('Chat MAC Vision — eliminar dados locais','Loja '+id+' · '+count+' mensagens');}catch{}
-      status('Chat local da loja apagado ('+count+' mensagens).');
-    }).catch(error=>status('Falha a apagar mensagens locais: '+(error?.message||error),true));
+      if(typeof macAudit==='function')try{macAudit('Chat MAC Vision — eliminar dados Cloud','Loja '+id+' · '+count+' mensagens');}catch{}
+      status('Chat Cloud da loja apagado ('+count+' mensagens).');
+    }).catch(error=>status('Falha a apagar mensagens na Cloud: '+(error?.message||error),true));
   });
 })();
 </script>
