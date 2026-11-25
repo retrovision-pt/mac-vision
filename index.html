@@ -9575,6 +9575,19 @@ function macRenderManagerStores(){
   let chatPeopleMarkup='',chatPeopleTouchUntil=0;
   const chatPeopleList=el('macChatParticipants');
   for(const event of ['touchstart','touchmove','touchend','touchcancel','scroll'])chatPeopleList?.addEventListener(event,()=>{chatPeopleTouchUntil=Date.now()+700;},{passive:true});
+  function chatLastSeenLabel(value,now=Date.now()){
+    if(!value)return 'Sem atividade registada';
+    const timestamp=new Date(value).getTime();
+    if(!Number.isFinite(timestamp))return 'Sem atividade registada';
+    const elapsed=Math.max(0,now-timestamp);
+    if(elapsed<60000)return 'Online agora';
+    const minutes=Math.floor(elapsed/60000);
+    if(minutes<60)return 'Online há '+minutes+' min';
+    const hours=Math.floor(minutes/60);
+    if(hours<24)return 'Online há '+hours+' h';
+    const days=Math.floor(hours/24);
+    return 'Online há '+days+(days===1?' dia':' dias');
+  }
   function renderChatCloud(){
     const bubble=el('macChatBubble'), panel=el('macChatPanel');if(!bubble || !panel)return;
     bubble.hidden = !session;
@@ -9599,7 +9612,9 @@ function macRenderManagerStores(){
       const p=cloudPresence[m.user_id]||'';
       const age=p?Date.now()-new Date(p).getTime():Infinity;
       const presence=m.user_id===null?'🟢':age<60000?'🟢':age<300000?'🟡':'🔴';
-      return '<button type="button" class="mac-chat-person '+(chatRecipient===m.user_id?'active':'')+'" data-cloud-person="'+escChat(m.user_id??'todos')+'"><span class="mac-chat-presence">'+presence+'</span>'+(m.user_id===null?'<span class="mac-chat-avatar-fallback" aria-hidden="true">👥</span>':avatarFor(m.display_name,chatContactPhoto(m.user_id),'small'))+'<span class="mac-chat-person-label">'+escChat(m.display_name)+'</span>'+(count?'<span class="mac-chat-person-count">'+count+'</span>':'')+'</button>';
+      const lastSeen=m.user_id===null?'':chatLastSeenLabel(p);
+      const lastSeenTime=p&&Number.isFinite(new Date(p).getTime())?new Date(p).toLocaleString('pt-PT'):'';
+      return '<button type="button" class="mac-chat-person '+(chatRecipient===m.user_id?'active':'')+'" data-cloud-person="'+escChat(m.user_id??'todos')+'"><span class="mac-chat-presence">'+presence+'</span>'+(m.user_id===null?'<span class="mac-chat-avatar-fallback" aria-hidden="true">👥</span>':avatarFor(m.display_name,chatContactPhoto(m.user_id),'small'))+'<span class="mac-chat-person-label"><span class="mac-chat-person-name">'+escChat(m.display_name)+'</span>'+(lastSeen?'<small class="mac-chat-last-seen" title="'+escChat(lastSeenTime)+'">'+escChat(lastSeen)+'</small>':'')+'</span>'+(count?'<span class="mac-chat-person-count">'+count+'</span>':'')+'</button>';
     }).join('') : '<div class="smalltext muted" style="padding:12px">'+escChat(cloudReason)+'</div>';
     if(all&&peopleMarkup!==chatPeopleMarkup&&(!chatPeopleOpen||all.hidden||Date.now()>=chatPeopleTouchUntil)){
       const previousScroll=all.scrollTop;
@@ -13477,7 +13492,9 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
 #macChatParticipants[hidden]{display:none!important}
 #macChatPanel #macChatParticipants.mac-chat-participants:not([hidden]){display:flex!important;flex-direction:column!important;flex-wrap:nowrap!important;align-items:stretch!important;align-content:flex-start!important;justify-content:flex-start!important;max-height:min(220px,35vh)!important;min-height:0!important;overflow-y:auto!important;overflow-x:hidden!important;gap:4px!important;touch-action:pan-y!important;overscroll-behavior-x:auto;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;pointer-events:auto}
 #macChatParticipants .mac-chat-person{width:100%!important;max-width:none!important;justify-content:flex-start!important;flex:0 0 auto!important;touch-action:pan-y!important;pointer-events:auto}
-#macChatParticipants .mac-chat-person-label{max-width:none!important;flex:1!important;text-align:left!important}
+#macChatParticipants .mac-chat-person-label{max-width:none!important;flex:1!important;text-align:left!important;display:flex!important;flex-direction:column;gap:2px;min-width:0}
+#macChatParticipants .mac-chat-person-name{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3}
+#macChatParticipants .mac-chat-last-seen{display:block;color:var(--muted);font-size:10px!important;font-weight:400!important;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #macChatPanel .mac-chat-head{padding:8px 10px!important;min-height:62px!important;max-height:none!important}
 #macChatPanel #macChatTitle{font-size:14px!important;font-weight:800!important}
 #macChatPanel #macChatCloudStatus{font-size:0!important;line-height:1.2!important;display:block!important;color:var(--muted)!important}
