@@ -1845,8 +1845,8 @@ body.mac-starting:not(.mac-cloud-transition) #macStartupLoading{position:fixed;i
       <div id="loginPanel" class="auth-block" hidden>
         <form id="loginForm" class="auth-block" autocomplete="off">
           <div class="auth-step"><label for="loginRole">Acesso</label><select id="loginRole" required><option value="">Selecionar acesso</option><option value="colaborador">👤 Colaborador</option><option value="gestor">🔐 Gestor</option><option value="administrador">👑 Administrador</option></select></div>
-          <div class="auth-step"><label for="loginUser">User</label><select id="loginUser" required disabled><option value="">Selecionar user</option></select><div id="loginUserPhoto" class="person-line" style="margin-top:9px" aria-live="polite"></div></div>
           <div class="auth-step" id="macLoginStoreField"><label for="loginStore">Loja</label><select id="loginStore" required disabled><option value="">Selecionar loja</option></select></div>
+          <div class="auth-step"><label id="macLoginUserLabel" for="loginUser">User</label><select id="loginUser" required disabled><option value="">Selecionar user</option></select><div id="loginUserPhoto" class="person-line" style="margin-top:9px" aria-live="polite"></div></div>
           <div class="auth-step"><label for="loginPassword">Password</label><input id="loginPassword" type="password" autocomplete="current-password" placeholder="Introduzir palavra-passe" required></div>
           <button type="submit" class="btn primary auth-btn" id="rcLoginButton">ENTRAR →</button>
         </form>
@@ -2892,13 +2892,13 @@ function macShowConfirmPassword(){
 }
 
 const macLoginCollator=new Intl.Collator('pt-PT',{sensitivity:'base',numeric:true});
-// Entrada pela ordem Acesso → User → Loja → Password.
-// Um colaborador só vê as lojas às quais a sua conta está efetivamente associada.
+// Colaborador: Acesso → Loja → Colaborador → Password.
+// Gestor/administrador conservam a loja interna detetada pela conta.
 let loginCandidates=new Map();
-function buildLoginCandidates(role){
+function buildLoginCandidates(role,storeId){
  const found=new Map();
  if(!['gestor','colaborador','administrador'].includes(role))return found;
- const stores=shopRegistry.slice().sort(macCompareStores);
+ const stores=(role==='colaborador'&&storeId!==undefined?shopRegistry.filter(s=>s.id===storeId):shopRegistry.slice()).sort(macCompareStores);
  for(const store of stores){
   for(const user of store.users||[]){
    if(role==='administrador' ? !macIsAreaUser(user) : user.role!==role || (role==='gestor' && user.adminOnly===true))continue;
@@ -2922,6 +2922,16 @@ function selectedLoginAccount(){
 }
 function renderLoginStores(){
  const select=$('loginStore'),selected=select.value;
+ if($('loginRole').value==='colaborador'){
+  const stores=shopRegistry.slice().sort(macCompareStores);
+  select.innerHTML='<option value="">Selecionar loja</option>'+stores.map(s=>`<option value="${h(s.id)}">${h(s.name)}</option>`).join('');
+  select.value=stores.some(s=>s.id===selected)?selected:'';
+  select.disabled=!stores.length;
+  const choice=loginCandidates.get($('loginUser').value);
+  const submit=document.querySelector('#loginForm button[type="submit"]');
+  if(submit)submit.disabled=!select.value||!choice?.stores.has(select.value);
+  $('loginPassword').value='';renderLoginPhoto();return;
+ }
  const choice=loginCandidates.get($('loginUser').value);
  const stores=choice?shopRegistry.filter(s=>choice.stores.has(s.id)).sort(macCompareStores):[];
  const singleCollaboratorStore=$('loginRole').value==='colaborador'&&stores.length===1;
@@ -2959,13 +2969,16 @@ function renderLoginUsers(){
   $('loginUser').innerHTML='<option value="">Selecionar user</option>';
   $('loginUserPhoto').innerHTML='';return;
  }
- const role=$('loginRole').value;
- loginCandidates=buildLoginCandidates(role);
+ const role=$('loginRole').value,collaborator=role==='colaborador';
+ const label=$('macLoginUserLabel');if(label)label.textContent=collaborator?'Colaborador':'User';
+ const selectedStore=collaborator?$('loginStore').value:undefined;
+ loginCandidates=buildLoginCandidates(role,selectedStore);
  const selected=$('loginUser').value;
  const duplicates=new Map();
  for(const item of loginCandidates.values()){const key=norm(item.name);duplicates.set(key,(duplicates.get(key)||0)+1)}
  const options=[...loginCandidates.entries()].sort((a,b)=>macLoginCollator.compare(a[1].name,b[1].name));
- $('loginUser').innerHTML='<option value="">Selecionar user</option>'+options.map(([key,item])=>{
+ const placeholder=collaborator?(!selectedStore?'Selecionar primeiro a loja':options.length?'Selecionar colaborador':'Sem colaboradores nesta loja'):'Selecionar user';
+ $('loginUser').innerHTML='<option value="">'+h(placeholder)+'</option>'+options.map(([key,item])=>{
   const firstStore=shopRegistry.find(s=>s.id===item.stores.keys().next().value);
   const suffix=duplicates.get(norm(item.name))>1?' · '+(firstStore?.name||''):'';
   return `<option value="${h(key)}">${h(item.name+suffix)}</option>`;
@@ -4408,8 +4421,8 @@ function exportBackup(){if(!macCan('data.export'))return toast('Apenas o gestor 
 async function restoreBackup(file){if(session?.role!=='gestor')return toast('Apenas o gestor pode restaurar backups.',true);let content=await file.text(),data=shape(JSON.parse(content));if(norm(data.store)!==norm(state.store)){toast('O backup pertence a outra loja ('+data.store+'). Não foi restaurado.',true);return}if(!confirm('Restaurar este backup e substituir os dados de '+currentStore().name+'?'))return;state=data;period='day';$('globalDate').value=state.selectedDate;$('scheduleMonth').value=state.selectedDate.slice(0,7);$('importMonth').value=state.selectedDate.slice(0,7);if(!await persist())throw Error('Não foi possível guardar localmente. Confirma o espaço disponível e tenta novamente.');render();toast('Backup restaurado com sucesso.')}
 function installHandlers(){
  $('loginRole').addEventListener('change',()=>{$('loginUser').value='';$('loginStore').value='';renderLoginUsers()});
- $('loginUser').addEventListener('change',()=>{$('loginStore').value='';authError('');renderLoginStores()});
- $('loginStore').addEventListener('change',()=>{authError('');$('loginPassword').value='';renderLoginPhoto()});
+ $('loginUser').addEventListener('change',()=>{if($('loginRole').value!=='colaborador')$('loginStore').value='';authError('');renderLoginStores()});
+ $('loginStore').addEventListener('change',()=>{authError('');$('loginPassword').value='';if($('loginRole').value==='colaborador'){$('loginUser').value='';renderLoginUsers();}else renderLoginPhoto()});
  $('setupBackToManager').addEventListener('click',async()=>{
   if(!confirm('Voltar ao Gestor de Área e cancelar a configuração das lojas e gestores?'))return;
   const oldAppName=pendingSetupManager?.rcAppName||window.rcGlobalSettings?.appName||'';
@@ -4620,7 +4633,8 @@ async function start(){
  renderLoginPhoto=async function(){
   const {shop,user}=selectedLoginAccount();
   await originalLoginPhoto();
-  if(!user)return;
+  const current=selectedLoginAccount();
+  if(!user||current.user?.id!==user.id||current.shop?.id!==shop?.id)return;
   const d=$id('loginUserPhoto');if(!d)return;
   const avatar=d.querySelector('.avatar,.person-avatar,.photo-avatar')?.outerHTML||avatarFor(user.name,user.photo||'','login');
   d.innerHTML=`${avatar}<span class="mac-login-names"><strong>${h(user.name)}</strong><small>${h(currentCargo(user.name)||clean(user.cargo)||(user.role==='gestor'?'Gestor de Loja':'Cargo não definido'))}</small></span>`;
@@ -12471,7 +12485,7 @@ body.mac-import-multishop #macImportsStoreFilter[hidden]{display:none!important}
    const subtitle=byId('authSubtitle');
    if(subtitle)subtitle.textContent=role==='gestor'||role==='administrador'
      ?'Seleciona o acesso, o user e introduz a password. A loja é detetada automaticamente.'
-     :'Seleciona o acesso, o user, a loja e a password.';
+     :'Seleciona o acesso, a loja, o colaborador e a password.';
   }
   return result;
  };
