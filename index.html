@@ -2549,7 +2549,7 @@ function saleAssignable(name){
  if(session?.role==='gestor' && session.accessKind!=='administrador'){
    const matches=(currentStore()?.users||[]).filter(u=>[norm(u.name),norm(u.employee)].includes(n));
    if(matches.length){
-     return matches.some(u=>u.active!==false && !u.adminOnly && !macIsAreaUser(u) && ['gestor','colaborador'].includes(u.role));
+     return matches.some(u=>u.active!==false && !u.adminOnly && (!macIsAreaUser(u)||u.macPromotedFromManager===true) && ['gestor','colaborador'].includes(u.role));
    }
  }
 
@@ -3071,7 +3071,7 @@ function renderSessionPhoto(){
  const user=shop?.users.find(u=>u.id===userId)||shop?.users.find(u=>u.id===session.id);
  const staff=state.employees.find(x=>norm(x.name)===norm(user?.employee||session.employee||user?.name||session.name));
  const photo=session.role==='gestor'?(user?.photo||staff?.photo||employeePhotoIn(state,session.name)):(staff?.photo||user?.photo||employeePhotoIn(state,session.employee||session.name));
- const cargo=macIsAreaSession()?(macAdministratorLabel(user)||'Administrador'):clean(user?.cargo||staff?.cargo||'')||(session.role==='gestor'?'Gestor':'Cargo não definido');
+ const cargo=macIsAreaSession()?(macAdministratorLabel(user)||'Administrador'):session.role==='gestor'&&macIsAreaUser(user)?'Gestor de Loja':clean(user?.cargo||staff?.cargo||'')||(session.role==='gestor'?'Gestor':'Cargo não definido');
  const displayName=user?.name||session.name;
  $('activeUserPhoto').innerHTML=avatarFor(displayName,photo);
  $('activeUserName').textContent=displayName;
@@ -4805,8 +4805,8 @@ async function start(){
    if(!macIsAreaSession())return toast('Apenas o Gestor de Área pode associar gestores.',true);
    const shop=shopRegistry.find(x=>x.id===shopId),src=shopRegistry.flatMap(x=>x.users).find(x=>x.id===existing&&x.role==='gestor');
    if(!shop||!src)return toast('Escolhe um gestor existente.',true);
-   if(shop.users.some(x=>norm(x.name)===norm(src.name)))return toast('Gestor já associado a esta loja.',true);
-   shop.users.push({...src});await saveRegistry();accessViewedStoreId=shopId;closeNewUserDialog();showAccessSubmenu('managers');toast('Gestor associado à loja.');return;
+   if(shop.users.some(x=>x.id!==src.id&&norm(x.name)===norm(src.name)))return toast('Já existe outro utilizador com este nome.',true);
+   if(!macGrantExistingManager(shop,src))return toast('Gestor já associado a esta loja.',true);await saveRegistry();accessViewedStoreId=shopId;closeNewUserDialog();showAccessSubmenu('managers');toast('Gestor associado à loja.');return;
   }
   if(alias&&$id('newUserRole').value==='colaborador'){
    const data=await dataForStore(shopId);
@@ -5173,6 +5173,22 @@ function macCan(permission,shopId=currentShopId){
    return permission==='imports.moviik';
  }
  return false;
+}
+// A identidade administrativa pode acumular um acesso de Gestor de Loja explícito.
+function macGrantExistingManager(shop,source){
+ if(!shop||!source||source.role!=='gestor'||!macCanAdministerStore(shop.id))throw Error('Loja ou gestor não autorizado.');
+ if(macIsAreaUser(source)&&!macIsAreaSession())throw Error('Apenas administradores podem atribuir este acesso.');
+ const existing=shop.users.find(u=>u.id===source.id);
+ if(existing&&!existing.adminOnly)return false;
+ if(existing){
+   existing.adminOnly=false;
+   existing.salesEnabled=true;
+   if(macIsAreaUser(existing))existing.macPromotedFromManager=true;
+ }else{
+   shop.users.push({...source,adminOnly:false,salesEnabled:macIsAreaUser(source)?true:source.salesEnabled===true, ...(macIsAreaUser(source)?{macPromotedFromManager:true}:{})});
+ }
+ if(session?.id===source.id){session.managerAccess||={};session.managerAccess[shop.id]=source.id;}
+ return true;
 }
 function macAreaOnly(){if(macIsAreaSession())return true;toast('Apenas o Gestor de Área pode alterar lojas e os acessos de gestores.',true);return false;}
 function macShowModal(id){const d=$(id);if(d&&typeof d.showModal==='function'&&!d.open)d.showModal()}
@@ -11162,7 +11178,7 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup{color:#
      event.preventDefault();event.stopImmediatePropagation();
      (async()=>{
        const sources=macIsAreaSession()?shopRegistry:allowed();
-       const user=sources.flatMap(st=>st.users||[]).find(u=>u.id===pickedManager&&u.role==='gestor'&&!u.adminOnly);
+       const user=sources.flatMap(st=>st.users||[]).find(u=>u.id===pickedManager&&u.role==='gestor'&&(!u.adminOnly||macIsAreaSession()));
        if(!user)throw Error('O gestor selecionado já não está disponível nas tuas lojas autorizadas.');
        const shops=ids.map(id=>allowed().find(st=>st.id===id));
        if(!shops.length||shops.some(st=>!st))throw Error('Seleciona uma ou mais lojas autorizadas.');
@@ -11171,8 +11187,8 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup{color:#
        }
        let added=0;
        for(const st of shops){
-         if(st.users.some(u=>u.id===user.id))continue;
-         st.users.push({...user});added++;
+         if(!macGrantExistingManager(st,user))continue;
+         added++;
          if(session?.id===user.id){session.managerAccess||={};session.managerAccess[st.id]=user.id;}
        }
        if(added)await saveRegistry();
@@ -12140,7 +12156,7 @@ body.mac-import-multishop #macImportsStoreFilter{display:none!important}
  nameField.parentNode.insertBefore(row,nameField);
  const picker=E('newManagerExisting');
  function allowed(){return typeof macIsAreaSession==='function'&&macIsAreaSession()?shopRegistry:(typeof accessibleManagerStores==='function'?accessibleManagerStores():[])}
- function refill(){const list=new Map();for(const st of allowed())for(const user of st.users||[]){if(user.role!=='gestor'||user.adminOnly)continue;if(!list.has(user.id))list.set(user.id,user);}
+ function refill(){const list=new Map();for(const st of allowed())for(const user of st.users||[]){if(user.role!=='gestor'||(user.adminOnly&&!macIsAreaSession()))continue;if(!list.has(user.id))list.set(user.id,user);}
   const old=picker.value;picker.innerHTML='<option value="">Criar novo gestor</option>'+[...list.values()].sort((a,b)=>a.name.localeCompare(b.name,'pt-PT')).map(u=>'<option value="'+h(u.id)+'">'+h(u.name)+'</option>').join('');if(list.has(old))picker.value=old;
  }
  function sync(){const yes=!!picker.value;for(const id of ['newManagerName','newManagerPassword']){const control=E(id);if(!control)continue;control.disabled=yes;control.required=!yes;}
@@ -12155,12 +12171,11 @@ body.mac-import-multishop #macImportsStoreFilter{display:none!important}
   (async()=>{
    const shopId=E('newManagerStore')?.value,shop=shopRegistry.find(st=>st.id===shopId);
    if(!shop||!macCanAdministerStore(shopId))throw Error('Não tens acesso à loja selecionada.');
-   const source=allowed().flatMap(st=>st.users||[]).find(u=>u.id===picker.value&&u.role==='gestor'&&!u.adminOnly);
+   const source=allowed().flatMap(st=>st.users||[]).find(u=>u.id===picker.value&&u.role==='gestor'&&(!u.adminOnly||macIsAreaSession()));
    if(!source)throw Error('Seleciona um gestor disponível.');
    const conflicting=shop.users.find(u=>u.id!==source.id&&norm(u.name)===norm(source.name));
    if(conflicting)throw Error('Esta loja já tem uma conta diferente com o mesmo nome.');
-   if(shop.users.some(u=>u.id===source.id))return toast('O gestor já está associado a esta loja.');
-   shop.users.push({...source});
+   if(!macGrantExistingManager(shop,source))return toast('O gestor já está associado a esta loja.');
    if(session?.id===source.id){session.managerAccess||={};session.managerAccess[shop.id]=source.id;}
    await saveRegistry();form.reset();sync();refill();renderAccess();renderOptions();
    toast(source.name+' associado a '+shop.name+' com o acesso e a password existentes.');
@@ -12692,14 +12707,14 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
     const shops=ids.map(id=>shopRegistry.find(st=>st.id===id));
     if(shops.some(st=>!st||!macCanAdministerStore(st.id)))throw Error('Escolhe apenas lojas autorizadas.');
     const existing=E('newManagerExisting')?.value;let user;
-    if(existing){user=shopRegistry.flatMap(st=>st.users||[]).find(u=>u.id===existing&&u.role==='gestor'&&!u.adminOnly);if(!user)throw Error('Gestor existente não encontrado.');}
+    if(existing){user=shopRegistry.flatMap(st=>st.users||[]).find(u=>u.id===existing&&u.role==='gestor'&&(!u.adminOnly||macIsAreaSession()));if(!user)throw Error('Gestor existente não encontrado.');}
     else{const name=String(E('newManagerName')?.value||'').trim(),pw=E('newManagerPassword')?.value||'';
      if(name.length<2||!/^[0-9]{4,}$/.test(pw))throw Error('Introduz um nome e uma password de, pelo menos, 4 números.');
      user=await makeUser(name,'gestor',pw);user.cargo='Gestor de Loja';
      if(E('newManagerPhoto')?.files?.[0])user.photo=await compressPhoto(E('newManagerPhoto').files[0]);
     }
     for(const st of shops)if(st.users.some(u=>u.id!==user.id&&norm(u.name)===norm(user.name)))throw Error('Já existe um acesso com esse nome em '+st.name+'.');
-    for(const st of shops)if(!st.users.some(u=>u.id===user.id))st.users.push({...user});
+    for(const st of shops)macGrantExistingManager(st,user);
     await saveRegistry();mgrForm.reset();renderAccess();renderOptions();show();toast('Acesso de gestor associado a '+shops.length+' lojas.');
    })().catch(error=>toast('Não foi possível criar o gestor: '+error.message,true));
   },true);
