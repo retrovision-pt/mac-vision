@@ -6530,7 +6530,7 @@ html[data-theme="uni"] .side-end .local-health-state{color:#bcdc5b}
 
 <style id="mac-uni-theme-v2">
 /* UNI v2 — retirar a faixa sobreposta (não remove a navegação real). */
-html[data-theme="uni"] #mainApp{padding-top:0!important;}
+@media(min-width:901px){html[data-theme="uni"] #mainApp{padding-top:0!important;}}
 html[data-theme="uni"] #mainApp::before{display:none!important;content:none!important;height:0!important;}
 /* Botões de partilha ▲ também seguem a cor do UNI. */
 html[data-theme="uni"] #macShareOverview,
@@ -9675,7 +9675,7 @@ const importLog=$('importLog');if(importLog){
    const root=document.documentElement;
    if(!window.matchMedia('(max-width:900px)').matches){root.style.removeProperty('--mac-mobile-header-bottom');return;}
    const rect=sidebar.getBoundingClientRect();
-   if(rect.height>0)root.style.setProperty('--mac-mobile-header-bottom',Math.max(0,Math.ceil(rect.bottom))+'px');
+   if(rect.height>0)root.style.setProperty('--mac-mobile-header-bottom',Math.ceil(rect.height)+'px');
    else root.style.removeProperty('--mac-mobile-header-bottom');
   }
   function close(){sidebar.classList.remove('mobile-open');toggle.setAttribute('aria-expanded','false');toggle.setAttribute('aria-label','Abrir menu principal');backdrop.classList.remove('is-open');drawer.setAttribute('aria-hidden','true');}
@@ -13479,7 +13479,9 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
 <style id="mac-ios-mobile-safe-area-20261125">
 @media(max-width:900px){
  /* Fixed header: reserve its height in the document; only the content scrolls. */
- #mainApp:not(.is-locked){padding-top:calc(70px + env(safe-area-inset-top,0px))!important;min-height:100dvh;box-sizing:border-box}
+ html body #mainApp:not(.is-locked){padding-top:var(--mac-mobile-header-bottom,calc(70px + env(safe-area-inset-top,0px)))!important;min-height:100dvh;box-sizing:border-box;overflow-anchor:none}
+ html:has(#mainApp:not(.is-locked)){scroll-padding-top:calc(var(--mac-mobile-header-bottom,calc(70px + env(safe-area-inset-top,0px))) + 12px)}
+ #mainApp:not(.is-locked)>.main{margin-top:0!important;box-sizing:border-box}
  #mainApp:not(.is-locked)>.sidebar{position:fixed!important;top:0!important;left:0!important;right:0!important;bottom:auto!important;align-self:auto!important;z-index:150!important;isolation:isolate}
  /* Keep the iPhone status-bar region dark and separate from the green navigation. */
  #mainApp:not(.is-locked)>.sidebar::before{content:"";position:absolute;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:#0b111c;pointer-events:none}
