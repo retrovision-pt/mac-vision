@@ -6349,7 +6349,13 @@ window.macCloud.loadGate()
   let titleActions=head.querySelector('.mac-history-title-actions'); if(!titleActions){titleActions=document.createElement('div');titleActions.className='mac-history-title-actions';head.appendChild(titleActions);}
   const newBtn=card.querySelector('button[data-go="sales"]'); if(newBtn)titleActions.appendChild(newBtn);
   let filterLine=card.querySelector('.mac-history-filterline'); if(!filterLine){filterLine=document.createElement('div');filterLine.className='mac-history-filterline';head.insertAdjacentElement('afterend',filterLine);} 
-  [$id('historyEmployee'),$id('historyKind'),$id('historyDate'),$id('historyAllDates')].forEach(el=>{if(el)filterLine.appendChild(el)});
+  // Move the date wrapper as a unit, not the native input: delayed layout calls
+  // must never expose a second date control or leave an orphan visual proxy.
+  const dateInput=$id('historyDate');
+  const dateControl=dateInput?.closest('.mac-date-proxy')||dateInput;
+  const filterControls=[$id('macHistoryStoreFilter'),$id('historyEmployee'),$id('historyKind'),dateControl,$id('historyAllDates')].filter(Boolean);
+  filterLine.querySelectorAll('.mac-date-proxy').forEach(proxy=>{if(!proxy.contains(dateInput))proxy.remove();});
+  filterControls.forEach((control,index)=>{if(filterLine.children[index]!==control)filterLine.insertBefore(control,filterLine.children[index]||null);});
   let bottom=card.querySelector('.mac-history-bottomline'); if(!bottom){bottom=document.createElement('div');bottom.className='mac-history-bottomline';filterLine.insertAdjacentElement('afterend',bottom);} 
   const totals=head.querySelector('.mac-history-totals'); if(totals)bottom.appendChild(totals);
   head.querySelector('.filter-row')?.remove();
@@ -8809,12 +8815,13 @@ html:is([data-theme="uni"],[data-theme="claro"],[data-theme="sand"],[data-theme=
  // Mantém o HTML original e os eventos da aplicação: apenas a apresentação da data muda.
  const calSvg='<svg class="mac-date-proxy-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" stroke-width="2"/><path d="M16 3v4M8 3v4M3 10h18" stroke-width="2"/></svg>';
  const showDate=raw=>{if(!/^\d{4}-\d{2}-\d{2}$/.test(raw||''))return 'dd/mm/aaaa';return raw.slice(8,10)+'/'+raw.slice(5,7)+'/'+raw.slice(0,4)};
- const pairs=[];
+ const pairs=new Map();
  function create(id){
   const input=document.getElementById(id);
-  if(!input||input.parentElement?.classList.contains('mac-date-proxy'))return;
-  // A aplicação pode recolocar o input do filtro ao redesenhar o histórico.
+  if(!input)return;
+  // Remove orphan visual controls even when the current wrapper is intact.
   document.querySelectorAll('.mac-date-proxy').forEach(el=>{if(!el.querySelector('input'))el.remove()});
+  if(input.parentElement?.classList.contains('mac-date-proxy'))return;
   const outer=document.createElement('div');outer.className='mac-date-proxy';
   const visible=document.createElement('span');visible.className='mac-date-proxy-text';visible.setAttribute('aria-hidden','true');
   input.parentNode.insertBefore(outer,input);
@@ -8823,21 +8830,22 @@ html:is([data-theme="uni"],[data-theme="claro"],[data-theme="sand"],[data-theme=
     const invisible=input.hidden;if(outer.hidden!==invisible)outer.hidden=invisible;};
   input.addEventListener('input',refresh);input.addEventListener('change',refresh);
   input.addEventListener('blur',refresh);
-  pairs.push(refresh);refresh();
+  const old=pairs.get(id);if(old)old.dispose();
+  pairs.set(id,{refresh,dispose:()=>{input.removeEventListener('input',refresh);input.removeEventListener('change',refresh);input.removeEventListener('blur',refresh);}});refresh();
  }
  create('saleDate');create('historyDate');
  // A organização do histórico move o input. Recria apenas o invólucro visual a seguir a cada desenho.
  if(typeof renderHistory==='function'){
   const previousRenderHistoryDate=renderHistory;
-  renderHistory=function(){const result=previousRenderHistoryDate.apply(this,arguments);create('historyDate');pairs.forEach(refresh=>refresh());return result};
+  renderHistory=function(){const result=previousRenderHistoryDate.apply(this,arguments);create('historyDate');pairs.forEach(pair=>pair.refresh());return result};
  }
  // O calendário do topo conserva o seu campo de texto PT e o seletor original, agora sobrepostos.
  // Vendas/histórico são recalculados após navegação/alterações programáticas.
- document.addEventListener('click',()=>{requestAnimationFrame(()=>pairs.forEach(fn=>fn()))},true);
- document.addEventListener('change',()=>{requestAnimationFrame(()=>pairs.forEach(fn=>fn()))},true);
- window.addEventListener('focus',()=>pairs.forEach(fn=>fn()));
+ document.addEventListener('click',()=>{requestAnimationFrame(()=>pairs.forEach(pair=>pair.refresh()))},true);
+ document.addEventListener('change',()=>{requestAnimationFrame(()=>pairs.forEach(pair=>pair.refresh()))},true);
+ window.addEventListener('focus',()=>pairs.forEach(pair=>pair.refresh()));
  // Quando o formulário é reposto sem disparar change, sincroniza a data visível.
- setInterval(()=>{if(!document.hidden)pairs.forEach(fn=>fn())},900);
+ setInterval(()=>{if(!document.hidden)pairs.forEach(pair=>pair.refresh())},900);
 })();
 </script>
 
@@ -13942,6 +13950,37 @@ html[data-theme="uni"].mac-dark #mainApp #page-history .mac-history-title-action
 #macChatPanel .mac-chat-head-actions button,#macChatForm button,#macChatSelectedContact .mac-chat-selected-chip,#macChatParticipants .mac-chat-person,#macChatStickerGrid button{transition:background-color .16s ease,border-color .16s ease,box-shadow .16s ease,opacity .16s ease}
 @media(prefers-reduced-motion:reduce){#macChatPanel .mac-chat-head-actions button,#macChatForm button,#macChatSelectedContact .mac-chat-selected-chip,#macChatParticipants .mac-chat-person,#macChatStickerGrid button{transition:none!important}}
 #macChatPanel[hidden],#macChatPanel:not(.mac-chat-manually-open){display:none!important;visibility:hidden!important;pointer-events:none!important}
+</style>
+<style id="mac-history-filter-uniform-fit-20261125">
+/* Only the internal History filters; header actions and all other pages are unchanged. */
+#mainApp #page-history .mac-history-filterline{
+ box-sizing:border-box!important;width:100%!important;min-width:0!important;max-width:100%!important;
+ align-items:stretch!important;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr))!important;gap:9px!important;
+}
+#mainApp #page-history .mac-history-filterline>:is(select,button,.mac-date-proxy,input[type="date"]){
+ box-sizing:border-box!important;width:100%!important;min-width:0!important;max-width:100%!important;
+ height:46px!important;min-height:46px!important;max-height:46px!important;
+ margin:0!important;border-radius:10px!important;line-height:1.25!important;font-size:14px!important;
+}
+#mainApp #page-history .mac-history-filterline>select{padding:0 12px!important;white-space:nowrap;text-overflow:ellipsis;}
+#mainApp #page-history .mac-history-filterline>#historyAllDates{padding:0 12px!important;display:flex;align-items:center;justify-content:center;}
+#mainApp #page-history .mac-history-filterline>.mac-date-proxy{position:relative!important;overflow:hidden!important;display:flex;align-items:center;justify-content:center;padding:0!important;}
+#mainApp #page-history .mac-history-filterline>.mac-date-proxy .mac-date-proxy-text{font-size:14px!important;font-weight:600!important;line-height:1.25!important;padding:0 28px!important;text-align:center;}
+#mainApp #page-history .mac-history-filterline>.mac-date-proxy #historyDate{
+ position:absolute!important;inset:0!important;box-sizing:border-box!important;display:block!important;
+ width:100%!important;min-width:0!important;max-width:100%!important;height:100%!important;min-height:0!important;max-height:100%!important;
+ padding:0!important;margin:0!important;border:0!important;opacity:0!important;overflow:hidden!important;
+ background:transparent!important;color:transparent!important;-webkit-text-fill-color:transparent!important;
+ -webkit-appearance:none!important;appearance:none!important;pointer-events:auto!important;
+}
+#mainApp #page-history .mac-history-filterline>input#historyDate{
+ box-sizing:border-box!important;min-width:0!important;max-width:100%!important;overflow:hidden!important;padding:0 10px!important;
+}
+#mainApp #page-history .mac-history-filterline input#historyDate::-webkit-date-and-time-value{min-width:0!important;text-align:center!important;}
+#mainApp #page-history .mac-history-filterline>[hidden],#mainApp #page-history .mac-history-filterline>.mac-date-proxy:has(input[hidden]){display:none!important;}
+@media(max-width:600px){
+ #mainApp #page-history .mac-history-filterline{grid-template-columns:minmax(0,1fr)!important;gap:9px!important;}
+}
 </style>
 </body>
 </html>
