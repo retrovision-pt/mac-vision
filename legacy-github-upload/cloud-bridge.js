@@ -13,6 +13,37 @@ saleFontStyle.textContent=`
 @media(max-width:560px){#page-sales #saleForm :is(#saleKind,#saleLabel,#saleQuantity,#saleCatalogValue,#saleUnitPoints){font-size:13px!important}}
 `;
 document.head.appendChild(saleFontStyle);
+// Animate only the existing mobile drawer; its fixed header and navigation handlers stay unchanged.
+const mobileMotionStyle=document.createElement('style');
+mobileMotionStyle.id='mac-mobile-drawer-motion';
+mobileMotionStyle.textContent=`
+@media(max-width:900px){
+ #mainApp .sidebar #macMobileDrawer{
+  display:flex!important;opacity:0;visibility:hidden;pointer-events:none!important;
+  transform:translateY(12px);transition:transform 260ms cubic-bezier(.22,.8,.25,1),opacity 220ms ease,visibility 0s linear 260ms;
+ }
+ #mainApp .sidebar.mobile-open #macMobileDrawer{
+  opacity:1;visibility:visible;pointer-events:auto!important;transform:translateY(0);
+  transition:transform 260ms cubic-bezier(.22,.8,.25,1),opacity 220ms ease,visibility 0s;
+ }
+ html body #macMobileBackdrop{
+  display:block!important;opacity:0;visibility:hidden;pointer-events:none!important;
+  transition:opacity 220ms ease,visibility 0s linear 260ms;
+ }
+ html body #macMobileBackdrop.is-open{
+  opacity:1;visibility:visible;pointer-events:auto!important;transition:opacity 220ms ease,visibility 0s;
+ }
+ #mainApp .sidebar #mobileMenuToggle .mobile-menu-bars i{transition:transform 240ms ease,opacity 180ms ease}
+ #mainApp .sidebar #mobileMenuToggle{transition:background-color 180ms ease,transform 120ms ease}
+ #mainApp .sidebar #mobileMenuToggle:active{transform:scale(.94)}
+}
+@media(max-width:900px) and (prefers-reduced-motion:reduce){
+ #mainApp .sidebar #macMobileDrawer,#mainApp .sidebar.mobile-open #macMobileDrawer,html body #macMobileBackdrop,html body #macMobileBackdrop.is-open,#mainApp .sidebar #mobileMenuToggle,#mainApp .sidebar #mobileMenuToggle .mobile-menu-bars i{transition:none!important;transform:none}
+ #mainApp .sidebar.mobile-open #mobileMenuToggle .mobile-menu-bars i:first-child{transform:translateY(6px) rotate(45deg)}
+ #mainApp .sidebar.mobile-open #mobileMenuToggle .mobile-menu-bars i:last-child{transform:translateY(-6px) rotate(-45deg)}
+}
+`;
+document.head.appendChild(mobileMotionStyle);
 const cfg=window.MAC_CLOUD_CONFIG||{};
 const registryKey='rc-clean-install-20261110-registry-v2';
 const AUTH_CACHE='mac-vision-cloud-session-v1';
