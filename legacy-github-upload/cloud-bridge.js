@@ -68,9 +68,9 @@ function gate(){
  const shopForm=document.createElement('form');shopForm.id='macCloudShopForm';shopForm.className='auth-block';shopForm.hidden=true;
  shopForm.innerHTML='<div class="auth-step"><label for="macCloudShop">Loja</label><select id="macCloudShop" required></select></div><button type="submit" class="btn primary auth-btn">ENTRAR →</button><button type="button" class="btn ghost" id="macCloudBack">Voltar</button>';
  const error=copy('authError',{authError:'macCloudError'});error.textContent='';
- const block=document.createElement('div');block.className='auth-block';const panel=document.createElement('div');panel.className='auth-block';panel.append(form,shopForm);block.append(panel,error);
+ const block=document.createElement('div');block.className='auth-block';const panel=document.createElement('div');panel.className='auth-block';const recovery=document.createElement('form');recovery.id='macCloudRecovery';recovery.className='auth-block';recovery.hidden=true;recovery.innerHTML='<p class="smalltext muted">Configuração inicial: entra com a conta técnica de recuperação.</p><div class="auth-step"><label for="macCloudRecoveryEmail">Email</label><input id="macCloudRecoveryEmail" type="email" autocomplete="username" required></div><div class="auth-step"><label for="macCloudRecoveryPassword">Palavra-passe</label><input id="macCloudRecoveryPassword" type="password" autocomplete="current-password" required></div><button class="btn primary auth-btn" type="submit">CONFIGURAR MAC VISION →</button>';panel.append(form,shopForm,recovery);block.append(panel,error);
  el.append(brand,welcome,block);
- const css=document.createElement('style');css.textContent='#authScreen.mac-cloud-login-active .auth-card > :not(#macCloudGate){display:none!important}#authScreen.mac-cloud-login-active .auth-card{width:min(540px,100%);max-width:540px}#macCloudWelcome .mac-setup-welcome-copy{flex:1 1 auto;min-width:0}#macCloudTitle{margin:0 0 5px;line-height:1.18}#macCloudSubtitle{margin:0;line-height:1.42}#macCloudOriginalStoreField[hidden],#macCloudRetry[hidden],#macCloudAuthForm[hidden],#macCloudShopForm[hidden],#macCloudWelcome .rc-setup-hero-logo[hidden]{display:none!important}';
+ const css=document.createElement('style');css.textContent='#authScreen.mac-cloud-login-active .auth-card > :not(#macCloudGate){display:none!important}#authScreen.mac-cloud-login-active .auth-card{width:min(540px,100%);max-width:540px}#macCloudWelcome .mac-setup-welcome-copy{flex:1 1 auto;min-width:0}#macCloudTitle{margin:0 0 5px;line-height:1.18}#macCloudSubtitle{margin:0;line-height:1.42}#macCloudOriginalStoreField[hidden],#macCloudRetry[hidden],#macCloudAuthForm[hidden],#macCloudRecovery[hidden],#macCloudShopForm[hidden],#macCloudWelcome .rc-setup-hero-logo[hidden]{display:none!important}';
  document.head.append(css);
  original.forEach(({node})=>node.hidden=true);
  screen.classList.add('mac-cloud-login-active');screen.hidden=false;document.body.classList.remove('mac-starting');
@@ -281,6 +281,7 @@ function loadGate(){
   async function loadUsers(){
     const role=roleInput.value,req=++listRequest;
     clearUserPreview();
+    document.getElementById('macCloudRecovery').hidden=true;
     nameInput.disabled=true;
     retry.hidden=true;
     status('');
@@ -294,6 +295,7 @@ function loadGate(){
       const names=result.names.filter(n=>typeof n==='string'&&n.trim());
       nameInput.replaceChildren(new Option(names.length?'Selecionar utilizador':'Sem utilizadores registados',''),...names.map(n=>new Option(n,n)));
       nameInput.disabled=!names.length;
+      document.getElementById('macCloudRecovery').hidden=role!=='admin'||names.length>0;
     }catch(err){
       if(req!==listRequest||role!==roleInput.value)return;
       nameInput.replaceChildren(new Option('Lista indisponível',''));
@@ -306,6 +308,10 @@ function loadGate(){
   retry.addEventListener('click',()=>void loadUsers());
   syncLoginButton();
   const finish=()=>{beginTransition();el.restoreOriginal();resolve();};
+  document.getElementById('macCloudRecovery').addEventListener('submit',async e=>{
+   e.preventDefault();const button=e.currentTarget.querySelector('button'),pw=document.getElementById('macCloudRecoveryPassword');button.disabled=true;status('');
+   try{const t=await raw('/auth/v1/token?grant_type=password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('macCloudRecoveryEmail').value.trim(),password:pw.value})});sessionSave(t);await loadProfile();if(profile?.role!=='admin'||profile.app_user_id)throw Error('Conta sem autorização de configuração inicial.');const rows=await authRequest('/rest/v1/mac_vision_directory?select=shop_id&limit=1');if(rows.length)throw Error('A aplicação já está configurada.');finish();}catch(e){sessionSave(null);profile=null;access=[];status('Não foi possível recuperar a configuração: '+e.message);}finally{pw.value='';button.disabled=false;}
+  });
   async function chooseShop(){
     // Administradores e gestores entram diretamente; a loja inicial é resolvida em autoLogin.
     if(profile?.role==='admin'||profile?.role==='gestor'){selectedCloudShop='';finish();return;}
@@ -365,6 +371,12 @@ async function bindIdentity(id){
  const data=await authRequest('/rest/v1/mac_vision_profiles?user_id=eq.'+encode(profile.user_id),{method:'PATCH',headers:{'Content-Type':'application/json','Prefer':'return=representation'},body:JSON.stringify({app_user_id:String(id)})});
  if(!data.length)throw Error('Falha ao associar o administrador.');profile=data[0];
 }
+async function factoryReset(confirmation){
+ if(profile?.role!=='admin')throw Error('Apenas um administrador pode repor a aplicação.');
+ const result=await authRequest('/functions/v1/mac-vision-factory-reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirmation})});
+ if(!result?.reset)throw Error('A reposição da Cloud não foi confirmada.');
+ versions.clear();bases.clear();access=[];selectedCloudShop='';if(profile)profile={...profile,app_user_id:null};return result;
+}
 async function signOut(){
  beginTransition('A terminar sessão…');
  try{if(tokens?.access_token)await authRequest('/auth/v1/logout',{method:'POST'})}catch(e){console.warn('Logout remoto:',e)}
@@ -390,7 +402,7 @@ async function removeAttachment(id,shopId){
 async function chat(action,args={}){
  return authRequest('/rest/v1/rpc/mac_vision_chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({p_action:action,p_args:args})});
 }
-window.macCloud={shared,get,put,remove,loadGate,autoLogin,bindIdentity,signOut,chat,beginTransition,endTransition,uploadAttachment,downloadAttachment,removeAttachment,
+window.macCloud={shared,get,put,remove,loadGate,autoLogin,bindIdentity,signOut,factoryReset,chat,beginTransition,endTransition,uploadAttachment,downloadAttachment,removeAttachment,
  get profile(){return profile},get access(){return access},get session(){return tokens},get lastCloudError(){return lastCloudError}
 };
 })();
