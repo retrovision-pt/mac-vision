@@ -23,7 +23,7 @@ function beginTransition(message='Loading'){
  if(!layer){
    layer=document.createElement('div');layer.id='macCloudTransition';layer.setAttribute('role','status');layer.setAttribute('aria-live','polite');
    layer.style.cssText='position:fixed;inset:0;z-index:100000;display:grid;place-content:center;justify-items:center;gap:16px;background:var(--bg,#111827);color:var(--text,#e5e7eb);font:inherit;text-align:center;padding:24px';
-   const logo=document.createElement('span');logo.className='brand-mark';logo.textContent='MAC';
+   const logo=document.createElement('span');logo.className='brand-mark';logo.textContent=window.rcGetLogoMark?.()||'MAC';
    const caption=document.createElement('span');caption.id='macCloudTransitionText';
    const spinner=document.createElement('span');spinner.className='mac-loading-spinner';spinner.setAttribute('aria-hidden','true');
    logo.classList.add('mac-loading-logo');layer.append(logo,spinner,caption);document.body.append(layer);
@@ -77,6 +77,7 @@ function gate(){
  original.forEach(({node})=>node.hidden=true);
  screen.classList.add('mac-cloud-login-active');screen.hidden=false;document.body.classList.remove('mac-starting');
  card.appendChild(el);
+ for(const node of el.querySelectorAll('.brand-mark'))node.textContent=window.rcGetLogoMark?.()||node.textContent;
  el.restoreOriginal=()=>{el.remove();css.remove();screen.classList.remove('mac-cloud-login-active');original.forEach(({node,hidden})=>node.hidden=hidden);};
  return el;
 }
@@ -111,6 +112,11 @@ async function authRequest(path,options={},isRetry=false){
 function setBase(key,row){
  if(!row){versions.set(key,0);bases.set(key,undefined);return undefined;}
  versions.set(key,Number(row.revision)||1);bases.set(key,clone(row.data));return clone(row.data);
+}
+// Read shared branding from the authorized directory without altering registry revision state.
+async function readBrand(){
+ const rows=await authRequest('/rest/v1/mac_vision_directory?select=data&order=shop_id.asc');
+ return rows.map(row=>row.data?.rcSharedBrand).filter(x=>x&&/^[A-Z0-9]{2,6}$/.test(x.mark||'')).sort((a,b)=>Number(b.updatedAt||0)-Number(a.updatedAt||0))[0]||null;
 }
 async function get(key){
  if(!shared(key))throw Error('Esta chave não pertence à base de dados partilhada.');
@@ -405,7 +411,7 @@ async function removeAttachment(id,shopId){
 async function chat(action,args={}){
  return authRequest('/rest/v1/rpc/mac_vision_chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({p_action:action,p_args:args})});
 }
-window.macCloud={shared,get,put,remove,loadGate,autoLogin,bindIdentity,signOut,factoryReset,chat,beginTransition,endTransition,uploadAttachment,downloadAttachment,removeAttachment,
+window.macCloud={shared,get,put,remove,readBrand,loadGate,autoLogin,bindIdentity,signOut,factoryReset,chat,beginTransition,endTransition,uploadAttachment,downloadAttachment,removeAttachment,
  get profile(){return profile},get access(){return access},get session(){return tokens},get lastCloudError(){return lastCloudError}
 };
 })();
