@@ -12461,27 +12461,38 @@ html[data-theme="uni"].mac-dark #configPanelWeights #weightsUploadBtn {
  const storeField=document.getElementById('macWeightsStoreSelect');
  const dateField=document.getElementById('macWeightsDateSelect');
  if(!storeField||!dateField)return;
+ const ALL='__mac_weights_all__';let allSelected=false,owner=null;
  function sync(){
   if(typeof session==='undefined'||!session)return;
   const list=typeof accessibleManagerStores==='function'&&session.role==='gestor'
    ?accessibleManagerStores() :[currentStore()].filter(Boolean);
+  if(owner!==session){owner=session;allSelected=false;}
   const selected=typeof currentShopId==='string'?currentShopId:'';
-  const signature=list.map(st=>st.id+'|'+st.name).join(';;');
+  const canAll=session.role==='gestor'&&list.some(st=>macCan('weights.manage',st.id));
+  if(!canAll)allSelected=false;
+  const signature=(canAll?'all;':'')+list.map(st=>st.id+'|'+st.name).join(';;');
   if(storeField.dataset.storeOptionsSignature!==signature){
-   storeField.replaceChildren(...list.map(st=>{
+   storeField.replaceChildren(...(canAll?[new Option('Todos',ALL)]:[]),...list.map(st=>{
     const option=document.createElement('option');option.value=st.id;option.textContent=st.name;return option;
    }));
    storeField.dataset.storeOptionsSignature=signature;
   }
-  storeField.value=list.some(st=>st.id===selected)?selected:(list[0]?.id||'');
-  storeField.disabled=session.role!=='gestor'||list.length<=1;
+  storeField.value=allSelected&&canAll?ALL:list.some(st=>st.id===selected)?selected:(list[0]?.id||'');
+  storeField.disabled=storeField.dataset.importBusy==='true'||session.role!=='gestor'||(!canAll&&list.length<=1);
+  const grid=document.getElementById('weightsGrid'),del=document.getElementById('weightsDeleteBtn');
+  if(grid)grid.hidden=allSelected;
+  if(del)del.disabled=allSelected||storeField.dataset.importBusy==='true'||!macCan('weights.manage');
+  if(allSelected){const status=document.getElementById('macSharedCommissionStatus');if(status)status.textContent='Todos · Importar catálogo para '+list.filter(st=>macCan('weights.manage',st.id)).length+' loja(s) autorizada(s). Seleciona uma loja para consultar ou editar os seus valores.';}
+  else if(typeof macCommissionShowStatus==='function')macCommissionShowStatus();
   const chosenDate=(typeof state!=='undefined'&&state?.selectedDate)||'';
   if(chosenDate&&dateField.value!==chosenDate)dateField.value=chosenDate;
   dateField.disabled=typeof isCollaborator==='function'&&isCollaborator();
  }
  storeField.addEventListener('change',async()=>{
   const id=storeField.value;
-  if(!id||id===currentShopId)return;
+  if(id===ALL){allSelected=true;sync();return;}
+  allSelected=false;
+  if(!id||id===currentShopId){sync();return;}
   try{
    if(!accessibleManagerStores().some(st=>st.id===id))throw Error('Não tens acesso a esta loja.');
    await switchManagerStore(id); // Guarda o estado atual e carrega os pesos da loja escolhida.
@@ -12503,6 +12514,8 @@ html[data-theme="uni"].mac-dark #configPanelWeights #weightsUploadBtn {
   const previous=showConfigView;
   showConfigView=function(...args){const result=previous.apply(this,args);sync();return result};
  }
+ const priorConfig=renderConfig;renderConfig=function(...args){const result=priorConfig.apply(this,args);sync();return result;};
+ window.macWeightsSyncStore=sync;
  sync();
 })();
 </script>
@@ -12724,7 +12737,7 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
   const text=E('macNightShiftToggle')?.closest('label')?.querySelector('span');if(text)text.remove();
   E('macMoviikPendingImportsPanel')?.remove();
   E('macWeightsShareBtn')?.remove(); // Um ficheiro atualiza diretamente todas as lojas autorizadas.
-  const note=E('configPanelWeights')?.querySelector('.mac-weights-head p');if(note)note.textContent='Carrega um único ficheiro com PRODUTOS e MOVEIS: o catálogo é aplicado às lojas a que tens acesso, preservando as vendas já registadas.';
+  const note=E('configPanelWeights')?.querySelector('.mac-weights-head p');if(note)note.textContent='Seleciona uma loja ou «Todos» e carrega o ficheiro PRODUTOS e MOVEIS. O catálogo é aplicado apenas ao destino selecionado, preservando as vendas já registadas.';
   const menu=E('macWeightsShareDialog');if(menu)menu.remove();
  };
  direct();
@@ -12833,35 +12846,47 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
   event.stopImmediatePropagation();event.stopPropagation(); // não executar a importação antiga, só para a loja atual
   const file=weights.files?.[0];weights.value='';if(!file)return;
   void (async()=>{
-   if(!session||!macCan('weights.manage'))throw Error('Apenas o gestor pode importar ponderações.');
+   const picker=E('macWeightsStoreSelect'),btn=E('weightsUploadBtn');
+   if(picker?.dataset.importBusy==='true')throw Error('Já existe uma importação em curso.');
+   if(!session||session.role!=='gestor'||!window.macCloud?.session)throw Error('É necessária uma sessão de gestor ligada à Cloud.');
+   const owner=session,selected=picker?.value||currentShopId,all=selected==='__mac_weights_all__';
+   const shops=(typeof accessibleManagerStores==='function'?accessibleManagerStores():[]).filter(st=>st&&macCanAdministerStore(st.id)&&macCan('weights.manage',st.id)&&(all||st.id===selected));
+   if(!shops.length)throw Error('Não há lojas autorizadas para receber o catálogo.');
+   if(!all&&selected!==currentShopId)throw Error('Aguarda que a loja selecionada termine de carregar.');
+   if(picker)picker.dataset.importBusy='true';if(btn)btn.disabled=true;window.macWeightsSyncStore?.();
+   const completed=[],failures=[];
+   try{
    if(typeof window.macVisionParseWeights!=='function')throw Error('Leitor de ficheiros não encontrado.');
    const parsed=await window.macVisionParseWeights(file);
-   const shops=(typeof accessibleManagerStores==='function'?accessibleManagerStores():[]).filter(st=>st&&macCanAdministerStore(st.id));
-   if(!shops.length)throw Error('Não há lojas autorizadas para receber o catálogo.');
+   if(session!==owner)throw Error('A sessão mudou durante a importação.');
    // Validar completamente antes de realizar quaisquer gravações.
    const prepared=[];
    for(const shop of shops){const data=await dataForStore(shop.id);const current=data.weights?.importedCatalog||{};
     const next={products:parsed.products?.length?parsed.products:current.products||[],mobiles:parsed.mobiles?.length?parsed.mobiles:current.mobiles||[]};
     if(!next.products.length)throw Error('Não existem produtos válidos para '+shop.name+'.');
-    prepared.push({shop,data,next});}
-   const btn=E('weightsUploadBtn');if(btn)btn.disabled=true;
-   try{
-    for(const {shop,data,next} of prepared){data.weights||={};
+    prepared.push({shop,next});}
+    for(const {shop,next} of prepared){
+     try{
+     if(session!==owner||!window.macCloud?.session||!macCan('weights.manage',shop.id))throw Error('Sessão ou autorização alterada.');
+     const data=await dataForStore(shop.id);data.weights||={};
      data.weights.importedCatalog=typeof structuredClone==='function'?structuredClone(next):JSON.parse(JSON.stringify(next));
      data.weights.excelCatalogValues={products:{},mobiles:{}};
      data.weights.macCommissionSourceName=file.name;
      data.weights.macCommissionAppliedTo=shops.length;
      if(shop.id===currentShopId){
-       if(!await persist())throw Error('Não foi possível guardar as ponderações na Cloud. Tenta novamente.');
+       state=data;if(!await persist())throw Error('Não foi possível guardar as ponderações na Cloud. Tenta novamente.');
      }else{
        await writeKey('store:'+shop.id,data);
        if(typeof signalMacLocalChange==='function')signalMacLocalChange('store',shop.id);
      }
+     completed.push(shop.name);
+     }catch(err){failures.push(shop.name+': '+err.message);}
     }
     document.dispatchEvent(new Event('mac-catalog-updated'));
-    if(typeof renderConfig==='function')renderConfig();
-    toast('Catálogo «'+file.name+'» aplicado a '+shops.length+(shops.length===1?' loja':' lojas')+' autorizadas. Vendas anteriores preservadas.');
-   }finally{if(btn)btn.disabled=false;}
+    if(typeof renderConfig==='function'&&session===owner)renderConfig();
+    if(failures.length){toast('Catálogo guardado em '+completed.length+'/'+shops.length+' lojas. Falhas: '+failures.join('; '),true);}
+    else toast('Catálogo «'+file.name+'» aplicado a '+completed.length+(completed.length===1?' loja':' lojas')+' autorizadas. Vendas anteriores preservadas.');
+   }finally{if(picker)delete picker.dataset.importBusy;if(btn)btn.disabled=false;window.macWeightsSyncStore?.();}
   })().catch(error=>toast('Erro ao importar as ponderações: '+(error?.message||error),true));
  },true);
  // Log de Acesso: eliminar o log completo das lojas autorizadas, não a vista filtrada.
@@ -13243,5 +13268,6 @@ html[data-theme="uni"].mac-dark #accessStoresPanel #macOpenNewStorePopup {
  #mainApp.mac-sidebar-collapsed #macSidebarFooterRow{flex-shrink:0!important}
 }
 </style>
+<style id="mac-weights-all-destination-20261125">#configPanelWeights #weightsGrid[hidden]{display:none!important}#configPanelWeights #weightsDeleteBtn:disabled{opacity:.45;cursor:not-allowed}</style>
 </body>
 </html>
