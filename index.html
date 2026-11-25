@@ -2545,6 +2545,14 @@ function macManagerSellers(shop=currentStore()){
 }
 function saleAssignable(name){
  const n=norm(name);if(!n)return false;
+ // No Registo de Vendas de um Gestor de Loja, não disponibilizar contas administrativas.
+ if(session?.role==='gestor' && session.accessKind!=='administrador'){
+   const matches=(currentStore()?.users||[]).filter(u=>[norm(u.name),norm(u.employee)].includes(n));
+   if(matches.length){
+     return matches.some(u=>u.active!==false && !u.adminOnly && !macIsAreaUser(u) && ['gestor','colaborador'].includes(u.role));
+   }
+ }
+
  const manager=(currentStore()?.users||[]).find(u=>u.role==='gestor' && (norm(u.name)===n||norm(u.employee)===n));
  if(manager)return true;
  return state.employees.some(e=>norm(e.name)===n) || (currentStore()?.users||[]).some(u=>norm(u.employee||u.name)===n) || norm(session?.employee||session?.name)===n;
@@ -12482,7 +12490,7 @@ html[data-theme="uni"].mac-dark #themeOptions .theme-choice[aria-pressed="true"]
    if(identity!==lastStore||account!==lastSession){hasPickedEmployee=false;pickedValue='';}
    const saved=employeeInput.value;
    const names=new Map();
-   const add=name=>{const key=same(name);if(key&&!names.has(key))names.set(key,String(name).trim());};
+   const add=name=>{const key=same(name);if(key&&!names.has(key)&&saleAssignable(name))names.set(key,String(name).trim());};
    (state.employees||[]).forEach(e=>add(e.name));
    (currentStore()?.users||[]).forEach(u=>add(u.employee||u.name));
    const own=loggedName();
