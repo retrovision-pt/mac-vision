@@ -343,6 +343,35 @@ function merge(base,local,remote,path='data'){
  if(base===MISSING){if(local===MISSING)return clone(remote);if(remote===MISSING)return clone(local);}
  throw Error('O mesmo campo foi alterado em simultâneo ('+path+'). Recarrega antes de guardar.');
 }
+// Store-manager removals are explicit server operations, not inferred from a cached registry diff.
+const originalRemoveUser=removeUser;
+const managerRemovalBusy=new Set();
+removeUser=async function(id,shopId=viewedAccessShop()?.id){
+ if(!tokens||profile?.role!=='gestor')return originalRemoveUser.apply(this,arguments);
+ if(session?.role!=='gestor'||!shopId||!macCanAdministerStore(shopId))throw Error('Não tens acesso a esta loja.');
+ const shop=shopRegistry.find(st=>String(st.id)===String(shopId));
+ const user=shop?.users?.find(u=>String(u.id)===String(id));
+ if(!user)throw Error('O utilizador já não está nesta loja. Atualiza a lista.');
+ if(user.role!=='colaborador'||user.isAreaMaster||user.adminOnly||String(user.id)===String(session.id))throw Error('Só podes remover colaboradores da tua loja.');
+ const key=String(shopId)+'|'+String(id);
+ if(managerRemovalBusy.has(key))return;
+ if(!confirm('Remover o acesso de '+user.name+' à loja '+shop.name+'? O histórico de vendas será mantido.'))return;
+ managerRemovalBusy.add(key);
+ try{
+  const response=await authRequest('/functions/v1/mac-vision-add-collaborator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'remove',shopId:String(shopId),userId:String(id)})});
+  if(!response?.ok)throw Error('Não foi possível remover o colaborador.');
+  // Only mutate the local view after the server confirms success.
+  shop.users=shop.users.filter(u=>String(u.id)!==String(id));
+  const before=bases.get(registryKey);
+  if(Array.isArray(before)){
+   const prior=before.find(st=>String(st.id)===String(shopId));
+   if(prior)prior.users=(prior.users||[]).filter(u=>String(u.id)!==String(id));
+  }
+  try{const fresh=await get(registryKey);if(Array.isArray(fresh))shopRegistry=fresh;}catch(e){console.warn('A lista será sincronizada na próxima atualização.',e.message);}
+  signalMacLocalChange('registry','');renderAccess();renderOptions();
+  toast('Colaborador removido da loja.');
+ }finally{managerRemovalBusy.delete(key);}
+};
 async function put(key,value){
  if(!shared(key))throw Error('Chave não partilhada.');
  // A lista de colaboradores inteira é uma operação administrativa; não substituir dados silenciosamente.
