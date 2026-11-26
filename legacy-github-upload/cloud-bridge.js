@@ -560,6 +560,72 @@ async function loadProfile(){
  if(!p.length)throw Error('A tua conta ainda não tem autorização MAC Vision. Pede ao administrador para configurar o perfil.');
  profile=p[0];access=await authRequest('/rest/v1/mac_vision_shop_access?user_id=eq.'+encode(user.id)+'&select=shop_id,can_write');
 }
+// New employee accounts carry an onboarding marker; existing accounts are unchanged.
+const createAccountBeforeWelcome=makeUser;
+makeUser=async function(...args){
+ const account=await createAccountBeforeWelcome.apply(this,args);
+ if(account?.role==='colaborador')account.macWelcomePending=true;
+ return account;
+};
+async function welcomeRequest(action,fields={}){
+ return authRequest('/functions/v1/mac-vision-welcome',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...fields})});
+}
+async function showFirstEmployeeWelcome(){
+ if(profile?.role!=='colaborador'||!session||document.getElementById('macEmployeeWelcome'))return;
+ const owner=profile.user_id;
+ const result=await welcomeRequest('status');
+ if(!result?.pending||profile?.user_id!==owner||!session)return;
+ const dialog=document.createElement('dialog');dialog.id='macEmployeeWelcome';dialog.setAttribute('aria-labelledby','macEmployeeWelcomeTitle');
+ const style=document.createElement('style');
+ style.textContent=`
+ #macEmployeeWelcome{width:min(450px,calc(100vw - 28px));max-height:calc(100dvh - 36px);overflow:auto;box-sizing:border-box;border:1px solid var(--border);border-radius:22px;padding:24px;background:var(--surface);color:var(--text);box-shadow:0 25px 80px #0006;text-align:center}
+ #macEmployeeWelcome::backdrop{background:rgba(10,15,23,.54);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+ #macEmployeeWelcome .welcome-mark{display:grid;place-items:center;width:64px;height:64px;margin:0 auto 15px;border-radius:19px;background:#bad80a;color:#202510;font-weight:900;font-size:21px}
+ #macEmployeeWelcome h2{font-size:23px;line-height:1.2;margin:0 0 9px}
+ #macEmployeeWelcome p{font-size:14px;line-height:1.55;margin:0 0 14px;color:var(--muted)}
+ #macEmployeeWelcome .welcome-motivation{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:16px;margin:16px 0;text-align:left}
+ #macEmployeeWelcome .welcome-motivation strong{display:block;margin-bottom:7px;font-size:15px;color:var(--text)}
+ #macEmployeeWelcome .welcome-motivation p{margin:0}
+ #macEmployeeWelcome .welcome-actions{display:grid;gap:9px;margin-top:17px}
+ #macEmployeeWelcome .welcome-actions button{width:100%;min-height:43px;white-space:normal}
+ #macEmployeeWelcome .field{text-align:left;margin:12px 0}
+ #macEmployeeWelcome .field input{width:100%;box-sizing:border-box}
+ #macEmployeeWelcome [hidden]{display:none!important}
+ #macEmployeeWelcomeError{color:var(--red)!important;font-size:12px!important;margin:10px 0!important;min-height:0}
+ @media(prefers-reduced-motion:no-preference){#macEmployeeWelcome[open]{animation:macEmployeeWelcomeEnter .24s ease-out}@keyframes macEmployeeWelcomeEnter{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}}
+ `;
+ dialog.innerHTML='<div class="welcome-mark" aria-hidden="true">MAC</div><h2 id="macEmployeeWelcomeTitle"></h2><p>É um prazer ter-te na nossa equipa!</p><div id="macWelcomeIntro"><div class="welcome-motivation"><strong>🚀 Cada atendimento é uma oportunidade!</strong><p>Escuta o cliente, identifica as suas necessidades e apresenta a melhor solução. Trabalha com foco, confiança e ambição. Cada venda conta e cada conquista aproxima-te dos teus objetivos. Vamos fazer acontecer!</p></div><p>Personaliza a tua password para começares esta nova etapa com segurança.</p><div class="welcome-actions"><button type="button" class="btn primary" id="macWelcomeChange">🔑 Alterar password</button><button type="button" class="btn ghost" id="macWelcomeContinue">Começar a vender →</button></div></div><form id="macWelcomePasswordForm" hidden autocomplete="off"><div class="field"><label for="macWelcomeCurrent">Password atual</label><input id="macWelcomeCurrent" type="password" required autocomplete="current-password" inputmode="numeric"></div><div class="field"><label for="macWelcomeNew">Nova password</label><input id="macWelcomeNew" type="password" required minlength="4" maxlength="64" pattern="[0-9]{4,64}" inputmode="numeric" autocomplete="new-password" placeholder="Mínimo 4 números"></div><div class="field"><label for="macWelcomeConfirm">Confirmar nova password</label><input id="macWelcomeConfirm" type="password" required minlength="4" maxlength="64" pattern="[0-9]{4,64}" inputmode="numeric" autocomplete="new-password"></div><div class="welcome-actions"><button type="submit" class="btn primary">Guardar password</button><button type="button" class="btn ghost" id="macWelcomeBack">Voltar</button></div></form><p id="macEmployeeWelcomeError" role="alert"></p>';
+ const E=id=>dialog.querySelector('#'+id);
+ E('macEmployeeWelcomeTitle').textContent='Bem-vindo, '+String(session.name||session.employee||'')+'!';
+ const mark=dialog.querySelector('.welcome-mark');mark.textContent=window.rcGetLogoMark?.()||'MAC';
+ let busy=false;
+ const form=E('macWelcomePasswordForm'),intro=E('macWelcomeIntro'),error=E('macEmployeeWelcomeError');
+ function showForm(on){intro.hidden=on;form.hidden=!on;error.textContent='';if(!on)form.reset();else E('macWelcomeCurrent').focus();}
+ function closeWelcome(){form.reset();dialog.close();dialog.remove();style.remove();}
+ async function complete(action,fields={}){
+  if(busy)return;busy=true;error.textContent='';
+  const buttons=[...dialog.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);
+  try{
+   const response=await welcomeRequest(action,fields);
+   if(!response?.ok)throw Error('Não foi possível guardar. Tenta novamente.');
+   if(profile?.user_id!==owner)return;
+   for(const shop of shopRegistry)for(const u of shop.users||[])if(String(u.id)===String(session.id)&&u.role==='colaborador'){u.macWelcomePending=false;}
+   closeWelcome();if(response.changed&&typeof toast==='function')toast('Password alterada com sucesso.');
+  }catch(e){error.textContent=e.message||'Não foi possível guardar. Tenta novamente.';}
+  finally{busy=false;buttons.forEach(b=>b.disabled=false);}
+ }
+ E('macWelcomeChange').addEventListener('click',()=>showForm(true));
+ E('macWelcomeBack').addEventListener('click',()=>showForm(false));
+ E('macWelcomeContinue').addEventListener('click',()=>void complete('dismiss'));
+ form.addEventListener('submit',e=>{
+  e.preventDefault();const currentPassword=E('macWelcomeCurrent').value,newPassword=E('macWelcomeNew').value;
+  if(newPassword!==E('macWelcomeConfirm').value){error.textContent='As passwords não coincidem.';return;}
+  if(currentPassword===newPassword){error.textContent='Escolhe uma password diferente da atual.';return;}
+  void complete('password',{currentPassword,newPassword});
+ });
+ dialog.addEventListener('cancel',e=>e.preventDefault());
+ document.head.append(style);document.body.append(dialog);dialog.showModal();
+}
 async function autoLogin(){
  if(!profile)throw Error('Sem perfil Cloud.');
  const accountId=profile.app_user_id;
@@ -584,6 +650,7 @@ async function autoLogin(){
  try{restoreCloudNavigation(savedNavigation);}catch(e){console.warn('Não foi possível recuperar a página anterior.',e);}
  resumeCloudNavigation=false;installCloudNavigationTracking();saveCloudNavigation();
  endTransition();
+ if(profile?.role==='colaborador')void showFirstEmployeeWelcome().catch(e=>console.warn('Boas-vindas indisponíveis.',e.message));
 }
 async function bindIdentity(id){
  if(profile?.role!=='admin')throw Error('Só um administrador pode associar esta conta.');
