@@ -682,6 +682,11 @@ async function showFirstEmployeeWelcome(){
  #macEmployeeWelcome .welcome-motivation{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:16px;margin:16px 0;text-align:justify;text-justify:inter-word;box-sizing:border-box;max-width:100%;overflow-wrap:break-word;hyphens:auto}
  #macEmployeeWelcome .welcome-motivation strong{display:block;margin-bottom:7px;font-size:15px;color:var(--text)}
  #macEmployeeWelcome .welcome-motivation p{margin:0;text-align:justify;text-justify:inter-word;line-height:1.6;hyphens:auto;overflow-wrap:break-word}
+ #macEmployeeWelcome[data-welcome-role="gestor"] .welcome-motivation,
+ #macEmployeeWelcome[data-welcome-role="gestor"] .welcome-motivation :is(strong,p){hyphens:none!important;-webkit-hyphens:none!important;word-break:normal!important;overflow-wrap:normal!important;white-space:normal!important;box-sizing:border-box;max-width:100%}
+ #macEmployeeWelcome[data-welcome-role="gestor"] .welcome-motivation strong{text-align:center!important;line-height:1.35;margin-bottom:12px;text-wrap:balance}
+ #macEmployeeWelcome[data-welcome-role="gestor"] .welcome-motivation p{text-align:justify!important;text-align-last:left;text-justify:inter-word;line-height:1.6}
+ @media(max-width:380px){#macEmployeeWelcome[data-welcome-role="gestor"]{padding:18px}#macEmployeeWelcome[data-welcome-role="gestor"] .welcome-motivation{padding:12px}}
  #macEmployeeWelcome .welcome-actions{display:grid;gap:9px;margin-top:17px}
  #macEmployeeWelcome .welcome-actions button{width:100%;min-height:43px;white-space:normal}
  #macEmployeeWelcome .field{text-align:left;margin:12px 0}
@@ -694,6 +699,7 @@ async function showFirstEmployeeWelcome(){
  const E=id=>dialog.querySelector('#'+id);
  E('macEmployeeWelcomeTitle').textContent='Bem-vindo, '+String(session.name||session.employee||'')+'!';
  if(isManager){
+  dialog.dataset.welcomeRole='gestor';
   dialog.querySelector('.welcome-motivation strong').textContent='🚀 Lidera com atitude. Vende para ganhar!';
   dialog.querySelector('.welcome-motivation p').textContent='Hoje começa uma nova etapa. Lidera pelo exemplo, inspira a tua equipa e transforma cada desafio numa oportunidade. Entra em cada dia com ambição, foco e determinação. Cada atendimento conta, cada venda faz a diferença e cada objetivo é uma oportunidade de superação. Acredita na tua equipa, exige o melhor de ti e nunca percas a vontade de vencer. Juntos, vamos mais longe!';
   E('macWelcomeCurrent').defaultValue='';E('macWelcomeCurrent').value='';
