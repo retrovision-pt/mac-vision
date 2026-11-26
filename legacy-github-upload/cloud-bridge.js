@@ -350,19 +350,31 @@ async function put(key,value){
   if(profile?.role==='gestor'){
    const before=bases.get(key);
    if(!Array.isArray(before)||!Array.isArray(value))throw Error('Atualiza a lista de utilizadores antes de guardar.');
-   const additions=[];
+   const changes=[];
    for(const shop of value){
     const prior=before.find(st=>st.id===shop.id);
     if(!prior)throw Error('Apenas administradores podem criar lojas.');
     for(const u of shop.users||[]){
      if(!(prior.users||[]).some(p=>p.id===u.id)){
       if(u.role!=='colaborador')throw Error('Apenas administradores podem criar gestores.');
-      additions.push({shopId:shop.id,user:u});
+      changes.push({action:'add',shopId:shop.id,user:u});
+     }
+    }
+    for(const u of prior.users||[]){
+     if(!(shop.users||[]).some(p=>p.id===u.id)){
+      if(u.role!=='colaborador'||u.isAreaMaster||u.adminOnly)throw Error('Apenas podes eliminar colaboradores das tuas lojas.');
+      changes.push({action:'remove',shopId:shop.id,userId:u.id});
      }
     }
    }
-   if(additions.length!==1)throw Error('Os gestores apenas podem adicionar um colaborador de cada vez.');
-   await authRequest('/functions/v1/mac-vision-add-collaborator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(additions[0])});
+   if(changes.length!==1)throw Error('Os gestores podem adicionar ou eliminar um colaborador de cada vez.');
+   try{
+    await authRequest('/functions/v1/mac-vision-add-collaborator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(changes[0])});
+   }catch(e){
+    // Restore the authoritative directory after a rejected mutation.
+    try{const latest=await get(key);if(Array.isArray(latest)){shopRegistry=latest;renderAccess();renderOptions();}}catch{}
+    throw e;
+   }
    const fresh=await get(key);
    return {data:fresh,merged:!same(fresh,value)};
   }
