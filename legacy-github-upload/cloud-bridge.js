@@ -127,6 +127,55 @@ document.head.appendChild(mobileStatusBarStyle);
 const cfg=window.MAC_CLOUD_CONFIG||{};
 const registryKey='rc-clean-install-20261110-registry-v2';
 const AUTH_CACHE='mac-vision-cloud-session-v1';
+const NAV_CACHE='mac-vision-cloud-navigation-v1';
+let resumeCloudNavigation=false,navTrackingInstalled=false;
+const navPages=['dashboard','sales','history','imports','daily','tickets','ios','schedule','config'];
+const navSettings=['home','appearance','access','employees','weights','data','language','vision'];
+const navAppearance={display:'macAppearanceDisplay',themes:'macAppearanceThemes',fonts:'macAppearanceFonts',audio:'macAppearanceAudio'};
+const navAccess={stores:'accessStoresPanel',users:'accessUsersPanel',managers:'accessManagersPanel',admins:'accessAdminsPanel'};
+const navData={backup:'dataPanelBackup',audit:'dataPanelAudit',delete:'dataPanelDelete'};
+function navVisible(id){const el=document.getElementById(id);return !!el&&!el.hidden&&el.getClientRects().length>0;}
+function navSubpanel(map){return Object.keys(map).find(k=>navVisible(map[k]))||'';}
+function saveCloudNavigation(){
+ if(!tokens||!profile||typeof session==='undefined'||!session||document.getElementById('mainApp')?.classList.contains('is-locked'))return;
+ if(!navPages.includes(page))return;
+ const view=page==='config'&&navSettings.includes(configView)?configView:'home';
+ const sub=view==='appearance'?navSubpanel(navAppearance):view==='access'?navSubpanel(navAccess):view==='data'?navSubpanel(navData):'';
+ try{sessionStorage.setItem(NAV_CACHE,JSON.stringify({owner:profile.user_id,role:profile.role,store:String(currentShopId||''),page,view,sub}));}catch{}
+}
+function readCloudNavigation(){
+ if(!resumeCloudNavigation||!profile)return null;
+ try{
+  const saved=JSON.parse(sessionStorage.getItem(NAV_CACHE)||'null');
+  if(saved?.owner===profile.user_id&&saved.role===profile.role&&navPages.includes(saved.page))return saved;
+  // Existing installations already record the current page; accept it only for the verified account.
+  const old=JSON.parse(localStorage.getItem('rc-clean-install-20261110-remembered-session-v1')||'null');
+  if(old?.userId===profile.app_user_id&&old.accessKind===(profile.role==='admin'?'administrador':profile.role)&&navPages.includes(old.page))return {page:old.page,store:old.storeId,view:'home',sub:''};
+ }catch{}return null;
+}
+function restoreCloudNavigation(saved){
+ if(!saved||!navPages.includes(saved.page))return;
+ const button=document.querySelector('#nav [data-go="'+saved.page+'"]');
+ if(saved.page!=='dashboard'&&(!button||button.hidden||button.disabled||getComputedStyle(button).display==='none'))return;
+ if(saved.page!==page)go(saved.page);
+ if(page!=='config'||saved.page!=='config'||!navSettings.includes(saved.view)||saved.view==='home')return;
+ const tile=document.querySelector('#configHome [data-config-target="'+saved.view+'"]');
+ if(saved.view==='employees')return; // Nested access-only entry is restored through the normal settings menu.
+ if(!tile||tile.hidden||tile.disabled||getComputedStyle(tile).display==='none')return;
+ showConfigView(saved.view);
+ if(configView!==saved.view)return;
+ const map=saved.view==='appearance'?navAppearance:saved.view==='access'?navAccess:saved.view==='data'?navData:null;
+ if(!map||!Object.hasOwn(map,saved.sub))return;
+ const target=document.querySelector('[data-'+saved.view+'-target="'+saved.sub+'"]');
+ if(target&&!target.hidden&&!target.disabled&&getComputedStyle(target).display!=='none')target.click();
+}
+function installCloudNavigationTracking(){
+ if(navTrackingInstalled)return;navTrackingInstalled=true;
+ const previous=go;go=function(...args){const result=previous.apply(this,args);saveCloudNavigation();return result;};
+ document.addEventListener('click',()=>queueMicrotask(saveCloudNavigation),true);
+ window.addEventListener('pagehide',saveCloudNavigation);
+ document.addEventListener('visibilitychange',()=>{if(document.hidden)saveCloudNavigation();});
+}
 const endpoint=String(cfg.url||'').replace(/\/$/,'');
 let tokens=null,profile=null,access=[],lastCloudError='',bootPromise=null;
 const versions=new Map(),bases=new Map();
@@ -203,7 +252,7 @@ function gate(){
 }
 function status(text){const x=document.getElementById('macCloudError');if(x)x.textContent=text||'';lastCloudError=text||'';}
 function sessionGet(){try{return JSON.parse(sessionStorage.getItem(AUTH_CACHE)||'null')}catch{return null}}
-function sessionSave(t){tokens=t;try{if(t)sessionStorage.setItem(AUTH_CACHE,JSON.stringify(t));else sessionStorage.removeItem(AUTH_CACHE)}catch{}}
+function sessionSave(t){tokens=t;try{if(t)sessionStorage.setItem(AUTH_CACHE,JSON.stringify(t));else {sessionStorage.removeItem(AUTH_CACHE);sessionStorage.removeItem(NAV_CACHE)}}catch{}}
 async function raw(path,options={}){
  const headers={'apikey':cfg.publishableKey,...options.headers};
  const r=await fetch(endpoint+path,{...options,headers});
@@ -501,7 +550,7 @@ function loadGate(){
   (async()=>{
    const cached=sessionGet();if(!cached?.access_token)return;
    beginTransition('');
-   try{sessionSave(cached);await loadProfile();finish()}catch(e){sessionSave(null);profile=null;access=[];status('A sessão anterior terminou. Entra novamente.');endTransition();}
+   try{sessionSave(cached);await loadProfile();resumeCloudNavigation=true;finish()}catch(e){sessionSave(null);profile=null;access=[];status('A sessão anterior terminou. Entra novamente.');endTransition();}
   })();
  });
 }
@@ -524,12 +573,16 @@ async function autoLogin(){
   throw Error('O administrador tem de associar esta conta Cloud ao utilizador MAC Vision (app_user_id).');
  }
  const allowed=profile.role==='admin'?shopRegistry:shopRegistry.filter(st=>access.some(a=>a.shop_id===st.id));
+ const savedNavigation=readCloudNavigation();
+ if(savedNavigation?.store&&allowed.some(st=>st.id===savedNavigation.store&&(st.users||[]).some(u=>String(u.id)===String(accountId))))selectedCloudShop=savedNavigation.store;
  let shop=null,account=null;
  for(const st of [...allowed].sort((a,b)=>Number(b.id===selectedCloudShop)-Number(a.id===selectedCloudShop)||String(a.name||'').localeCompare(String(b.name||''),'pt-PT',{sensitivity:'base',numeric:true}))){const u=(st.users||[]).find(x=>String(x.id)===String(accountId));
   if(u && (profile.role==='admin' ? u.role==='gestor' : profile.role===u.role)){shop=st;account=u;break;}}
  if(!shop||!account)throw Error('Conta Cloud sem loja ou utilizador MAC Vision associado. Confirma as permissões no Supabase.');
  const mgr={};if(account.role==='gestor')for(const st of allowed){if(st.users.some(u=>u.id===account.id))mgr[st.id]=account.id;}
  await loginToStore(shop,account,mgr,profile.role==='admin'?'administrador':'gestor');
+ try{restoreCloudNavigation(savedNavigation);}catch(e){console.warn('Não foi possível recuperar a página anterior.',e);}
+ resumeCloudNavigation=false;installCloudNavigationTracking();saveCloudNavigation();
  endTransition();
 }
 async function bindIdentity(id){
