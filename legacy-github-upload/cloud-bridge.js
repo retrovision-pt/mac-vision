@@ -660,15 +660,15 @@ async function loadProfile(){
 const createAccountBeforeWelcome=makeUser;
 makeUser=async function(...args){
  const account=await createAccountBeforeWelcome.apply(this,args);
- if(account?.role==='colaborador')account.macWelcomePending=true;
+ if(['colaborador','gestor'].includes(account?.role))account.macWelcomePending=true;
  return account;
 };
 async function welcomeRequest(action,fields={}){
  return authRequest('/functions/v1/mac-vision-welcome',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...fields})});
 }
 async function showFirstEmployeeWelcome(){
- if(profile?.role!=='colaborador'||!session||document.getElementById('macEmployeeWelcome'))return;
- const owner=profile.user_id;
+ if(!['colaborador','gestor'].includes(profile?.role)||!session||document.getElementById('macEmployeeWelcome'))return;
+ const owner=profile.user_id,role=profile.role,isManager=role==='gestor';
  const result=await welcomeRequest('status');
  if(!result?.pending||profile?.user_id!==owner||!session)return;
  const dialog=document.createElement('dialog');dialog.id='macEmployeeWelcome';dialog.lang='pt-PT';dialog.setAttribute('aria-labelledby','macEmployeeWelcomeTitle');
@@ -693,6 +693,11 @@ async function showFirstEmployeeWelcome(){
  dialog.innerHTML='<div class="welcome-mark" aria-hidden="true">MAC</div><h2 id="macEmployeeWelcomeTitle"></h2><div id="macWelcomeIntro"><div class="welcome-motivation"><strong>🚀 Cada atendimento é uma oportunidade!</strong><p>Escuta o cliente, identifica as suas necessidades e apresenta a melhor solução. Trabalha com foco, confiança e ambição. Cada venda conta e cada conquista aproxima-te dos teus objetivos. Vamos fazer acontecer!</p></div><p>Personaliza a tua password para começares esta nova etapa com segurança.</p><div class="welcome-actions"><button type="button" class="btn primary" id="macWelcomeChange">🔑 Alterar password</button></div></div><form id="macWelcomePasswordForm" hidden autocomplete="off"><div class="field"><label for="macWelcomeCurrent">Password atual</label><input id="macWelcomeCurrent" type="password" required autocomplete="current-password" inputmode="numeric" value="1234"></div><div class="field"><label for="macWelcomeNew">Nova password</label><input id="macWelcomeNew" type="password" required minlength="4" maxlength="64" pattern="[0-9]{4,64}" inputmode="numeric" autocomplete="new-password" placeholder="Mínimo 4 números"></div><div class="field"><label for="macWelcomeConfirm">Confirmar nova password</label><input id="macWelcomeConfirm" type="password" required minlength="4" maxlength="64" pattern="[0-9]{4,64}" inputmode="numeric" autocomplete="new-password"></div><div class="welcome-actions"><button type="submit" class="btn primary">Começar a vender →</button><button type="button" class="btn ghost" id="macWelcomeBack">Voltar</button></div></form><p id="macEmployeeWelcomeError" role="alert"></p>';
  const E=id=>dialog.querySelector('#'+id);
  E('macEmployeeWelcomeTitle').textContent='Bem-vindo, '+String(session.name||session.employee||'')+'!';
+ if(isManager){
+  dialog.querySelector('.welcome-motivation strong').textContent='🚀 Lidera com atitude. Vende para ganhar!';
+  dialog.querySelector('.welcome-motivation p').textContent='Hoje começa uma nova etapa. Lidera pelo exemplo, inspira a tua equipa e transforma cada desafio numa oportunidade. Entra em cada dia com ambição, foco e determinação. Cada atendimento conta, cada venda faz a diferença e cada objetivo é uma oportunidade de superação. Acredita na tua equipa, exige o melhor de ti e nunca percas a vontade de vencer. Juntos, vamos mais longe!';
+  E('macWelcomeCurrent').defaultValue='';E('macWelcomeCurrent').value='';
+ }
  const mark=dialog.querySelector('.welcome-mark');mark.textContent=window.rcGetLogoMark?.()||'MAC';
  let busy=false;
  const form=E('macWelcomePasswordForm'),intro=E('macWelcomeIntro'),error=E('macEmployeeWelcomeError');
@@ -705,7 +710,7 @@ async function showFirstEmployeeWelcome(){
    const response=await welcomeRequest(action,fields);
    if(!response?.ok)throw Error('Não foi possível guardar. Tenta novamente.');
    if(profile?.user_id!==owner)return;
-   for(const shop of shopRegistry)for(const u of shop.users||[])if(String(u.id)===String(session.id)&&u.role==='colaborador'){u.macWelcomePending=false;}
+   for(const shop of shopRegistry)for(const u of shop.users||[])if(String(u.id)===String(session.id)&&u.role===role){u.macWelcomePending=false;u.macWelcomeCompletedAt=new Date().toISOString();}
    closeWelcome();if(response.changed&&typeof toast==='function')toast('Password alterada com sucesso.');
   }catch(e){error.textContent=e.message||'Não foi possível guardar. Tenta novamente.';}
   finally{busy=false;buttons.forEach(b=>b.disabled=false);}
@@ -745,7 +750,7 @@ async function autoLogin(){
  try{restoreCloudNavigation(savedNavigation);}catch(e){console.warn('Não foi possível recuperar a página anterior.',e);}
  resumeCloudNavigation=false;installCloudNavigationTracking();saveCloudNavigation();
  endTransition();
- if(profile?.role==='colaborador')void showFirstEmployeeWelcome().catch(e=>console.warn('Boas-vindas indisponíveis.',e.message));
+ if(['colaborador','gestor'].includes(profile?.role))void showFirstEmployeeWelcome().catch(e=>console.warn('Boas-vindas indisponíveis.',e.message));
 }
 async function bindIdentity(id){
  if(profile?.role!=='admin')throw Error('Só um administrador pode associar esta conta.');
