@@ -372,6 +372,46 @@ removeUser=async function(id,shopId=viewedAccessShop()?.id){
   toast('Colaborador removido da loja.');
  }finally{managerRemovalBusy.delete(key);}
 };
+// Associate an existing employee using only their server-side identity; never copy password hashes from the browser.
+async function associateCloudEmployee(sourceShopId,userId,targetShopIds){
+ const result=await authRequest('/functions/v1/mac-vision-add-collaborator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'associate',sourceShopId:String(sourceShopId),userId:String(userId),targetShopIds:targetShopIds.map(String)})});
+ if(!result?.ok)throw Error('Não foi possível associar o colaborador.');
+ const fresh=await get(registryKey);if(Array.isArray(fresh))shopRegistry=fresh;
+ return result;
+}
+let cloudAssociationBusy=false;
+document.addEventListener('submit',async event=>{
+ if(event.target?.id!=='editUserForm'||!tokens||profile?.role!=='gestor')return;
+ const E=id=>document.getElementById(id);
+ const sourceShopId=E('editUserStoreId')?.value,userId=E('editUserId')?.value;
+ const targets=[...new Set([...document.querySelectorAll('#macEditUserStoresList input:checked:not(:disabled)')].map(el=>el.value).filter(id=>id&&id!==sourceShopId))];
+ if(!targets.length)return;
+ event.preventDefault();event.stopImmediatePropagation();
+ if(cloudAssociationBusy)return;
+ const source=shopRegistry.find(st=>st.id===sourceShopId),user=source?.users.find(u=>u.id===userId);
+ if(!user||user.role!=='colaborador'||!macCanAdministerStore(sourceShopId)||targets.some(id=>!macCanAdministerStore(id)))return toast('Só podes associar colaboradores às lojas que geres.',true);
+ if(E('editUserRole')?.value!=='colaborador'||E('editUserStore')?.value!==sourceShopId||E('editUserPassword')?.value||E('editUserPhoto')?.files?.length||E('editUserRemovePhoto')?.checked)return toast('Para associar lojas, mantém o perfil e a password atuais.',true);
+ const submit=event.target.querySelector('[type="submit"]');cloudAssociationBusy=true;if(submit)submit.disabled=true;
+ try{
+  const sourceData=await dataForStore(sourceShopId);
+  const staff=sourceData.employees.find(x=>norm(x.name)===norm(user.employee||user.name));
+  const details=profileFields(user,staff);
+  const fields={editUserName:user.name,editUserCargo:details.cargo,editUserCAV:details.cav,editUserSFID:details.sfid,editUserEmail:details.email,editUserContacto:details.contacto,editUserMoviik:staff?.alias||''};
+  if(Object.entries(fields).some(([id,original])=>clean(E(id)?.value||'')!==clean(original||'')))throw Error('Guarda as alterações do perfil separadamente. Para associar lojas, mantém os dados atuais.');
+  const result=await associateCloudEmployee(sourceShopId,userId,targets);
+  // Register the employee on each destination roster without copying sales, shifts or store targets.
+  for(const id of targets){
+   const data=await dataForStore(id);
+   if(!data.employees.some(x=>norm(x.name)===norm(user.employee||user.name))){
+    data.employees.push({name:user.employee||user.name,alias:'',target:9,targets:{},photo:staff?.photo||user.photo||'',cargo:details.cargo||'',cav:details.cav||'',sfid:details.sfid||'',email:details.email||'',contacto:details.contacto||''});
+    await writeKey('store:'+id,data);if(id===currentShopId)state=window.__macCloudMergedState||data;
+   }
+  }
+  closeUserProfileEditor();accessViewedStoreId=sourceShopId;renderAccess();renderOptions();signalMacLocalChange('registry','');
+  toast('Colaborador associado às lojas selecionadas.');
+ }catch(e){toast('Erro ao associar: '+(e.message||String(e)),true);}
+ finally{cloudAssociationBusy=false;if(submit)submit.disabled=false;}
+},true);
 async function put(key,value){
  if(!shared(key))throw Error('Chave não partilhada.');
  // A lista de colaboradores inteira é uma operação administrativa; não substituir dados silenciosamente.
@@ -396,9 +436,24 @@ async function put(key,value){
      }
     }
    }
-   if(changes.length!==1)throw Error('Os gestores podem adicionar ou eliminar um colaborador de cada vez.');
+   if(!changes.length){
+    const sameUsers=value.every(st=>{const old=before.find(x=>x.id===st.id);return old&&same(st.users,old.users);});
+    if(sameUsers)return {data:clone(before),merged:!same(before,value)};
+    throw Error('Não é possível guardar alterações do perfil por esta operação.');
+   }
+   const adds=changes.filter(x=>x.action==='add'),removes=changes.filter(x=>x.action==='remove');
+   const identity=adds[0]?.user?.id;
+   if(removes.length&&(changes.length!==1)||adds.some(x=>x.user.id!==identity))throw Error('Seleciona apenas um colaborador de cada vez.');
    try{
-    await authRequest('/functions/v1/mac-vision-add-collaborator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(changes[0])});
+    if(adds.length){
+     const source=before.find(st=>(st.users||[]).some(u=>u.id===identity&&u.role==='colaborador'));
+     if(source)await associateCloudEmployee(source.id,identity,adds.map(x=>x.shopId));
+     else{
+      const first=adds[0];
+      await authRequest('/functions/v1/mac-vision-add-collaborator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(first)});
+      if(adds.length>1)await associateCloudEmployee(first.shopId,identity,adds.slice(1).map(x=>x.shopId));
+     }
+    }else await authRequest('/functions/v1/mac-vision-add-collaborator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(changes[0])});
    }catch(e){
     // Restore the authoritative directory after a rejected mutation.
     try{const latest=await get(key);if(Array.isArray(latest)){shopRegistry=latest;renderAccess();renderOptions();}}catch{}
